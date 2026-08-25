@@ -33,7 +33,13 @@ pub(crate) const LABEL: Color = Color::Rgb(120, 128, 145);
 /// bracketed title slot — but the slot names the three views and marks which
 /// one you are in, because a box labelled "proc" while showing a fleet table
 /// is a label that lies, and nothing on screen said the other views existed.
-pub(crate) fn tabbox(tabs: &[(&str, char)], active: usize, hint: &str) -> Block<'static> {
+pub(crate) fn tabbox(
+    tabs: &[(&str, char)],
+    active: usize,
+    subs: &[&str],
+    sub_active: usize,
+    hint: &str,
+) -> Block<'static> {
     let mut spans = vec![Span::styled("┤", Style::default().fg(DIM))];
     for (i, (name, key)) in tabs.iter().enumerate() {
         if i > 0 {
@@ -59,6 +65,35 @@ pub(crate) fn tabbox(tabs: &[(&str, char)], active: usize, hint: &str) -> Block<
         .border_type(BorderType::Rounded)
         .border_style(Style::default().fg(DIM))
         .title(Line::from(spans));
+    // SUB-TABS along the bottom of the same box, not a second row of screen.
+    //
+    // A tab strip that costs a line of the table it labels is a bad trade on
+    // a panel always short of rows, and the box already has a bottom edge
+    // doing nothing. Numbered, because the command line addresses them by
+    // number: `:f2` is the second one, and you can see which that is.
+    if subs.len() > 1 {
+        let mut sp = vec![Span::styled("┤", Style::default().fg(DIM))];
+        for (i, name) in subs.iter().enumerate() {
+            if i > 0 {
+                sp.push(Span::styled(" · ", Style::default().fg(DIM)));
+            }
+            let on = i == sub_active;
+            sp.push(Span::styled(
+                format!("{}", i + 1),
+                Style::default().fg(if on { Color::Rgb(120, 200, 255) } else { DIM }),
+            ));
+            sp.push(Span::styled(
+                format!(" {name}"),
+                if on {
+                    Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default().fg(LABEL)
+                },
+            ));
+        }
+        sp.push(Span::styled("├", Style::default().fg(DIM)));
+        b = b.title_bottom(Line::from(sp).alignment(Alignment::Left));
+    }
     if !hint.is_empty() {
         b = b.title_bottom(
             Line::from(Span::styled(format!("┤{hint}├"), Style::default().fg(DIM)))

@@ -111,7 +111,12 @@ const FREE: [(&str, &str, &str); 3] = [
 /// these in a view produces a key that is listed everywhere and works nowhere —
 /// which is exactly what "about a" did. The test at the bottom of this file
 /// fails if anything here is ever bound again.
-const FRAME_RESERVED: &[char] = &['r', 'a'];
+///
+/// `q` is on the list for a worse reason: frame.rs does not merely handle it,
+/// it BREAKS on it. A view that bound q would not be dead, it would quit the
+/// program — and quietly, since nothing else would look wrong. `:q` is the
+/// deliberate route, and it goes through the command line rather than a key.
+const FRAME_RESERVED: &[char] = &['r', 'a', 'q'];
 
 /// The sort columns reachable by a single key.
 ///
@@ -123,7 +128,7 @@ const FRAME_RESERVED: &[char] = &['r', 'a'];
 /// a key cannot be documented and unhandled, or handled and undocumented.
 const SORT_KEYS: &[(char, Sort, &str)] = &[
     ('c', Sort::Cpu, "cpu"),
-    ('m', Sort::Mem, "memory %"),
+    ('M', Sort::Mem, "memory %"),
     ('d', Sort::Disk, "disk"),
     ('g', Sort::Runq, "run-queue wait"),
     ('n', Sort::Name, "name"),
@@ -134,7 +139,7 @@ const SORT_KEYS: &[(char, Sort, &str)] = &[
 
 /// Everything else this dashboard binds: key, section, what it does.
 ///
-/// The views live in VIEW_TABS and the sorts in SORT_KEYS because those two
+/// The views live in TABS and the sorts in SORT_KEYS because those two
 /// tables are also the dispatch; this is the remainder, and the help is built
 /// from all three rather than written a second time beside them.
 const OTHER_KEYS: &[(&str, &str, &str)] = &[
@@ -153,27 +158,167 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("acting", "x", "free memory — reap zombies, reclaim, find orphans"),
     ("acting", "E", "export THIS machine — {host}-{user}-{time}.json, .yaml, .md"),
     ("acting", "A", "export all — the same, with every fleet peer folded in"),
+    ("moving", "tab", "next sub-tab of this tab"),
+    ("moving", "shift-tab", "previous sub-tab"),
     ("moving", "↑ ↓", "move the cursor through the list"),
     ("moving", "pgup pgdn", "ten rows at a time"),
     ("moving", "home end", "first / last row"),
-    ("leaving", "esc", "open the menu — it does NOT quit"),
+    ("leaving", "esc", "the help page — it does NOT quit"),
+    ("leaving", "m", "the main menu — measure, options, help, quit"),
+    ("leaving", ":", "the command line — :f2 :fleet :wg-public-ipv6 :q"),
     ("leaving", "h ? F1", "this page"),
     ("leaving", "ctrl-c ctrl-d", "quit. the only keys that do"),
 ];
 
-const VIEW_TABS: &[(&str, char)] = &[
-    ("proc", 'p'),
-    ("tree", 't'),
-    ("zombies", 'z'),
-    ("containers-c", 'o'),
-    ("containers-i", 'I'),
-    ("fleet", 'f'),
-    ("history", 'y'),
-    ("files", 'F'),
+/// One mode of a tab.
+///
+/// `key` is the direct shortcut where the mode used to be a tab of its own —
+/// t, z and I still land exactly where they always did, they simply arrive at
+/// a sub-tab now instead of a sibling. `net` is only read by the fleet tab.
+struct Sub {
+    name: &'static str,
+    key: Option<char>,
+    /// Shown in the help. Here rather than in a match beside the help text,
+    /// which is how the old strip ended up describing tabs it no longer had.
+    desc: &'static str,
+    /// Address prefix this sub-tab shows. `None` means the mesh has no
+    /// addresses on that network — see wg0-ipv6 below.
+    net: Option<&'static str>,
+}
+
+/// The tab strip, BOTH LEVELS, in one table.
+///
+/// There were eight top-level tabs pretending to be siblings, and three of
+/// them were not: tree and zombies are the process list ordered and filtered
+/// differently, images is the container tab looking at what is on disk rather
+/// than what is running. They are modes of a view, so they are sub-tabs of
+/// it, and the strip now says so.
+///
+/// The fleet's modes are the four mesh networks. "Is the peer up" has a
+/// different answer on wg0 than on wg-public, and one merged list hid that.
+struct Tab {
+    name: &'static str,
+    key: char,
+    desc: &'static str,
+    /// Empty for a tab with a single mode; the strip draws no second row.
+    subs: &'static [Sub],
+}
+
+const TABS: &[Tab] = &[
+    Tab {
+        name: "proc",
+        key: 'p',
+        desc: "the process list",
+        subs: &[
+            Sub { name: "normal", key: Some('p'), desc: "the flat list", net: None },
+            Sub { name: "tree", key: Some('t'), desc: "parents and children, indented", net: None },
+            Sub { name: "zombies", key: Some('z'), desc: "only the ones nothing owns", net: None },
+        ],
+    },
+    Tab {
+        name: "containers",
+        key: 'o',
+        desc: "what is running, and what is on disk",
+        subs: &[
+            Sub { name: "containers", key: Some('o'), desc: "running containers, enter for detail and actions", net: None },
+            Sub { name: "images", key: Some('I'), desc: "every image on the box, enter for detail and actions", net: None },
+        ],
+    },
+    Tab {
+        name: "fleet",
+        key: 'f',
+        desc: "every mesh peer's totals side by side",
+        subs: &[
+            Sub { name: "wg0-ipv4", key: None, desc: "the private mesh, 10.0.0.0/24", net: Some("10.0.0.") },
+            // wg0 is v4-only on this mesh. The tab exists so that is VISIBLE
+            // rather than implied by an absence; the day wg0 gets a v6
+            // address this is one `Some` and nothing else changes.
+            Sub { name: "wg0-ipv6", key: None, desc: "wg0 carries no v6 address on this mesh", net: None },
+            Sub { name: "wg-public-ipv4", key: None, desc: "the public-facing tunnel, 10.1.0.0/24", net: Some("10.1.0.") },
+            Sub { name: "wg-public-ipv6", key: None, desc: "the public-facing tunnel, fd0c::/64", net: Some("fd0c:") },
+        ],
+    },
+    Tab { name: "history", key: 'y', desc: "what this machine did over the last day", subs: &[] },
+    Tab { name: "files", key: 'F', desc: "home as four panes, one per level", subs: &[] },
     // 'b', not 'a': the frame owns r and a for refresh/auto and advertises
     // them in its own header, so a view key named 'a' silently never arrives.
-    ("about", 'b'),
+    Tab { name: "about", key: 'b', desc: "what this machine is, not what it is doing", subs: &[] },
 ];
+
+/// What a `:` line resolved to.
+///
+/// Split from the running of it so the language has a test that does not need
+/// a whole dashboard on its feet: resolution is the part with rules in it,
+/// and applying the answer is four lines of `match`.
+#[derive(Debug, PartialEq)]
+enum Cmd {
+    /// Tab, and the mode within it. `None` keeps whichever mode that tab was
+    /// left on — `:fleet` returns you to the network you were watching.
+    Go(usize, Option<usize>),
+    Quit,
+    Help,
+    Export(bool),
+    Err(String),
+    Nothing,
+}
+
+/// Resolve one command line against TABS.
+///
+/// NAMES, not codes. `:fleet` goes to the fleet, `:f3` to the third sub-tab of
+/// wherever you are, `:wg-public-ipv6` straight there from anywhere. Every
+/// name is read out of the table, so a tab added there is addressable the
+/// moment it exists with nothing else to keep in step.
+fn resolve_cmd(line: &str, cur: usize) -> Cmd {
+    let c = line.trim().to_ascii_lowercase();
+    if c.is_empty() {
+        return Cmd::Nothing;
+    }
+    // :f2 or :2 — a sub-tab of the tab you are on, by the number the strip is
+    // already showing under it. `:files` must not parse as this, which is why
+    // the tail has to be a number and not merely start with one.
+    if let Ok(n) = c.strip_prefix('f').unwrap_or(&c).parse::<usize>() {
+        let subs = TABS[cur].subs.len();
+        return if n >= 1 && n <= subs {
+            Cmd::Go(cur, Some(n - 1))
+        } else {
+            Cmd::Err(format!("{} has {subs} sub-tab(s), not {n}", TABS[cur].name))
+        };
+    }
+    match c.as_str() {
+        "q" | "quit" => return Cmd::Quit,
+        "h" | "help" => return Cmd::Help,
+        "e" | "export" => return Cmd::Export(false),
+        "ea" | "export all" => return Cmd::Export(true),
+        _ => {}
+    }
+    // Exact name wins outright; otherwise a prefix, but only if it is
+    // unambiguous. Guessing between two tabs is worse than saying which two.
+    let mut hits: Vec<(usize, Option<usize>, &str)> = vec![];
+    for (i, t) in TABS.iter().enumerate() {
+        if t.name == c {
+            return Cmd::Go(i, None);
+        }
+        if t.name.starts_with(&c) {
+            hits.push((i, None, t.name));
+        }
+        for (j, sb) in t.subs.iter().enumerate() {
+            if sb.name == c {
+                return Cmd::Go(i, Some(j));
+            }
+            if sb.name.starts_with(&c) {
+                hits.push((i, Some(j), sb.name));
+            }
+        }
+    }
+    match hits.len() {
+        1 => Cmd::Go(hits[0].0, hits[0].1),
+        0 => Cmd::Err(format!("no such command: {c}")),
+        _ => Cmd::Err(format!(
+            "{c} is ambiguous: {}",
+            hits.iter().map(|(_, _, n)| *n).collect::<Vec<_>>().join(", ")
+        )),
+    }
+}
 
 /// `tree -L 4` over the home directory, or the nearest thing available.
 ///
@@ -241,13 +386,6 @@ fn file_tree(hidden: bool) -> [Vec<String>; 4] {
 
 /// Which slot in the strip a view sits in, by name.
 ///
-/// Not a hard-coded number at each call site: inserting containers-i shifted
-/// three of them and every one would have highlighted the wrong tab, silently.
-/// The name is the identity; the position is a detail of the table.
-fn tab(name: &str) -> usize {
-    VIEW_TABS.iter().position(|(n, _)| *n == name).unwrap_or(0)
-}
-
 /// What a container row can be ranked by, and how to read the value out.
 ///
 /// docker renders these as strings ("12.34%", "469.7MiB / 7.595GiB"), which is
@@ -401,6 +539,8 @@ enum Overlay {
     Img,
     /// Pick which machine the whole dashboard is measuring.
     Target,
+    /// The `:` command line.
+    Cmd,
 }
 
 /// The btop-style Esc menu.
@@ -444,6 +584,16 @@ pub struct Monitor {
     sort: Sort,
     desc: bool,
     win: Win,
+    /// WHICH TAB, AND WHICH MODE OF IT. This pair is the source of truth for
+    /// the view; the booleans below are its projection, written only by
+    /// `apply_tab`.
+    ///
+    /// The mode is remembered PER TAB, so leaving the fleet on wg-public-ipv6
+    /// and coming back returns to wg-public-ipv6 rather than resetting.
+    tab: usize,
+    sub: [usize; TABS.len()],
+    /// The `:` command line's buffer, while it is open.
+    cmd: String,
     /// `t`: order by the parent/child tree instead of by the sort column.
     tree: bool,
     /// `v`: append the declared service units that are stopped or idle.
@@ -533,6 +683,9 @@ impl Monitor {
             sort: Sort::Cpu,
             desc: true,
             win: Win::Now,
+            tab: 0,
+            sub: [0; TABS.len()],
+            cmd: String::new(),
             tree: false,
             units: false,
             fleet: false,
@@ -961,10 +1114,74 @@ impl Monitor {
         f.render_widget(Paragraph::new(l), inner);
     }
 
+    /// The `:` line, drawn where vim draws it — the bottom of the screen,
+    /// not a box in the middle. A command line that covers what you are
+    /// typing about is the wrong shape for the job.
+    fn render_cmd(&self, f: &mut Frame, area: Rect) {
+        let r = Rect { x: area.x, y: area.y + area.height.saturating_sub(1), width: area.width, height: 1 };
+        f.render_widget(Clear, r);
+        let subs = TABS[self.tab].subs.len();
+        let hint = if subs > 1 {
+            format!("  f1–f{subs}, a tab or sub-tab name, q, help, export")
+        } else {
+            "  a tab or sub-tab name, q, help, export".to_string()
+        };
+        f.render_widget(
+            Paragraph::new(Line::from(vec![
+                Span::styled(format!(":{}", self.cmd), Style::default().fg(Color::Rgb(120, 200, 255))),
+                // The block cursor, drawn rather than moved: this panel never
+                // shows a real one, and an invisible caret reads as a frozen
+                // screen.
+                Span::styled("▌", Style::default().fg(Color::Rgb(120, 200, 255))),
+                Span::styled(hint, Style::default().fg(DIM)),
+            ]))
+            .style(Style::default().bg(Color::Rgb(16, 18, 24))),
+            r,
+        );
+    }
+
+    fn cmd_key(&mut self, k: KeyCode) {
+        match k {
+            KeyCode::Esc => {
+                self.cmd.clear();
+                self.overlay = Overlay::None;
+            }
+            KeyCode::Enter => {
+                let line = std::mem::take(&mut self.cmd);
+                self.run_cmd(&line);
+            }
+            KeyCode::Backspace => {
+                // Backspacing past the colon leaves, the way it does in vim.
+                if self.cmd.pop().is_none() {
+                    self.overlay = Overlay::None;
+                }
+            }
+            KeyCode::Char(c) => self.cmd.push(c),
+            _ => {}
+        }
+    }
+
+    /// Run one command line: resolve it, then do the one thing it named.
+    fn run_cmd(&mut self, line: &str) {
+        self.overlay = Overlay::None;
+        match resolve_cmd(line, self.tab) {
+            Cmd::Go(t, sub) => {
+                let sub = sub.unwrap_or(self.sub[t]);
+                self.goto(t, sub);
+            }
+            Cmd::Quit => self.quit = true,
+            Cmd::Help => self.overlay = Overlay::Help,
+            Cmd::Export(all) => self.export_now(all),
+            Cmd::Err(e) => self.msg = Some((e, true)),
+            Cmd::Nothing => {}
+        }
+    }
+
     fn render_overlays(&self, f: &mut Frame, area: Rect) {
         match self.overlay {
             Overlay::Kill => self.render_kill(f, area),
             Overlay::Menu => self.render_menu(f, area),
+            Overlay::Cmd => self.render_cmd(f, area),
             Overlay::Help => self.render_help(f, area),
             Overlay::Detail => self.render_detail(f, area),
             Overlay::Target => self.render_target(f, area),
@@ -1441,6 +1658,94 @@ impl Monitor {
         });
     }
 
+    /// The peers on the network the fleet sub-tab is showing.
+    ///
+    /// The mesh reaches several of these boxes on both tunnels, so one merged
+    /// list made oci-analytics and oci-analytics-pub read as two machines
+    /// rather than two roads to one. Split by network they read correctly,
+    /// and "is it up" gets the per-tunnel answer it always had.
+    fn visible_peers(&self) -> Vec<crate::dashboards::mesh::Peer> {
+        let net = TABS[self.tab].subs.get(self.sub[self.tab]).and_then(|sb| sb.net);
+        let Some(pfx) = net else { return vec![] };
+        self.mesh
+            .list()
+            .into_iter()
+            // This machine sits on every network it has an address on, so it
+            // belongs in each of those tabs rather than only its wg0 one.
+            .filter(|p| p.local || p.ip.starts_with(pfx))
+            .collect()
+    }
+
+    /// The tab strip for whatever is on screen, both rows of it.
+    ///
+    /// Every view used to name its own tab — `tab("files")`, `tab("fleet")` —
+    /// which is a second statement of something `self.tab` already knows, and
+    /// one that can disagree with it. The strip now reads the state directly,
+    /// so a view cannot render under the wrong heading.
+    fn tabs_box(&self, hint: &str) -> Block<'static> {
+        let tabs: Vec<(&str, char)> = TABS.iter().map(|t| (t.name, t.key)).collect();
+        let subs: Vec<&str> = TABS[self.tab].subs.iter().map(|sb| sb.name).collect();
+        tabbox(&tabs, self.tab, &subs, self.sub[self.tab], hint)
+    }
+
+    /// (tab, sub) is the truth; these flags are its projection.
+    ///
+    /// The render path reads `self.tree`, `self.fleet` and the rest in a few
+    /// hundred places, and rewriting every one of them to consult the table
+    /// would be a large diff for no change in behaviour. So this is the ONLY
+    /// function that writes them: there is still exactly one place where the
+    /// current view is decided, and the flags are a cache of it rather than a
+    /// second opinion about it.
+    fn apply_tab(&mut self) {
+        let name = TABS[self.tab].name;
+        let sub = self.sub[self.tab];
+        self.tree = name == "proc" && sub == 1;
+        self.zombies = name == "proc" && sub == 2;
+        self.docker = name == "containers" && sub == 0;
+        self.images = name == "containers" && sub == 1;
+        self.fleet = name == "fleet";
+        self.history = name == "history";
+        self.files = name == "files";
+        self.about = name == "about";
+    }
+
+    /// Move to a tab and a mode of it, doing the per-view setup each needs.
+    ///
+    /// One door in, so nothing can switch view and forget to tell the mesh
+    /// thread to start sweeping, or leave the cursor pointing past the end of
+    /// a shorter list.
+    fn goto(&mut self, t: usize, sub: usize) {
+        let was_fleet = self.fleet;
+        self.tab = t.min(TABS.len() - 1);
+        let n = TABS[self.tab].subs.len().max(1);
+        self.sub[self.tab] = sub.min(n - 1);
+        self.apply_tab();
+        // Each of these lists is a different length and a different thing, so
+        // a cursor carried across from the last one points at nothing.
+        if self.docker || self.images || self.fleet {
+            self.sel = 0;
+        }
+        if self.files {
+            self.files_scroll = 0;
+            self.files_cache = file_tree(self.files_hidden);
+        }
+        // The fleet sweep is an ssh round trip per peer; it runs only while
+        // the tab that needs it is open.
+        if was_fleet != self.fleet {
+            self.mesh.set_fleet(self.fleet);
+        }
+        self.msg = Some((self.tab_label(), false));
+    }
+
+    /// "fleet · wg-public-ipv6", or just "history" for a tab with one mode.
+    fn tab_label(&self) -> String {
+        let t = &TABS[self.tab];
+        match t.subs.get(self.sub[self.tab]) {
+            Some(s) if t.subs.len() > 1 => format!("{} · {}", t.name, s.name),
+            _ => t.name.to_string(),
+        }
+    }
+
     /// Write every tab out. Kept in one place so the global key path is the
     /// only thing that has to know how.
     ///
@@ -1498,75 +1803,37 @@ impl Monitor {
             self.export_now(c == 'A');
             return true;
         }
-        let _ = ();
-        let flat = !self.tree
-            && !self.zombies
-            && !self.docker
-            && !self.images
-            && !self.files
-            && !self.fleet
-            && !self.history
-            && !self.about;
-        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'I' | 'f' | 'y' | 'F' | 'b') {
-            return false;
+        // A SUB-TAB key first, then a tab key.
+        //
+        // The two overlap on purpose: 'p' is the proc tab AND its "normal"
+        // mode, 'o' is the containers tab AND its "containers" mode. Checking
+        // modes first is what makes 'p' mean "the flat list" the way it always
+        // did, rather than "whichever proc mode you left behind" — while 'f'
+        // and 'y', which name no mode, return you to the one you were on.
+        for (i, t) in TABS.iter().enumerate() {
+            if let Some(j) = t.subs.iter().position(|sb| sb.key == Some(c)) {
+                self.goto(i, j);
+                return true;
+            }
         }
-        // A view is a single choice, so every switch clears the others rather
-        // than leaving two flags true and the tab strip disagreeing with the
-        // body.
-        let was_fleet = self.fleet;
-        self.tree = false;
-        self.zombies = false;
-        self.docker = false;
-        self.images = false;
-        self.files = false;
-        self.fleet = false;
-        self.history = false;
-        self.about = false;
-        let name = match c {
-            't' => {
-                self.tree = true;
-                "process tree"
-            }
-            'z' => {
-                self.zombies = true;
-                "zombies and orphans — dead, or reparented to init"
-            }
-            'o' => {
-                self.docker = true;
-                self.sel = 0;
-                "containers"
-            }
-            'I' => {
-                self.images = true;
-                self.sel = 0;
-                "images — running or not"
-            }
-            'f' => {
-                self.fleet = true;
-                "fleet — every mesh peer, collected over ssh"
-            }
-            'y' => {
-                self.history = true;
-                "the last 24 hours"
-            }
-            'F' => {
-                self.files = true;
-                self.files_scroll = 0;
-                self.files_cache = file_tree(self.files_hidden);
-                "home, four levels deep"
-            }
-            'b' => {
-                self.about = true;
-                "about this machine"
-            }
-            _ => "process list",
-        };
-        if was_fleet != self.fleet {
-            self.mesh.set_fleet(self.fleet);
-            self.sel = 0;
+        if let Some(i) = TABS.iter().position(|t| t.key == c) {
+            self.goto(i, self.sub[i]);
+            return true;
         }
-        self.msg = Some((name.to_string(), false));
-        true
+        false
+    }
+
+    /// Step through the modes of the current tab, wrapping. A tab with one
+    /// mode has nothing to step through and says so rather than blinking.
+    fn cycle_sub(&mut self, back: bool) {
+        let n = TABS[self.tab].subs.len();
+        if n < 2 {
+            self.msg = Some((format!("{} has no sub-tabs", TABS[self.tab].name), false));
+            return;
+        }
+        let cur = self.sub[self.tab];
+        let next = if back { (cur + n - 1) % n } else { (cur + 1) % n };
+        self.goto(self.tab, next);
     }
 
     fn free_key(&mut self, k: KeyCode) {
@@ -1642,25 +1909,23 @@ impl Monitor {
         section(&mut l, "moving");
 
         l.push(head("tabs"));
-        for (name, k) in VIEW_TABS {
-            l.push(key(
-                &k.to_string(),
-                &format!(
-                    "{name}{}",
-                    match *name {
-                        "proc" => " — the flat process list",
-                        "tree" => " — parents, children, zombies",
-                        "zombies" => " — only the ones nothing owns",
-                        "containers-c" => " — running containers, enter for detail and actions",
-                    "containers-i" => " — every image on the box, enter for detail and actions",
-                        "fleet" => " — every mesh peer's totals side by side",
-                        "history" => " — what this machine did over the last day",
-                        "files" => " — home as four panes, one per level, . toggles dotfiles",
-                    "about" => " — what this machine is, not what it is doing",
-                        _ => "",
-                    }
-                ),
-            ));
+        for t in TABS {
+            l.push(key(&t.key.to_string(), &format!("{} — {}", t.name, t.desc)));
+            // Modes on one line under their tab. Nine sub-tabs each claiming a
+            // row would push the rest of this page off the bottom, and the
+            // numbers are what `:f2` needs anyway.
+            if t.subs.len() > 1 {
+                let names: Vec<String> = t
+                    .subs
+                    .iter()
+                    .enumerate()
+                    .map(|(i, sb)| match sb.key {
+                        Some(c) => format!("{} {} ({c})", i + 1, sb.name),
+                        None => format!("{} {}", i + 1, sb.name),
+                    })
+                    .collect();
+                l.push(key("", &format!("   {}", names.join(" · "))));
+            }
         }
         l.push(key("v", "add the declared units that are stopped or idle"));
 
@@ -2386,7 +2651,14 @@ impl Dashboard for Monitor {
         // rows(), not proc_table: in tree mode the list also carries the
         // spine, so counting the published rows capped the cursor above the
         // real end of the list and scrolling simply stopped.
-        let n = self.rows().len() + self.unit_rows(&snap).len();
+        // The cursor is bounded by the list you can SEE. The fleet is a
+        // handful of peers where the process table is hundreds of rows, so
+        // one shared count let the cursor run off the end of the short one.
+        let n = if self.fleet {
+            self.visible_peers().len()
+        } else {
+            self.rows().len() + self.unit_rows(&snap).len()
+        };
         match self.overlay {
             Overlay::Kill => return self.kill_key(k),
             Overlay::Free => return self.free_key(k),
@@ -2406,6 +2678,7 @@ impl Dashboard for Monitor {
                 return;
             }
             Overlay::Menu => return self.menu_key(k),
+            Overlay::Cmd => return self.cmd_key(k),
             Overlay::Help => {
                 // Any key dismisses a page of text; making people find the one
                 // right key to leave a help screen is its own small insult.
@@ -2490,6 +2763,43 @@ impl Dashboard for Monitor {
             }
             Overlay::None => {}
         }
+        // GLOBAL KEYS, ahead of every per-view branch.
+        //
+        // These were handled inside each view's own match, five copies of the
+        // same three lines, and a view that forgot one simply had no escape
+        // key. One place, every view.
+        match k {
+            // esc opens HELP now, not the menu. The menu moved to `m`: the
+            // first thing anyone presses on an unfamiliar TUI is escape, and
+            // what they want then is "what are the keys", not a chooser whose
+            // first entry is "measure".
+            KeyCode::Esc => {
+                self.overlay = Overlay::Help;
+                return;
+            }
+            KeyCode::Char('m') => {
+                self.overlay = Overlay::Menu;
+                self.menu_sel = 0;
+                return;
+            }
+            // vim's colon. Reachable from anywhere, not only from the help
+            // page — a command line you have to open a help screen to find is
+            // a command line nobody uses.
+            KeyCode::Char(':') => {
+                self.cmd.clear();
+                self.overlay = Overlay::Cmd;
+                return;
+            }
+            KeyCode::Tab => {
+                self.cycle_sub(false);
+                return;
+            }
+            KeyCode::BackTab => {
+                self.cycle_sub(true);
+                return;
+            }
+            _ => {}
+        }
         if self.view_key(k) {
             return;
         }
@@ -2512,10 +2822,6 @@ impl Dashboard for Monitor {
                     ));
                 }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
-                KeyCode::Esc => {
-                    self.overlay = Overlay::Menu;
-                    self.menu_sel = 0;
-                }
                 _ => {}
             }
             return;
@@ -2530,10 +2836,6 @@ impl Dashboard for Monitor {
                 KeyCode::Up => self.detail_scroll = self.detail_scroll.saturating_sub(1),
                 KeyCode::Home => self.detail_scroll = 0,
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
-                KeyCode::Esc => {
-                    self.overlay = Overlay::Menu;
-                    self.menu_sel = 0;
-                }
                 _ => {}
             }
             return;
@@ -2598,10 +2900,6 @@ impl Dashboard for Monitor {
                     }
                 }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
-                KeyCode::Esc => {
-                    self.overlay = Overlay::Menu;
-                    self.menu_sel = 0;
-                }
                 _ => {}
             }
             return;
@@ -2623,19 +2921,11 @@ impl Dashboard for Monitor {
                     }
                 }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
-                KeyCode::Esc => {
-                    self.overlay = Overlay::Menu;
-                    self.menu_sel = 0;
-                }
                 _ => {}
             }
             return;
         }
         match k {
-            KeyCode::Esc => {
-                self.overlay = Overlay::Menu;
-                self.menu_sel = 0;
-            }
             KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
             KeyCode::Down => self.sel = (self.sel + 1).min(n.saturating_sub(1)),
             KeyCode::Up => self.sel = self.sel.saturating_sub(1),
@@ -3358,9 +3648,7 @@ impl Dashboard for Monitor {
         // The home directory, four levels deep. Cached, because tree(1) walks
         // tens of thousands of inodes and this panel redraws every second.
         if self.files {
-            let fb = tabbox(
-                VIEW_TABS,
-                tab("files"),
+            let fb = self.tabs_box(
                 &format!(
                     "four levels side by side · dotfiles {} · . toggles · ↑↓ pgup pgdn",
                     if self.files_hidden { "shown" } else { "hidden" }
@@ -3418,7 +3706,7 @@ impl Dashboard for Monitor {
         // changes on the scale of a reboot or a reinstall, which is exactly
         // why it does not belong in a box that redraws every second.
         if self.about {
-            let ab = tabbox(VIEW_TABS, tab("about"), "b back to processes");
+            let ab = self.tabs_box("b back to processes");
             let ain = ab.inner(rows[4]);
             f.render_widget(ab, rows[4]);
             let hi2 = |k: &str| text(&s, &format!("host_info.{k}"));
@@ -3602,9 +3890,7 @@ impl Dashboard for Monitor {
         // them from cgroups and getting a subtly different answer.
         if self.docker {
             let (label, _) = CTR_SORT[self.ctr_sort.min(CTR_SORT.len() - 1)];
-            let cb = tabbox(
-                VIEW_TABS,
-                tab("containers-c"),
+            let cb = self.tabs_box(
                 &format!(
                     "{label}{} · ←→ rank · i inv · enter acts",
                     if self.ctr_desc { "▼" } else { "▲" }
@@ -3775,9 +4061,7 @@ impl Dashboard for Monitor {
         // out by name.
         if self.images {
             let (ilabel, _) = IMG_SORT[self.img_sort.min(IMG_SORT.len() - 1)];
-            let ib = tabbox(
-                VIEW_TABS,
-                tab("containers-i"),
+            let ib = self.tabs_box(
                 &format!(
                     "{ilabel}{} · ←→ rank · i inv · enter acts",
                     if self.img_desc { "▼" } else { "▲" }
@@ -3880,7 +4164,7 @@ impl Dashboard for Monitor {
         // daemon keeps the series and computes the window; the panel only
         // renders it, so a peer would answer the same way if it kept one.
         if self.history {
-            let hb = tabbox(VIEW_TABS, tab("history"), "y back to processes");
+            let hb = self.tabs_box("y back to processes");
             let hin = hb.inner(rows[4]);
             f.render_widget(hb, rows[4]);
             let win = num(&s, "history.window_s");
@@ -3973,12 +4257,25 @@ impl Dashboard for Monitor {
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
         if self.fleet {
-            let fb = tabbox(VIEW_TABS, tab("fleet"), "enter opens a machine · esc → measure");
+            let fb = self.tabs_box("enter opens a machine · esc → measure");
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
             let got = self.mesh.fleet();
-            let peers = self.mesh.list();
+            let peers = self.visible_peers();
             let mut frows: Vec<Row> = vec![];
+            if peers.is_empty() {
+                // An empty table reads as "broken". Saying which network has
+                // nothing on it — and that wg0 has no v6 at all — is the
+                // whole reason these four tabs exist.
+                let sb = TABS[self.tab].subs.get(self.sub[self.tab]);
+                frows.push(Row::new(vec![Cell::from(Line::from(Span::styled(
+                    match sb.and_then(|x| x.net) {
+                        Some(pfx) => format!("  no peers answering on {pfx}*"),
+                        None => format!("  {}", sb.map(|x| x.desc).unwrap_or("no addresses here")),
+                    },
+                    Style::default().fg(LABEL),
+                )))]));
+            }
             for (fi, p) in peers.iter().enumerate() {
                 // Without this the cursor moves and nothing on screen says so,
                 // which reads as arrow keys that do not work.
@@ -4228,11 +4525,7 @@ impl Dashboard for Monitor {
             if self.tree { "tree · " } else { "" },
             if self.orphans { "ORPHANS ONLY · " } else { "" },
         );
-        let proc_b = tabbox(
-            VIEW_TABS,
-            tab(if self.zombies { "zombies" } else if self.tree { "tree" } else { "proc" }),
-            &hint,
-        );
+        let proc_b = self.tabs_box(&hint);
         let proc_in = proc_b.inner(rows[4]);
         f.render_widget(proc_b, rows[4]);
 
@@ -4480,8 +4773,18 @@ mod tests {
     #[test]
     fn no_keybinding_collides_with_the_frame_or_itself() {
         let mut seen: Vec<(char, &str)> = Vec::new();
-        for (name, k) in VIEW_TABS {
-            seen.push((*k, name));
+        for t in TABS {
+            seen.push((t.key, t.name));
+            for sb in t.subs {
+                // A mode may share its tab's key on purpose: 'p' is both "the
+                // proc tab" and "its normal mode", and they land in the same
+                // place. Any OTHER duplicate is a real collision.
+                if let Some(c) = sb.key {
+                    if c != t.key {
+                        seen.push((c, sb.name));
+                    }
+                }
+            }
         }
         for (k, _, d) in SORT_KEYS {
             seen.push((*k, d));
@@ -4538,15 +4841,21 @@ mod tests {
         }
     }
 
-    // Esc must open the menu, never quit — the whole point of ^c/^d being the
-    // only exit. A regression here silently makes Esc a way out again.
+    // Esc must never quit — the whole point of ^c/^d being the only exit —
+    // and it must be CLAIMED, or frame.rs breaks on it before this dashboard
+    // is asked. It opens help now rather than the menu: the first thing anyone
+    // presses on an unfamiliar TUI is escape, and what they want then is the
+    // list of keys, not a chooser. `m` is the menu.
     #[test]
-    fn esc_is_claimed_and_opens_the_menu_instead_of_quitting() {
+    fn esc_is_claimed_and_opens_help_instead_of_quitting() {
         let mut m = Monitor::new();
         assert!(m.claims(KeyCode::Esc), "esc must not reach the frame's quit");
         assert!(!m.claims(KeyCode::Char('c')), "plain keys stay unclaimed while no modal is up");
         m.on_key(KeyCode::Esc);
-        assert!(m.overlay == Overlay::Menu);
+        assert!(m.overlay == Overlay::Help, "esc opens help");
+        m.on_key(KeyCode::Char('x'));
+        m.on_key(KeyCode::Char('m'));
+        assert!(m.overlay == Overlay::Menu, "m opens the main menu");
         assert!(!m.wants_quit());
         // While a modal is up it owns everything, so q closes it rather than
         // closing the program.
@@ -4561,7 +4870,7 @@ mod tests {
     #[test]
     fn menu_quit_item_asks_the_frame_to_exit() {
         let mut m = Monitor::new();
-        m.on_key(KeyCode::Esc);
+        m.on_key(KeyCode::Char('m'));
         for _ in 0..MENU.len() - 1 {
             m.on_key(KeyCode::Down);
         }
@@ -4715,6 +5024,71 @@ mod tests {
     // a string, and one that does not must stay bare or the whole point (token
     // count) is lost. Structure is checked at the same time, since a map value
     // that is itself a map has to start on the next line and a scalar must not.
+    // The command language is the only place a typo can silently do the wrong
+    // thing, so both halves are pinned: what must resolve, and what must NOT.
+    #[test]
+    fn the_command_line_resolves_names_numbers_and_prefixes() {
+        let proc = tab_of("proc");
+        let fleet = tab_of("fleet");
+
+        // :f2 is the second sub-tab OF THE TAB YOU ARE ON, so the same text
+        // means different things in different tabs — that is the point of it.
+        assert_eq!(resolve_cmd("f2", proc), Cmd::Go(proc, Some(1)));
+        assert_eq!(resolve_cmd("2", proc), Cmd::Go(proc, Some(1)));
+        assert_eq!(resolve_cmd("f4", fleet), Cmd::Go(fleet, Some(3)));
+        // Out of range says so rather than clamping to something plausible.
+        assert!(matches!(resolve_cmd("f4", proc), Cmd::Err(_)));
+
+        // A tab by name keeps the mode it was left on: None, not Some(0).
+        assert_eq!(resolve_cmd("fleet", proc), Cmd::Go(fleet, None));
+        // A sub-tab by name goes straight there from anywhere.
+        assert_eq!(resolve_cmd("wg-public-ipv6", proc), Cmd::Go(fleet, Some(3)));
+        assert_eq!(resolve_cmd("zombies", fleet), Cmd::Go(proc, Some(2)));
+
+        // "files" starts with f and a digit-parse of "iles" must fail, or the
+        // whole name space collapses into the :fN shortcut.
+        assert_eq!(resolve_cmd("files", proc), Cmd::Go(tab_of("files"), None));
+
+        // An unambiguous prefix is enough; an ambiguous one names the choices
+        // instead of picking one.
+        assert_eq!(resolve_cmd("wg-public-ipv4", proc), Cmd::Go(fleet, Some(2)));
+        match resolve_cmd("wg-public", proc) {
+            Cmd::Err(e) => assert!(e.contains("ambiguous"), "{e}"),
+            other => panic!("wg-public matches two sub-tabs, got {other:?}"),
+        }
+        assert!(matches!(resolve_cmd("nonsense", proc), Cmd::Err(_)));
+
+        assert_eq!(resolve_cmd("q", proc), Cmd::Quit);
+        assert_eq!(resolve_cmd("export all", proc), Cmd::Export(true));
+        assert_eq!(resolve_cmd("   ", proc), Cmd::Nothing);
+    }
+
+    // Sub-tabs are addressed by number in the strip and by index in the code;
+    // an off-by-one between those is invisible until you press the key.
+    #[test]
+    fn every_sub_tab_is_addressable_by_its_displayed_number() {
+        for (i, t) in TABS.iter().enumerate() {
+            for (j, sb) in t.subs.iter().enumerate() {
+                assert_eq!(
+                    resolve_cmd(&format!("f{}", j + 1), i),
+                    Cmd::Go(i, Some(j)),
+                    "{}: {} is shown as {} but f{} does not reach it",
+                    t.name,
+                    sb.name,
+                    j + 1,
+                    j + 1
+                );
+            }
+            // A tab with modes must have at least two, or the strip draws a
+            // row to say there is one choice.
+            assert_ne!(t.subs.len(), 1, "{} has a single sub-tab", t.name);
+        }
+    }
+
+    fn tab_of(name: &str) -> usize {
+        TABS.iter().position(|t| t.name == name).expect(name)
+    }
+
     #[test]
     fn yaml_quotes_only_what_would_change_meaning() {
         let v = json!({

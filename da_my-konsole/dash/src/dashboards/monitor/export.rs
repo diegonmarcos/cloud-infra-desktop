@@ -84,6 +84,31 @@ pub(crate) fn to_yaml(v: &Value, indent: usize, out: &mut String) {
     }
 }
 
+/// Every declared unit, minus the ones that are simply running.
+///
+/// `v` publishes all of them — 427 on this machine, 44KB of a 99KB export —
+/// and all but a handful say "active/running", which is the least interesting
+/// sentence a monitor can write. The Markdown never carried them all either:
+/// it prints the ones that are NOT running, because that is the set anybody
+/// opens this file to find. The two counts ride along so the total is still
+/// stated rather than quietly dropped.
+fn trim_units(v: &Value) -> Value {
+    let mut out = v.clone();
+    let Some(svc) = v.get("services").and_then(|x| x.as_array()) else { return out };
+    let idle: Vec<Value> = svc
+        .iter()
+        .filter(|u| matches!(text(u, "active").as_str(), "failed" | "inactive" | "not-loaded"))
+        .cloned()
+        .collect();
+    let active = svc.iter().filter(|u| text(u, "active") == "active").count();
+    if let Some(o) = out.as_object_mut() {
+        o.insert("services_declared".into(), serde_json::json!(svc.len()));
+        o.insert("services_active".into(), serde_json::json!(active));
+        o.insert("services".into(), Value::Array(idle));
+    }
+    out
+}
+
 /// The name is {host}-{user}-{timestamp}: the triple that stays unambiguous
 /// once you have exported the same peer twice and a second machine once. The
 /// host comes from the SNAPSHOT, so exporting a peer names the peer.
@@ -136,7 +161,7 @@ pub(crate) fn export_snapshot(
     // Still an envelope rather than the bare snapshot: the file tree is read
     // from disk by the panel and never appears in what the sampler publishes.
     let mut envelope = serde_json::Map::new();
-    envelope.insert("snapshot".into(), s.clone());
+    envelope.insert("snapshot".into(), trim_units(s));
     envelope.insert("files".into(), serde_json::json!(files));
     envelope.insert("exported".into(), serde_json::json!(stamp));
     envelope.insert(
@@ -157,7 +182,7 @@ pub(crate) fn export_snapshot(
             let peer = text(v, "host_info.host");
             let key = if peer.is_empty() { alias.clone() } else { peer };
             aliases.entry(key.clone()).or_default().push(alias.clone());
-            by_host.entry(key).or_insert_with(|| v.clone());
+            by_host.entry(key).or_insert_with(|| trim_units(v));
         }
         envelope.insert("fleet".into(), Value::Object(by_host));
         envelope.insert("fleet_aliases".into(), serde_json::json!(aliases));
@@ -405,6 +430,7 @@ pub(crate) fn export_snapshot(
     m.push_str(&format!(
         "\n<sub>my-konsole-dash · the JSON and YAML beside this file are the same data \
          in full — this machine's snapshot, its file tree{}. \
+         Declared units are the ones NOT running, the same set as above. \
          The YAML is the same content at roughly a third of the tokens.</sub>\n",
         if fleet.is_empty() { "" } else { " and every fleet peer" }
     ));
