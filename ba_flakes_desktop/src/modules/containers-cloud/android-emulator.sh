@@ -102,7 +102,7 @@ jq -c '.provisioning.apps[]' "$CONFIG_JSON" | while IFS= read -r app; do
     if [ -f "$APK" ]; then
       echo "[provision] installing $pkg ($abi)…"; "$ADB" install -r "$APK" || true
     else
-      kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/cloud-unix/ea_cloud-superapp && SUPERAPP_VARIANT=$abi ./build.sh build" 2>/dev/null || true
+      kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/cloud-android/aa_cloud-superapp && SUPERAPP_VARIANT=$abi ./build.sh build" 2>/dev/null || true
     fi
   fi
 done

@@ -5,7 +5,7 @@
 # ║ Multi-design CIQ monorepo. Each design = faces/<id>/ (own UUID,   ║
 # ║ manifest, source, resources) + its OWN geometry in design.json.   ║
 # ║ The Connect IQ SDK (monkeyc) comes from flake.nix — the Nix way,  ║
-# ║ never an imperative install. Publishing mirrors ea_cloud-superapp.║
+# ║ never an imperative install. Publishing mirrors aa_cloud-superapp.║
 # ║                                                                  ║
 # ║ Commands ( [design] defaults to build.json::build.default_design ):║
 # ║   gen        [design]  design.json → DesignConfig.mc + launcher   ║

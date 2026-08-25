@@ -3,7 +3,7 @@
 Garmin Connect IQ watch faces — **multi-design monorepo**. Each design is a
 self-contained CIQ project under `faces/<id>/` carrying its **own geometry** in
 `faces/<id>/design.json`. One universal engine (`build.sh`), one declarative
-SDK (`flake.nix`), publishing that mirrors `ea_cloud-superapp`.
+SDK (`flake.nix`), publishing that mirrors `aa_cloud-superapp`.
 
 ## Layout
 
@@ -68,7 +68,7 @@ once (standard Nix FOD flow — Nix prints the real hash on first run):
 by `9_others/build.sh`). On push to `main` under `fa_garmin-watchface/**`: discovers
 designs from `build.json`, builds each `.prg` on `ubuntu-latest` (x86, `BYPASS_NIX=1`),
 pushes to GHCR via ORAS, and attaches to a rolling `latest` GitHub release. Same flow,
-data-driven, as `ea_cloud-superapp`.
+data-driven, as `aa_cloud-superapp`.
 
 Auth model (verified against the CLI source): the SDK itself downloads from a
 **public** Garmin CDN (no login), but the **device definitions** (`device download`)

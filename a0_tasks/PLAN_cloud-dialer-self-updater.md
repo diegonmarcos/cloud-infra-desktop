@@ -11,7 +11,7 @@ There is **no version/registry file to bump** — update discovery is purely the
 → **Fix 1**: patch `Transaction.kt` to use `installedId ?: appId`. **Deliver**: run `build-fork dialer` + `publish-fork dialer` (publishes a new digest). *Blocked in this session: gradle distro download is network-egress-blocked — see Constraint below; delivery runs in CI / a networked shell.*
 
 ### Issue 2 — Cloud Dialer has no self-contained updater
-The dialer (a Fossify fork) relies on the **hub's** FleetUpdater. The **nav** app (`ea_cloud-nav/libs/updater`) has a proper single-app self-updater. Port that pattern into the dialer fork so it updates **itself** from `ghcr.io/diegonmarcos/cloud-comms-dialer`, with a "Check for updates" UI in Fossify Settings (Configs).
+The dialer (a Fossify fork) relies on the **hub's** FleetUpdater. The **nav** app (`aa_cloud-nav/libs/updater`) has a proper single-app self-updater. Port that pattern into the dialer fork so it updates **itself** from `ghcr.io/diegonmarcos/cloud-comms-dialer`, with a "Check for updates" UI in Fossify Settings (Configs).
 
 ## Updater design (port nav-style, data-driven)
 GHCR OCI flow (anon token → manifest → blob), compares **sha256(installed APK) vs manifest layer digest** (not versionCode). Install via **PackageInstaller session** (no FileProvider). ABI-aware tag (`latest` / `latest-x86_64`).
@@ -19,7 +19,7 @@ GHCR OCI flow (anon token → manifest → blob), compares **sha256(installed AP
 ## Patch series additions (on top of existing 0001–0004)
 
 ### 0005 — dialer self-updater
-- **Kotlin** `app/src/main/kotlin/org/fossify/phone/updater/`: `GhcrClient`, `AbiUpdateTag`, `UpdateChecker`, `UpdateInstaller`, `PackageInstallerReceiver`, `UpdateProgress`, `UpdateWorker` — ported/adapted from `ea_cloud-nav/libs/updater` (package + image retargeted to dialer).
+- **Kotlin** `app/src/main/kotlin/org/fossify/phone/updater/`: `GhcrClient`, `AbiUpdateTag`, `UpdateChecker`, `UpdateInstaller`, `PackageInstallerReceiver`, `UpdateProgress`, `UpdateWorker` — ported/adapted from `aa_cloud-nav/libs/updater` (package + image retargeted to dialer).
 - **gradle** `app/build.gradle.kts`:
   - `buildFeatures { buildConfig = true }` (if not already) + `buildConfigField` for `GHCR_REGISTRY`, `GHCR_NAMESPACE`, `GHCR_IMAGE`, `AUTO_UPDATE_TAG`, `AUTO_UPDATE_ENABLED`, `GIT_SHORT_SHA` — each reads a gradle property with a sane default, e.g.
     `buildConfigField("String","GHCR_IMAGE","\"${project.findProperty("GHCR_IMAGE") ?: "cloud-comms-dialer"}\"")`.

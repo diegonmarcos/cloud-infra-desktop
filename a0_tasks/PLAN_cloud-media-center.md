@@ -73,11 +73,11 @@ until it lands.
 
 - **`build.sh` engine choice.** No engine exists for this app yet. The shared
   comms fork engine
-  (`1_cicd/src/scripts/cloud-comms-fork-engine.sh`, which `ea_cloud-mail`
+  (`1_cicd/src/scripts/cloud-comms-fork-engine.sh`, which `aa_cloud-mail`
   symlinks) is hub-coupled: it hardcodes `:hub:assembleDebug`, a
   `hub-debug.apk` path, and `com.diegonmarcos.comms.MainActivity`, and its
   dispatch table routes everything through hub-bundle steps.
-  `ea_cloud-ide/build.sh` has the same coupling. Options: (a) generalize into
+  `aa_cloud-ide/build.sh` has the same coupling. Options: (a) generalize into
   a neutral `android-fork-engine.sh` — correct, but touches 4 shipping apps;
   (b) a minimal single-fork engine for this app only. **Undecided.**
 - **The WebDAV spike.** Nobody has tested whether ReFra's existing

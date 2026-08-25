@@ -13,7 +13,7 @@
 name: "Ship → Garmin Watch Face (.prg → GHCR via ORAS + GitHub Release)"
 
 # Builds each Connect IQ watch-face design in fa_garmin-watchface/faces/<id>/ and
-# publishes via the SAME two channels as ea_cloud-superapp — both data-driven by
+# publishes via the SAME two channels as aa_cloud-superapp — both data-driven by
 # fa_garmin-watchface/build.json::release:
 #
 #   1. ORAS push as OCI artifact   → ghcr.io/<ns>/garmin-watchface-<design>:<tags>
@@ -104,7 +104,7 @@ jobs:
           "$HOME/.local/bin/connect-iq-sdk-manager" version
 
       # ── Stable developer signing key (cached → constant signature) ──
-      # Mirrors ea_cloud-superapp's cached debug keystore: a fresh RSA key
+      # Mirrors aa_cloud-superapp's cached debug keystore: a fresh RSA key
       # each run would change the app signature. Cache it so every CI build
       # signs identically. build.sh::_resolve_signing returns early when
       # dist/developer_key.der already exists.

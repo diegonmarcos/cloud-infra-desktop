@@ -42,7 +42,7 @@
           python3        # lib/gen-design.py (stdlib only)
           jq             # build.json / design.json reads
           openssl        # developer-key generation/conversion
-          oras           # GHCR OCI-artifact publish (mirrors ea_cloud-superapp)
+          oras           # GHCR OCI-artifact publish (mirrors aa_cloud-superapp)
           gh             # GitHub rolling-release publish
           sops age       # vault signing-key decrypt (Pillar 7)
           coreutils gnused gawk

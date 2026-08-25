@@ -20,7 +20,7 @@ Debian/Kali whose `/vmlinuz` is a symlink rEFInd can't follow). Reversible: dele
   block (app-seed set + adb target).
 - **`apps.lock.json`** — the app-seed manifest referenced by `blissos.json` `apps.lock`. Each
   entry is pinned by `url` + SRI `sha256`: alternative stores (F-Droid, Aurora, Obtainium), the
-  FOSS app suite, and all four `ea_cloud-*` APKs (x86_64 variants for SuperApp/Nav, hubs for
+  FOSS app suite, and all four `aa_cloud-*` APKs (x86_64 variants for SuperApp/Nav, hubs for
   Comms/IDE). Seeded from the `da_waydroid-apps` set.
 - **Boot entry** lives in `aa_bootloader/src/boot.json` (single SoT for the bootloader):
   - `grub.menu.blissos` — `root_param:/dev/ram0`, kernel `/blissos/kernel`, android cmdline
@@ -53,7 +53,7 @@ bare-metal). Then from the desktop:
 ```
 cd ~/git/cloud-unix/ae_desk-android_x86_blissOS/install
 ./build.sh fetch-apks           # (if not already) hash-verified download into dist/apks/
-./build.sh provision            # adb connect + adb install -r -g every APK (stores + FOSS + ea_cloud-*)
+./build.sh provision            # adb connect + adb install -r -g every APK (stores + FOSS + aa_cloud-*)
 ```
 `provision` is idempotent (`-r` reinstalls, keeps data). Adjust `apps.adb_target` in
 `blissos.json` to match your device's ADB address.

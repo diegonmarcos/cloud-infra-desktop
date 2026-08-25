@@ -1,5 +1,5 @@
 {
-  "_doc": "App-seed manifest for the BlissOS install (referenced by blissos.json apps.lock). Each entry is pinned by url + SRI sha256; install/build.sh fetch-apks nix-prefetches+verifies them, provision adb-installs them. Seeded verbatim from the da_waydroid-apps FOSS set: alternative stores (org.fdroid.fdroid, com.aurora.store, dev.imranr.obtainium), the FOSS app suite, and all four ea_cloud-* APKs (x86_64 variants for superapp/cloudnav, hubs for comms/ide). ponytail: hand-maintained pin; refresh URLs/versions by editing entries (a full f-droid version-resolver lock step lives in z_archive/da_waydroid-apps if ever needed).",
+  "_doc": "App-seed manifest for the BlissOS install (referenced by blissos.json apps.lock). Each entry is pinned by url + SRI sha256; install/build.sh fetch-apks nix-prefetches+verifies them, provision adb-installs them. Seeded verbatim from the da_waydroid-apps FOSS set: alternative stores (org.fdroid.fdroid, com.aurora.store, dev.imranr.obtainium), the FOSS app suite, and all four aa_cloud-* APKs (x86_64 variants for superapp/cloudnav, hubs for comms/ide). ponytail: hand-maintained pin; refresh URLs/versions by editing entries (a full f-droid version-resolver lock step lives in z_archive/da_waydroid-apps if ever needed).",
   "generated_for": "ae_desk-android_x86_blissOS",
   "apps": [
     {

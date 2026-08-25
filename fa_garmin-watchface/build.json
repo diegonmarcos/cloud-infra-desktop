@@ -1,6 +1,6 @@
 {
   "name": "garmin-watchface",
-  "description": "Garmin Connect IQ watch faces — multi-design monorepo. Each design lives in faces/<id>/ as a self-contained CIQ project (own UUID, manifest, source, resources) carrying its OWN geometry in faces/<id>/design.json. build.sh is the universal, design-aware engine wrapping monkeyc; the Connect IQ SDK is provided declaratively by flake.nix (the Nix way — no Docker). Publishing mirrors ea_cloud-superapp: build.sh oras-push (artifact -> GHCR as OCI blob) + build.sh gh-release (rolling `latest` GitHub release = stable download URL). All registry/tag/asset strings are data-driven from this file's release{} block; the GHA workflow hardcodes none of it.",
+  "description": "Garmin Connect IQ watch faces — multi-design monorepo. Each design lives in faces/<id>/ as a self-contained CIQ project (own UUID, manifest, source, resources) carrying its OWN geometry in faces/<id>/design.json. build.sh is the universal, design-aware engine wrapping monkeyc; the Connect IQ SDK is provided declaratively by flake.nix (the Nix way — no Docker). Publishing mirrors aa_cloud-superapp: build.sh oras-push (artifact -> GHCR as OCI blob) + build.sh gh-release (rolling `latest` GitHub release = stable download URL). All registry/tag/asset strings are data-driven from this file's release{} block; the GHA workflow hardcodes none of it.",
   "category": "garmin",
 
   "build": {
@@ -44,7 +44,7 @@
   },
 
   "release": {
-    "_doc": "Data-driven publish targets — mirrors ea_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_cicd/src/cicd/ship-garmin-watchface.yml) only invokes those engine commands. {design} / {sha} / {version} / {product} are expanded by the engine. The published artifact is the device-specific .prg (sideload/store-uploadable) produced by `build.sh build <design>`.",
+    "_doc": "Data-driven publish targets — mirrors aa_cloud-superapp/build.json::release. build.sh oras-push + gh-release read this block; the GHA workflow (1_cicd/src/cicd/ship-garmin-watchface.yml) only invokes those engine commands. {design} / {sha} / {version} / {product} are expanded by the engine. The published artifact is the device-specific .prg (sideload/store-uploadable) produced by `build.sh build <design>`.",
     "artifact": {
       "_doc": "Path under dist/<design>/ to publish. monkeyc emits <design>.prg; the store-package .iq is produced by `build.sh package <design>` for manual store upload.",
       "prg": "{design}.prg",
