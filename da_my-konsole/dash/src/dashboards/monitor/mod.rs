@@ -55,6 +55,7 @@ mod draw;
 mod export;
 mod fmt;
 mod sort;
+mod storage;
 
 // Re-imported so a view still says `num(&s, "cpu")`: the split is for
 // organising the source, not for making every call site longer.
@@ -246,6 +247,10 @@ const TABS: &[Tab] = &[
             Sub { name: "wg0-ipv6", key: None, desc: "wg0 carries no v6 address on this mesh", net: None },
             Sub { name: "wg-public-ipv4", key: None, desc: "the public-facing tunnel, 10.1.0.0/24", net: Some("10.1.0.") },
             Sub { name: "wg-public-ipv6", key: None, desc: "the public-facing tunnel, fd0c::/64", net: Some("fd0c:") },
+            // Not a network — the things the fleet KEEPS rather than the roads
+            // to it. It sits here because "where does this live" and "how do I
+            // reach it" are the same question asked twice.
+            Sub { name: "storage", key: None, desc: "every unit this fleet can mount — s3, git, rclone", net: None },
         ],
     },
     Tab { name: "history", key: 'y', desc: "what this machine did over the last day", subs: &[] },
@@ -649,6 +654,10 @@ pub struct Monitor {
     /// panel the most expensive thing on the machine. It is built when the tab
     /// is opened and when the dotfile toggle flips, and not otherwise.
     files_cache: [Vec<String>; 4],
+    /// The storage declaration, cached. It parses a 383KB JSON out of
+    /// cloud-infra and reads /proc/mounts; neither belongs on a 1s render
+    /// loop, and neither changes while you are looking at it.
+    storage_cache: Vec<storage::Unit>,
     files_scroll: u16,
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
@@ -732,6 +741,7 @@ impl Monitor {
             files: false,
             files_hidden: false,
             files_cache: Default::default(),
+            storage_cache: vec![],
             files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
@@ -1890,12 +1900,21 @@ impl Monitor {
             self.files_scroll = 0;
             self.files_cache = file_tree(self.files_hidden);
         }
+        // Same rule as the file tree: read it on the way in, not every tick.
+        if self.fleet && self.sub_name() == "storage" {
+            self.storage_cache = storage::units();
+        }
         // The fleet sweep is an ssh round trip per peer; it runs only while
         // the tab that needs it is open.
         if was_fleet != self.fleet {
             self.mesh.set_fleet(self.fleet);
         }
         self.msg = Some((self.tab_label(), false));
+    }
+
+    /// The current mode's name, or "" for a tab that has none.
+    fn sub_name(&self) -> &'static str {
+        TABS[self.tab].subs.get(self.sub[self.tab]).map(|sb| sb.name).unwrap_or("")
     }
 
     /// "fleet · wg-public-ipv6", or just "history" for a tab with one mode.
@@ -2844,7 +2863,11 @@ impl Dashboard for Monitor {
         // handful of peers where the process table is hundreds of rows, so
         // one shared count let the cursor run off the end of the short one.
         let n = if self.fleet {
-            self.visible_peers().len()
+            if self.sub_name() == "storage" {
+                self.storage_cache.len()
+            } else {
+                self.visible_peers().len()
+            }
         } else {
             self.rows().len() + self.unit_rows(&snap).len()
         };
@@ -3117,8 +3140,12 @@ impl Dashboard for Monitor {
             // The list the TABLE is showing — filtered to this network and
             // ranked. Walking mesh.list() here opened the wrong machine the
             // moment either of those did anything.
-            let peers = self.fleet_view(&snap);
-            let np = peers.len();
+            // The storage mode is a different list, so it is a different
+            // count. One shared number would run the cursor off the end of
+            // whichever of the two is shorter.
+            let storage = self.sub_name() == "storage";
+            let peers = if storage { vec![] } else { self.fleet_view(&snap) };
+            let np = if storage { self.storage_cache.len() } else { peers.len() };
             match k {
                 KeyCode::Down => self.sel = (self.sel + 1).min(np.saturating_sub(1)),
                 KeyCode::Up => self.sel = self.sel.saturating_sub(1),
@@ -4468,6 +4495,90 @@ impl Dashboard for Monitor {
         // The whole mesh in one table, instead of one machine in detail. Rows
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
+        // The storage mode of the fleet tab is not a peer table at all, so it
+        // branches before the one below rather than growing a third shape into
+        // it.
+        if self.fleet && self.sub_name() == "storage" {
+            let sb = self.tabs_box("what this fleet keeps · ↑↓ to move");
+            let sin = sb.inner(rows[4]);
+            f.render_widget(sb, rows[4]);
+            let units = &self.storage_cache;
+            let colour = |kind: &str| match kind {
+                "mount" => Color::Rgb(120, 220, 140),
+                "s3" => Color::Rgb(120, 200, 255),
+                "git" => Color::Rgb(230, 190, 120),
+                _ => Color::Gray,
+            };
+            let srows: Vec<Row> = units
+                .iter()
+                .enumerate()
+                .map(|(i, u)| {
+                    let sel = i == self.sel;
+                    let base = if sel {
+                        Style::default().bg(Color::Rgb(38, 48, 66)).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default()
+                    };
+                    Row::new(vec![
+                        Cell::from(format!("{}{}", if sel { "▶" } else { " " }, u.kind))
+                            .style(base.fg(colour(u.kind))),
+                        Cell::from(trunc(&u.name, 34)).style(base.fg(Color::White)),
+                        Cell::from(trunc(&u.provider, 14)).style(base.fg(Color::Gray)),
+                        Cell::from(trunc(&u.tier, 14)).style(base.fg(DIM)),
+                        // The whole point of the tab: mounted, or not.
+                        Cell::from(if u.at.is_empty() {
+                            "—".to_string()
+                        } else {
+                            trunc(&u.at, 38)
+                        })
+                        .style(base.fg(if u.at.is_empty() {
+                            DIM
+                        } else {
+                            Color::Rgb(120, 220, 140)
+                        })),
+                        Cell::from(trunc(&u.addr, 60)).style(base.fg(DIM)),
+                    ])
+                    .style(base)
+                })
+                .collect();
+            let empty = units.is_empty();
+            f.render_widget(
+                Table::new(
+                    srows,
+                    [
+                        Constraint::Length(8),
+                        Constraint::Length(35),
+                        Constraint::Length(15),
+                        Constraint::Length(15),
+                        Constraint::Length(39),
+                        Constraint::Min(20),
+                    ],
+                )
+                .header(Row::new(vec![
+                    Cell::from("  KIND").style(Style::default().fg(LABEL)),
+                    Cell::from("NAME").style(Style::default().fg(LABEL)),
+                    Cell::from("PROVIDER").style(Style::default().fg(LABEL)),
+                    Cell::from("TIER / TYPE").style(Style::default().fg(LABEL)),
+                    Cell::from("MOUNTED AT").style(Style::default().fg(LABEL)),
+                    Cell::from("ENDPOINT").style(Style::default().fg(LABEL)),
+                ])),
+                sin,
+            );
+            let mounted = units.iter().filter(|u| !u.at.is_empty()).count();
+            f.render_widget(
+                Paragraph::new(Line::from(Span::styled(
+                    match &self.msg {
+                        Some((m, _)) => format!(" {m}"),
+                        None if empty => " nothing declared here — cloud-infra is not on this machine".into(),
+                        None => format!(" {} units · {mounted} mounted here", units.len()),
+                    },
+                    Style::default().fg(LABEL),
+                ))),
+                rows[5],
+            );
+            self.render_overlays(f, area);
+            return;
+        }
         if self.fleet {
             let (flabel, _) = FLEET_SORT[self.fleet_sort.min(FLEET_SORT.len() - 1)];
             let fb = self.tabs_box(&format!(
