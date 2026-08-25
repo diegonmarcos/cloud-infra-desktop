@@ -3,6 +3,7 @@
 // One module because the rules are shared and easy to get subtly inconsistent
 // otherwise: which unit a size uses, when a zero is a dash and when it is a
 // measurement, how wide a column's value may be.
+use super::data::HIST;
 
 pub(crate) fn push(v: &mut Vec<f64>, x: f64) {
     v.push(x);
@@ -115,20 +116,12 @@ pub(crate) fn fmt_uptime(secs: f64) -> String {
 
 // ─────────────────────────────── process table ────────────────────────────────
 
-#[derive(Clone, Copy, PartialEq, Debug)]
+/// The directory holding a pid's binary. /proc/<pid>/exe is the resolved
+/// link, so this survives an argv[0] that was never a path (an ld-linux
+/// invocation, a renamed thread, a busybox applet).
+/// Cut to `n` CHARACTERS, not bytes — a byte slice through a multibyte name
+/// panics, and hostnames are not guaranteed ascii.
 pub(crate) fn trunc(s: &str, n: usize) -> String {
     if s.chars().count() <= n { s.to_string() } else { s.chars().take(n).collect() }
 }
 
-/// Everything on screen, written out twice: the snapshot verbatim as JSON and
-/// a readable report as Markdown.
-///
-/// Both, not one. The JSON is the truth and survives being diffed against a
-/// later export or fed to something else; the Markdown is what you can paste
-/// into an issue at 3am without the reader parsing a thousand-line object.
-/// Writing only the pretty one is how exports stop being useful the moment
-/// somebody needs a field it left out.
-///
-/// The name is {host}-{user}-{timestamp}: the triple that stays unambiguous
-/// once you have exported the same peer twice and a second machine once. The
-/// host comes from the SNAPSHOT, so exporting a peer names the peer.

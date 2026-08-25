@@ -36,19 +36,28 @@ use serde_json::Value;
 
 use crate::frame::Dashboard;
 
+/// What the `k` menu can send. RESTART is first because it is the thing people
+/// actually want most of the time — a wedged process put back rather than a
+/// hole where it used to be — and because listing it beside the signals is the
+/// only way anyone discovers the daemon grew the verb.
+///
+/// It is not a signal: the daemon restarts a user systemd unit through
+/// systemctl when the pid belongs to one, and otherwise re-execs its argv. The
+/// blurb says which, because "restart" quietly meaning two different things is
+/// worse than saying so.
+
 // ── the parts of this dashboard that are their own concern ─────────────
 // Split out because a four-thousand-line file is not a module, it is a
-// directory that has not happened yet. Each of these is testable on its own
-// and none of them knows about the others.
+// directory that has not happened yet. Each is testable on its own and none
+// of them knows about the others.
 mod data;
 mod draw;
 mod export;
 mod fmt;
 mod sort;
 
-// Re-imported here so a view says `num(&s, "cpu")`, not
-// `super::data::num(&s, "cpu")` — the split is for organising the source, not
-// for making every call site longer.
+// Re-imported so a view still says `num(&s, "cpu")`: the split is for
+// organising the source, not for making every call site longer.
 use data::{arr, kill_path, num, read_json, snapshot_path, text, HIST};
 use draw::{bbox, braille_graph, grad, meter, tabbox, DIM, GRAPH_FLOOR, LABEL};
 use export::{exe_dir, export_snapshot, open_dir, proc_comm};

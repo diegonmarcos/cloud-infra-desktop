@@ -6,6 +6,9 @@ use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::{Line, Span};
 use ratatui::widgets::{Block, BorderType, Borders};
 
+/// btop's value gradient: green below, yellow through the middle, red at the
+/// top. Used for BOTH the fill colour of a meter position and the vertical
+/// colour of a graph row, which is what makes the two read as one language.
 pub(crate) fn grad(f: f64) -> Color {
     let f = f.clamp(0.0, 1.0);
     let lerp = |a: f64, b: f64, t: f64| (a + (b - a) * t) as u8;

@@ -2,7 +2,7 @@
 //
 // The daemon's JSON is broad and grows; mirroring it as structs would mean a
 // compile break every time a field is added, and a panel that fails to build
-// because a publisher gained a key is worse than one that shows a blank cell.
+// because a publisher gained a key is worse than one showing a blank cell.
 use std::fs;
 
 use serde_json::Value;
@@ -74,6 +74,3 @@ pub(crate) fn now_secs() -> f64 {
 
 // ───────────────────────────────── btop visuals ────────────────────────────────
 
-/// btop's value gradient: green below, yellow through the middle, red at the
-/// top. Used for BOTH the fill colour of a meter position and the vertical
-/// colour of a graph row, which is what makes the two read as one language.
