@@ -119,6 +119,9 @@ fn grad(f: f64) -> Color {
 }
 
 const DIM: Color = Color::Rgb(58, 62, 74);
+/// btop's graph floor, taken from its own output: flat (64,64,64), and 81% of
+/// every glyph it paints.
+const GRAPH_FLOOR: Color = Color::Rgb(64, 64, 64);
 const LABEL: Color = Color::Rgb(120, 128, 145);
 
 /// btop's box: rounded corners, the title bracketed into the top border, and
@@ -191,39 +194,54 @@ fn braille_graph(data: &[f64], max: f64, cols: usize, rows: usize) -> Vec<Line<'
     for i in 0..have {
         samples[want - have + i] = data[data.len() - have + i];
     }
-    // Floor of one sub-dot, never zero. Dumping btop's own output and
-    // counting glyphs says this is the single thing that makes its graph read
-    // as a graph: 85% of every braille character it emits is U+28C0 (⣀), the
-    // bottom sub-row of both columns. It draws a continuous baseline across
-    // the full width — including the part of its history buffer that is still
-    // zero — so an idle machine shows a flat line rather than an empty box.
-    // Ours went fully blank at zero, which is why it looked like nothing was
-    // there.
-    let levels: Vec<usize> = samples
-        .iter()
-        .map(|v| (((v / max).clamp(0.0, 1.0)) * (rows * 4) as f64).round().max(1.0) as usize)
-        .collect();
-
+    // Two sets of heights, and the difference between them is the whole
+    // reason this graph reads like btop's.
+    //
+    // `raw` is the measurement. `levels` is what gets DRAWN, floored at one
+    // sub-dot so there is a continuous baseline across the full width —
+    // including the part of the history buffer that is still zero. Dumping
+    // btop's own output and counting glyphs says that floor is 85% of every
+    // braille character it emits.
+    //
+    // The colour then comes from `raw`, never from `levels`. Counting the
+    // COLOURS in that same dump: 81% of btop's painted glyphs are (64,64,64),
+    // flat dark grey. It spends the green→yellow→red gradient only where a
+    // value actually reaches, and draws everything else — the floor, the
+    // empty history — in grey. Colouring the floor by its height instead
+    // paints a green band across the entire width and a graph that is all
+    // gradient all the time, which is exactly what ours looked like.
     let total = rows * 4;
+    let raw: Vec<usize> = samples
+        .iter()
+        .map(|v| (((v / max).clamp(0.0, 1.0)) * total as f64).round() as usize)
+        .collect();
+    let levels: Vec<usize> = raw.iter().map(|l| (*l).max(1)).collect();
+
     let mut out = Vec::with_capacity(rows);
     for r in 0..rows {
         let mut spans: Vec<Span> = Vec::with_capacity(cols);
         // Height fraction of this row's top edge drives its colour.
         let row_frac = (total - r * 4) as f64 / total as f64;
-        let style = Style::default().fg(grad(row_frac));
+        let lit = Style::default().fg(grad(row_frac));
+        let floor = Style::default().fg(GRAPH_FLOOR);
         for c in 0..cols {
             let mut bits: u8 = 0;
+            // True once any dot in this cell is backed by a real measurement
+            // rather than by the drawn floor.
+            let mut real = false;
             for (s, (&lm, &rm)) in LEFT.iter().zip(RIGHT.iter()).enumerate() {
                 let height_from_bottom = total - (r * 4 + s);
                 if levels[c * 2] >= height_from_bottom {
                     bits |= lm;
+                    real |= raw[c * 2] >= height_from_bottom;
                 }
                 if levels[c * 2 + 1] >= height_from_bottom {
                     bits |= rm;
+                    real |= raw[c * 2 + 1] >= height_from_bottom;
                 }
             }
             let ch = char::from_u32(0x2800 + bits as u32).unwrap_or(' ');
-            spans.push(Span::styled(ch.to_string(), style));
+            spans.push(Span::styled(ch.to_string(), if real { lit } else { floor }));
         }
         out.push(Line::from(spans));
     }
@@ -3428,6 +3446,10 @@ mod tests {
         }
         for sp in &z[1].spans {
             assert_eq!(sp.content.chars().next().unwrap(), FLOOR, "bottom row is the floor");
+            // And it is GREY. Colouring the floor by its height is what made
+            // the graph one continuous green band; btop spends the gradient
+            // only where a value reaches.
+            assert_eq!(sp.style.fg, Some(GRAPH_FLOOR), "the floor is not a value");
         }
         // Every dot set is U+28FF. A full-scale column must light the TOP row
         // too — that is the check that catches a height mapping that is short
@@ -3463,6 +3485,9 @@ mod tests {
         assert_eq!(chars[0], '\u{28C0}');
         assert_eq!(chars[2], '\u{28C0}');
         assert_eq!(chars[3], '\u{28FF}');
+        // grey where it is padding, coloured only where the samples are
+        assert_eq!(g[0].spans[0].style.fg, Some(GRAPH_FLOOR));
+        assert_ne!(g[0].spans[3].style.fg, Some(GRAPH_FLOOR));
     }
 
     fn snap() -> Value {
