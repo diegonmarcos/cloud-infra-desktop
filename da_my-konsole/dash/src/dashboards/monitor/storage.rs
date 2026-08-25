@@ -15,12 +15,15 @@
 // mountpoint. The storage tab says what exists and what is mounted; the fleet
 // tab beside it says how full each machine is, measured by that machine.
 use std::fs;
+use std::process::Command;
+use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
-use super::data::{arr, text};
+use super::data::{arr, num, text};
 
 /// One thing you could mount, or already have.
+#[derive(Clone)]
 pub(crate) struct Unit {
     /// mount · s3 · rclone · git — the four kinds, in the order a person cares
     /// about them: what is live, then what is declared.
@@ -60,41 +63,78 @@ fn consolidated() -> Option<Value> {
     None
 }
 
-/// Network filesystems mounted right now.
+/// Every mountpoint this machine DECLARES, mounted or not.
+///
+/// The first version listed /proc/mounts, which answers "what is mounted" —
+/// a different and much less useful question. ~/mounts/fleet holds six peers
+/// and only four were mounted, so gcp-t4 and phone were simply absent from a
+/// tab whose entire job is "what can I mount". An empty directory sitting
+/// there IS the declaration; whether anything is on it right now is a status,
+/// not an existence.
 ///
 /// /proc/mounts, not `mount(8)`: reading a file cannot block on a dead server
-/// the way asking the mount table's helpers can. Only the network types — the
-/// point of this list is "storage that lives somewhere else", and there are
-/// eighty tmpfs and cgroup lines in there that are not that.
-fn live_mounts() -> Vec<Unit> {
-    const NET: [&str; 7] =
-        ["fuse.rclone", "fuse.sshfs", "sshfs", "fuse.s3fs", "s3fs", "nfs4", "cifs"];
-    let Ok(t) = fs::read_to_string("/proc/mounts") else { return vec![] };
+/// the way asking the mount table's helpers can.
+fn mountpoints() -> Vec<Unit> {
+    let home = std::env::var("HOME").unwrap_or_default();
+    let mounted = fs::read_to_string("/proc/mounts").unwrap_or_default();
+    // The second field of each line, with the octal escape mount(5) uses for
+    // spaces put back.
+    let is_mounted = |path: &str| -> Option<String> {
+        mounted.lines().find_map(|l| {
+            let mut f = l.split_whitespace();
+            let src = f.next()?;
+            let at = f.next()?;
+            let ty = f.next()?;
+            (at.replace("\\040", " ") == path).then(|| format!("{ty} · {src}"))
+        })
+    };
     let mut out = vec![];
-    for line in t.lines() {
-        let f: Vec<&str> = line.split_whitespace().collect();
-        if f.len() < 3 || !NET.contains(&f[2]) {
-            continue;
+    // fleet/ is one directory per peer; Storage/ is one per remote service.
+    for (dir, provider) in [("fleet", "peer"), ("Storage", "remote")] {
+        let base = format!("{home}/mounts/{dir}");
+        let Ok(rd) = fs::read_dir(&base) else { continue };
+        let mut names: Vec<String> = rd
+            .filter_map(|e| e.ok())
+            .map(|e| e.file_name().to_string_lossy().into_owned())
+            .collect();
+        names.sort();
+        for name in names {
+            let at = format!("{base}/{name}");
+            let live = is_mounted(&at);
+            out.push(Unit {
+                kind: "mount",
+                name,
+                provider: provider.into(),
+                tier: if live.is_some() { "mounted".into() } else { "not mounted".into() },
+                addr: live.unwrap_or_default(),
+                at,
+            });
         }
-        // rclone mounts announce themselves as `:sftp{CcfTB}:/` — a handle,
-        // not a name. The mountpoint's last component is what the person who
-        // mounted it chose to call the thing, so that is the name.
-        let at = f[1].replace("\\040", " ");
-        let name = at.rsplit('/').next().unwrap_or(&at).to_string();
-        out.push(Unit {
-            kind: "mount",
-            name,
-            provider: f[2].trim_start_matches("fuse.").to_string(),
-            tier: "mounted".into(),
-            addr: f[0].to_string(),
-            at,
-        });
     }
-    out.sort_by(|a, b| a.at.cmp(&b.at));
     out
 }
 
-/// rclone remotes, by NAME AND BACKEND ONLY.
+/// This machine. It is a storage unit of the fleet like any other — it is
+/// simply the one you are standing on, so it has no mountpoint and never
+/// appeared in a list built from mounts.
+fn this_machine() -> Unit {
+    let host = fs::read_to_string("/proc/sys/kernel/hostname")
+        .map(|h| h.trim().to_string())
+        .unwrap_or_else(|_| "localhost".into());
+    Unit {
+        kind: "local",
+        name: host,
+        provider: "this machine".into(),
+        tier: "local".into(),
+        // The fleet tab beside this one measures how full it is; repeating a
+        // number here that is sampled properly two keystrokes away would be
+        // two answers to one question.
+        addr: "see the fleet tab for usage".into(),
+        at: "/".into(),
+    }
+}
+
+/// rclone remotes, by NAME AND BACKEND ONLY./// rclone remotes, by NAME AND BACKEND ONLY.
 ///
 /// This file holds tokens and passwords. Nothing but the section header and
 /// the `type =` line is read, and nothing else may ever be — a panel that
@@ -130,14 +170,19 @@ fn parse_rclone(t: &str) -> Vec<(String, String)> {
 
 /// Everything, live first.
 pub(crate) fn units() -> Vec<Unit> {
-    let mut out = live_mounts();
-    // The live mounts are the first `n_live` entries and nothing appended
-    // later is one, so matching against that prefix avoids reading
-    // /proc/mounts a second time. The borrow ends before each push.
-    let n_live = out.len();
+    let mut out = vec![this_machine()];
+    out.extend(mountpoints());
+    // The mountpoints are the first `n_mp` entries and nothing appended after
+    // them is one, so matching against that prefix avoids walking the list a
+    // second time. The borrow ends before each push.
+    //
+    // Only entries that are ACTUALLY mounted count: a declared-but-down
+    // mountpoint has a path too, and returning it would tell a bucket it was
+    // mounted somewhere it is not.
+    let n_mp = out.len();
     let mounted_at = |needle: &str, list: &[Unit]| -> String {
         list.iter()
-            .find(|m| m.name == needle || m.at.contains(needle))
+            .find(|m| m.tier == "mounted" && (m.name == needle || m.at.contains(needle)))
             .map(|m| m.at.clone())
             .unwrap_or_default()
     };
@@ -145,7 +190,7 @@ pub(crate) fn units() -> Vec<Unit> {
     if let Some(d) = consolidated() {
         for b in arr(&d, "storage") {
             let name = text(b, "name");
-            let at = mounted_at(&name, &out[..n_live]);
+            let at = mounted_at(&name, &out[..n_mp]);
             out.push(Unit {
                 kind: "s3",
                 at,
@@ -185,8 +230,30 @@ pub(crate) fn units() -> Vec<Unit> {
         }
     }
 
+    // THE GOOGLE DRIVES, from the accounts that exist rather than invented.
+    //
+    // Both accounts are configured on this machine and both have a Drive, so
+    // both belong in a list of what the fleet can mount. What is NOT claimed
+    // here is a size: the workspace MCP has no quota call and the personal one
+    // is Gmail/IMAP only with no Drive API at all, so a usage column would be
+    // a number somebody made up.
+    //
+    // The rclone remote below is matched to whichever of them it is mounted
+    // for; a drive with no remote reads as declared-but-unmounted, which is
+    // exactly what it is.
+    for (who, email) in [("workspace", "me@diegonmarcos.com"), ("personal", "diegonmarcos1@gmail.com")] {
+        out.push(Unit {
+            kind: "gdrive",
+            name: format!("g-{who}-drive"),
+            provider: "google".into(),
+            tier: who.into(),
+            addr: email.into(),
+            at: String::new(),
+        });
+    }
+
     for (name, ty) in rclone_remotes() {
-        let at = mounted_at(&name, &out[..n_live]);
+        let at = mounted_at(&name, &out[..n_mp]);
         out.push(Unit {
             kind: "rclone",
             at,
@@ -227,5 +294,118 @@ mod tests {
     fn a_mount_is_named_after_its_mountpoint() {
         let at = "/home/diego/mounts/fleet/oci-apps";
         assert_eq!(at.rsplit('/').next(), Some("oci-apps"));
+    }
+}
+
+/// The repositories on each git host, fetched OFF the render thread.
+///
+/// Two network calls — a gitea API request and `gh repo list` — and either can
+/// be slow or hang: gitea lives on the mesh and gh talks to the internet. A
+/// panel that freezes while it lists repositories is the exact failure this
+/// dashboard exists to catch somebody else committing, so it never happens on
+/// the thread that draws.
+///
+/// The list simply appears when it arrives. There is no spinner and no
+/// blocking wait: an empty list reads as "not yet", which is true, and the row
+/// count in the status line says so.
+#[derive(Clone, Default)]
+pub(crate) struct Repos {
+    inner: Arc<Mutex<Vec<Unit>>>,
+}
+
+impl Repos {
+    pub(crate) fn get(&self) -> Vec<Unit> {
+        self.inner.lock().map(|v| v.clone()).unwrap_or_default()
+    }
+
+    /// Start a fetch if one has not already produced results. Cheap to call
+    /// repeatedly — opening the tab twice must not open two sets of sockets.
+    pub(crate) fn fetch(&self) {
+        if !self.get().is_empty() {
+            return;
+        }
+        let out = self.inner.clone();
+        std::thread::spawn(move || {
+            let mut v = gitea_repos();
+            v.extend(github_repos());
+            if let Ok(mut g) = out.lock() {
+                *g = v;
+            }
+        });
+    }
+}
+
+/// Repos on the self-hosted gitea, over the mesh.
+///
+/// The MESH address, not the public domain: this is a hub-to-peer call and
+/// the public name goes out through a proxy that has no business carrying it.
+/// --max-time, because a peer that stopped answering must not hold a thread
+/// open forever.
+fn gitea_repos() -> Vec<Unit> {
+    let out = Command::new("curl")
+        .args([
+            "-s",
+            "--max-time",
+            "8",
+            "http://10.0.0.6:3002/api/v1/repos/search?limit=100",
+        ])
+        .output();
+    let Ok(o) = out else { return vec![] };
+    let Ok(v) = serde_json::from_slice::<Value>(&o.stdout) else { return vec![] };
+    arr(&v, "data")
+        .iter()
+        .map(|r| Unit {
+            kind: "repo",
+            name: text(r, "full_name"),
+            provider: "gitea".into(),
+            // The API reports size in KiB.
+            tier: fmt_kib(num(r, "size")),
+            addr: text(r, "clone_url"),
+            at: String::new(),
+        })
+        .collect()
+}
+
+/// Repos on github, via the gh CLI so this inherits the credential the rest of
+/// the repo already uses rather than asking for a token of its own.
+fn github_repos() -> Vec<Unit> {
+    let out = Command::new("gh")
+        .args([
+            "repo",
+            "list",
+            "--limit",
+            "200",
+            "--json",
+            "nameWithOwner,diskUsage,visibility,url",
+        ])
+        .output();
+    let Ok(o) = out else { return vec![] };
+    let Ok(v) = serde_json::from_slice::<Value>(&o.stdout) else { return vec![] };
+    v.as_array()
+        .map(|a| {
+            a.iter()
+                .map(|r| Unit {
+                    kind: "repo",
+                    name: text(r, "nameWithOwner"),
+                    provider: format!("github {}", text(r, "visibility").to_lowercase()),
+                    tier: fmt_kib(num(r, "diskUsage")),
+                    addr: text(r, "url"),
+                    at: String::new(),
+                })
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// Both APIs report repository size in KiB.
+fn fmt_kib(kib: f64) -> String {
+    if kib <= 0.0 {
+        "-".into()
+    } else if kib < 1024.0 {
+        format!("{kib:.0}K")
+    } else if kib < 1_048_576.0 {
+        format!("{:.1}M", kib / 1024.0)
+    } else {
+        format!("{:.2}G", kib / 1_048_576.0)
     }
 }
