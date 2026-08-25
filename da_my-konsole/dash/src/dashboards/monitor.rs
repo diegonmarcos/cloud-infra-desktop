@@ -570,25 +570,25 @@ fn export_snapshot(s: &Value, target: Option<String>) -> Result<String, String> 
             "> Collected from `{a}` over ssh by the hub, not published by that machine.\n\n"
         ));
     }
-    let mut row = |k: &str, v: String| m.push_str(&format!("| {k} | {v} |\n"));
+    let row = |m: &mut String, k: &str, v: String| m.push_str(&format!("| {k} | {v} |\n"));
     m.push_str("| | |\n|---|---|\n");
-    row("user", user.clone());
-    row("os", hi("os"));
-    row("kernel", hi("kernel"));
-    row("uptime", fmt_uptime(n("totals.since_s")));
-    row("cpu", text(s, "cpu_info.model"));
-    row("cores", format!("{}", arr(s, "cores").len()));
-    row("memory", fmt_gib(n("mem_detail.total")));
-    row("swap", fmt_gib(n("swap_detail.total")));
+    row(&mut m, "user", user.clone());
+    row(&mut m, "os", hi("os"));
+    row(&mut m, "kernel", hi("kernel"));
+    row(&mut m, "uptime", fmt_uptime(n("totals.since_s")));
+    row(&mut m, "cpu", text(s, "cpu_info.model"));
+    row(&mut m, "cores", format!("{}", arr(s, "cores").len()));
+    row(&mut m, "memory", fmt_gib(n("mem_detail.total")));
+    row(&mut m, "swap", fmt_gib(n("swap_detail.total")));
 
     m.push_str("\n## Now\n\n| | |\n|---|---|\n");
-    row("cpu", format!("{:.1}%", n("cpu")));
-    row("load", format!("{:.2} {:.2} {:.2}", n("load1"), n("load5"), n("load15")));
+    row(&mut m, "cpu", format!("{:.1}%", n("cpu")));
+    row(&mut m, "load", format!("{:.2} {:.2} {:.2}", n("load1"), n("load5"), n("load15")));
     row(
         "memory",
         format!("{:.1}%  {} of {}", n("mem"), fmt_gib(n("mem_detail.used")), fmt_gib(n("mem_detail.total"))),
     );
-    row("swap", format!("{:.1}%", n("swap")));
+    row(&mut m, "swap", format!("{:.1}%", n("swap")));
     row(
         "psi cpu / io / mem",
         format!("{:.2} / {:.2} / {:.2}", n("psi.cpu.some10"), n("psi.io.full10"), n("psi.memory.full10")),
@@ -601,9 +601,8 @@ fn export_snapshot(s: &Value, target: Option<String>) -> Result<String, String> 
         ("read", "totals.disk_read_bytes"),
         ("written", "totals.disk_write_bytes"),
     ] {
-        row(k, fmt_bytes_short(n(f)));
+        row(&mut m, k, fmt_bytes_short(n(f)));
     }
-    drop(row);
 
     let ifs = arr(s, "host_info.ifaces");
     if !ifs.is_empty() {
