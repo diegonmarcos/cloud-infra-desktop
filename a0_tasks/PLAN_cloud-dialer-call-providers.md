@@ -2,7 +2,7 @@
 
 **Fork**: `ea_cloud-comms/forks/dialer` · upstream FossifyOrg/Phone pinned `1.11.1` · appId `com.diegonmarcos.comms.dialer`
 **Engine**: `ea_cloud-comms/build.sh` — patch-series: `materialize-fork dialer` (clone+pin → `git am` patches) → `build-fork dialer` (gradle `assembleFossRelease` via `nix develop`).
-**Tracker**: `ea_upstreams-sources/dialer-fossify/` (gitignored). Patches land in `forks/dialer/patches/NNNN-*.patch`.
+**Tracker**: `aa_upstreams-sources/dialer-fossify/` (gitignored). Patches land in `forks/dialer/patches/NNNN-*.patch`.
 
 ## Decisions (locked)
 - VoIP data-row if available, else deep-link open, else cellular.

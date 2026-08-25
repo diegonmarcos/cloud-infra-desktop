@@ -31,9 +31,9 @@ installed app — or grant signature-IPC — across **different** signing keys. 
 of these MUST share the single key above:
 
 - `ea_cloud-comms` — hub **and** its forks (mail/FairEmail, dialer/Fossify, …)
-- `ea_cloud-nav`
-- `ea_cloud-ide` — hub **and** its forks
-- `ea_cloud-superapp`
+- `aa_cloud-nav`
+- `aa_cloud-ide` — hub **and** its forks
+- `aa_cloud-superapp`
 
 ## How it's wired (declarative)
 

@@ -147,7 +147,7 @@ case "$cmd" in
 
   gh-release)
     # Publish dist/<asset_name> to a rolling GitHub Release tag (--clobber on
-    # every push) — same idiom as ea_cloud-nav/ea_cloud-comms step_gh_release.
+    # every push) — same idiom as aa_cloud-nav/ea_cloud-comms step_gh_release.
     enabled="$(node -e "const c=require('$CONFIG'); process.stdout.write(String(c.release.gh_release.enabled))")"
     [ "$enabled" = "true" ] || { log "gh-release: enabled=false — skip"; exit 0; }
     tag="$(node -e "const c=require('$CONFIG'); process.stdout.write(c.release.gh_release.rolling_tag)")"

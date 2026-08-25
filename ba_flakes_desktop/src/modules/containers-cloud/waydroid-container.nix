@@ -55,9 +55,9 @@ in {
     fi
   '';
 
-  # Dedicated launcher icon — the SAME adaptive-icon design as every ea_cloud-* app
+  # Dedicated launcher icon — the SAME adaptive-icon design as every aa_cloud-* app
   # (background #0A0A0A + bold white brand glyph + translucent cloud-tick badge),
-  # ported 1:1 from ea_cloud-superapp/app/src/main/res/{drawable,mipmap-anydpi-v26}
+  # ported 1:1 from aa_cloud-superapp/app/src/main/res/{drawable,mipmap-anydpi-v26}
   # /ic_launcher*.xml pathData to SVG (VectorDrawable path syntax === SVG path syntax,
   # same nonzero fill-rule, so the glyph's counter/hole reproduces without edits) —
   # installed into the hicolor theme so the menu entry, taskbar pin and window all

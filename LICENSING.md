@@ -11,11 +11,11 @@ purpose; **commercial use is not granted** without a separate license. This is a
 ## What the root license covers
 
 All the licensor's own work: the NixOS host + home-manager flakes, bootloader
-engine, `9_others/`, the Cloud-SuperApp **app** (`ea_cloud-superapp/`), and
+engine, `9_others/`, the Cloud-SuperApp **app** (`aa_cloud-superapp/`), and
 the Cloud-Comms / Cloud-IDE **hubs** + scaffolding (their `build.sh`,
 `build.json`, `contract/`, original `hub/` code).
 
-> **Note on `ea_cloud-superapp`:** this APK contains **no copied GPL source** —
+> **Note on `aa_cloud-superapp`:** this APK contains **no copied GPL source** —
 > its modules (`libs/mail`, `libs/chat`, `libs/kde-connect`, …) are original
 > code that reaches the separate fork apps over **IPC** (AIDL / ContentProvider).
 > Because nothing GPL is linked in-process, the SuperApp is the licensor's own
@@ -35,10 +35,10 @@ upstreams and is governed by those upstreams' licenses, **never** by the root
 | `ea_cloud-comms/forks/mail/**`   | `GPL-3.0-or-later`  | FairEmail (eu.faircode.email) |
 | `ea_cloud-comms/forks/chat/**`   | `Apache-2.0`        | Mattermost mobile |
 | `ea_cloud-comms/forks/matrix/**` | `AGPL-3.0-or-later` | Element X Android |
-| `ea_cloud-ide/forks/files/**`    | `GPL-3.0-or-later`  | Amaze File Manager |
-| `ea_cloud-ide/forks/utils/**`    | `GPL-3.0-or-later`  | Amaze File Utilities |
-| `ea_cloud-ide/forks/editor/**`   | `MIT`               | Acode |
-| materialized tracker clones `ea_*-*/` (gitignored), `ea_upstreams-sources/**` | per-upstream | Build-time checkouts of the above upstreams |
+| `aa_cloud-ide/forks/files/**`    | `GPL-3.0-or-later`  | Amaze File Manager |
+| `aa_cloud-ide/forks/utils/**`    | `GPL-3.0-or-later`  | Amaze File Utilities |
+| `aa_cloud-ide/forks/editor/**`   | `MIT`               | Acode |
+| materialized tracker clones `ea_*-*/` (gitignored), `aa_upstreams-sources/**` | per-upstream | Build-time checkouts of the above upstreams |
 
 The committed `forks/<x>/patches/` are **derivative works** of those upstreams
 and inherit the upstream license (see each `forks/LICENSE`). The **built fork

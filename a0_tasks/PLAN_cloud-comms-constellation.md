@@ -13,7 +13,7 @@
 
 ## 1. Goal
 
-Move the mail/chat **engines** out of `ea_cloud-superapp` into a parallel app family ("Cloud-Comms") built from full clones of three upstream FOSS apps, each pointed at our own servers (all three server DBs already self-hosted). SuperApp keeps showing the same mail/chat data it shows today (`libs:mail` JMAP summary, `libs:chat` Mattermost summary) but reads it from Cloud-Comms over on-device IPC instead of running its own thin sync clients.
+Move the mail/chat **engines** out of `aa_cloud-superapp` into a parallel app family ("Cloud-Comms") built from full clones of three upstream FOSS apps, each pointed at our own servers (all three server DBs already self-hosted). SuperApp keeps showing the same mail/chat data it shows today (`libs:mail` JMAP summary, `libs:chat` Mattermost summary) but reads it from Cloud-Comms over on-device IPC instead of running its own thin sync clients.
 
 | Domain | Upstream app | Server (already ours) |
 |---|---|---|
@@ -58,8 +58,8 @@ Data flow: forks own their sync engines and local DBs (FairEmail Room/SQLite, Ma
 ## 3. Repo layout (in `~/git/cloud-unix/`)
 
 ```
-ea_cloud-comms/                      ← NEW top-level project (sibling of ea_cloud-superapp)
-├── build.sh                         ← universal dispatcher, same engine pattern as ea_cloud-superapp
+ea_cloud-comms/                      ← NEW top-level project (sibling of aa_cloud-superapp)
+├── build.sh                         ← universal dispatcher, same engine pattern as aa_cloud-superapp
 ├── build.json                       ← module graph + toolchain pins + fork pins (single source of truth)
 ├── flake.nix                        ← Nix devShell: JDK 17 + Gradle + AGP + Android SDK + Node (for RN fork)
 ├── contract/
@@ -81,7 +81,7 @@ ea_cloud-comms/                      ← NEW top-level project (sibling of ea_cl
 
 **Declarative fork rule (non-negotiable)**: a fork is *never* a long-lived divergent clone. It is `pinned upstream tag + committed patch series`, materialized by the engine at build time into a gitignored working clone (`ea_chat-mattermost/`, `ea_chat-element/`; FairEmail reuses existing `ea_mail-fairmail/` — engine must check out the pin, not trust the tracker's HEAD). Same input → same APK. Upstream bump = edit `pinned_tag` in `forks/<x>/build.json`, re-apply patches, fix rejects, commit.
 
-**Gitignore change required** (`~/git/cloud-unix/0_git/src/gitignore`, source of `.gitignore`): `ea_cloud-comms/` matches the `ea_*-*/` tracker pattern — add `!ea_cloud-comms/` + `!ea_cloud-comms/**` exceptions, exactly following the documented `ea_cloud-superapp` precedent at lines 71–76. Do this in **Phase 0, first commit**, or all work is silently untracked.
+**Gitignore change required** (`~/git/cloud-unix/0_git/src/gitignore`, source of `.gitignore`): `ea_cloud-comms/` matches the `ea_*-*/` tracker pattern — add `!ea_cloud-comms/` + `!ea_cloud-comms/**` exceptions, exactly following the documented `aa_cloud-superapp` precedent at lines 71–76. Do this in **Phase 0, first commit**, or all work is silently untracked.
 
 **Signing**: one upload/signing key for all comms APKs + SuperApp (signature permission requires it). Key material lives in `~/git/cloud-vault/A0_keys/providers/system/` (vault carve-out); CI consumption via sops `src/secrets.yaml` in `ea_cloud-comms/`. NOTE: SuperApp's current signing config must be checked — if it ships with a different key today, plan a coordinated re-sign (uninstall/reinstall on device) at Phase 3.
 
@@ -118,7 +118,7 @@ Fork exporters implement the same table shapes under their own authorities (`…
 
 ### Phase 0 — Scaffold + contract + keys
 - gitignore exceptions (see §3) — **first commit**.
-- `ea_cloud-comms/` skeleton: build.sh / build.json / flake.nix (copy engine pattern from `ea_cloud-superapp`, add nodejs for the RN fork's devShell).
+- `ea_cloud-comms/` skeleton: build.sh / build.json / flake.nix (copy engine pattern from `aa_cloud-superapp`, add nodejs for the RN fork's devShell).
 - `contract/comms-ipc-v1.json` + `data/comms-endpoints.json` (mail = `imap.diegonmarcos.com:443` + `smtps.diegonmarcos.com:443` implicit-TLS-with-SNI, jmap host; chat = `https://chat.diegonmarcos.com`; matrix = homeserver URL once shipped).
 - Signing key: generate, store in vault, wire sops.
 - **Tester**: `./build.sh build hub` produces an installable empty-shell APK from a clean clone; JSON files validate against a checked-in JSON Schema; `git status` shows everything tracked.
@@ -143,7 +143,7 @@ Fork exporters implement the same table shapes under their own authorities (`…
 - **Tester**: patch-applies-clean CI; provider room list + unread parity vs client-server `/sync` for the test account.
 
 ### Phase 3 — SuperApp consumption
-- In `ea_cloud-superapp`: add `CommsDataSource` to `libs:core` (or a new `libs:comms-client`) that queries the hub provider + binds the AIDL service; refactor `libs:mail` (10 files) and `libs:chat` (5 files) UIs to read it. **Keep the existing JMAP/Mattermost clients as automatic fallback** when the hub isn't installed — SuperApp must never hard-depend on Cloud-Comms.
+- In `aa_cloud-superapp`: add `CommsDataSource` to `libs:core` (or a new `libs:comms-client`) that queries the hub provider + binds the AIDL service; refactor `libs:mail` (10 files) and `libs:chat` (5 files) UIs to read it. **Keep the existing JMAP/Mattermost clients as automatic fallback** when the hub isn't installed — SuperApp must never hard-depend on Cloud-Comms.
 - Matrix gets its first SuperApp surface (chat tab section) via the same data source.
 - **Tester**: instrumented A/B — same screen renders identical counts in hub-mode vs fallback-mode; uninstalling hub at runtime degrades gracefully (no crash, fallback engages).
 

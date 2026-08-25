@@ -24,7 +24,7 @@
   },
 
   "provisioning": {
-    "_doc": "Idempotent post-boot steps applied via adb each launch. system_dark → `cmd uimode night yes`. home_launcher set via `cmd package set-home-activity`. superapp_launcher_theme pre-seeds launcher_theme_prefs.xml (key `theme`) via `adb run-as` (debug APK). apps[] installed if the package is absent; apk path may use $HOME and the `{abi}` token, which the launcher replaces with the booted profile's ABI (x86_64 / arm64-v8a) so each arch installs its matching native APK — a wrong-ABI install would defeat the 'real ARM test' goal. Build both once: `cd ~/git/cloud-unix/ea_cloud-superapp && SUPERAPP_VARIANT=x86_64 ./build.sh build && SUPERAPP_VARIANT=arm64-v8a ./build.sh build`.",
+    "_doc": "Idempotent post-boot steps applied via adb each launch. system_dark → `cmd uimode night yes`. home_launcher set via `cmd package set-home-activity`. superapp_launcher_theme pre-seeds launcher_theme_prefs.xml (key `theme`) via `adb run-as` (debug APK). apps[] installed if the package is absent; apk path may use $HOME and the `{abi}` token, which the launcher replaces with the booted profile's ABI (x86_64 / arm64-v8a) so each arch installs its matching native APK — a wrong-ABI install would defeat the 'real ARM test' goal. Build both once: `cd ~/git/cloud-android/aa_cloud-superapp && SUPERAPP_VARIANT=x86_64 ./build.sh build && SUPERAPP_VARIANT=arm64-v8a ./build.sh build`.",
     "system_dark": true,
     "settings": [
       { "ns": "global", "key": "window_animation_scale", "value": "0" },
@@ -35,7 +35,7 @@
     "superapp_pkg": "com.diegonmarcos.superapp",
     "superapp_launcher_theme": "cloud_minimalist_black",
     "apps": [
-      { "pkg": "com.diegonmarcos.superapp", "apk": "$HOME/git/cloud-unix/ea_cloud-superapp/dist/Cloud-SuperApp-{abi}.apk" }
+      { "pkg": "com.diegonmarcos.superapp", "apk": "$HOME/git/cloud-android/aa_cloud-superapp/dist/Cloud-SuperApp-{abi}.apk" }
     ]
   }
 }

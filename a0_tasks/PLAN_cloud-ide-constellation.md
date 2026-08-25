@@ -63,8 +63,8 @@ provider/service in the forks AND on the hub surface SuperApp consumes.
 ## 3. Repo layout (in `~/git/cloud-unix/`)
 
 ```
-ea_cloud-ide/                        ← NEW top-level project (sibling of ea_cloud-superapp / ea_cloud-comms)
-├── build.sh                         ← universal dispatcher, same engine pattern as ea_cloud-superapp
+aa_cloud-ide/                        ← NEW top-level project (sibling of aa_cloud-superapp / ea_cloud-comms)
+├── build.sh                         ← universal dispatcher, same engine pattern as aa_cloud-superapp
 ├── build.json                       ← module graph + toolchain pins + fork pins (single source of truth)
 ├── flake.nix                        ← Nix devShell: JDK 17 + Gradle + AGP + Android SDK + Node/Cordova CLI (Acode)
 ├── contract/
@@ -85,11 +85,11 @@ ea_cloud-ide/                        ← NEW top-level project (sibling of ea_cl
         └── patches/
 ```
 
-**Declarative fork rule (non-negotiable, same as Comms)**: a fork is *never* a long-lived divergent clone. It is `pinned upstream tag + committed patch series`, materialized by the engine at build time into gitignored working clones under `ea_upstreams-sources/` (`ide-acode/`, `files-amaze/`, `files-amaze-utils/`). Same input → same APK. Upstream bump = edit `pinned_tag`, re-apply patches, fix rejects, commit.
+**Declarative fork rule (non-negotiable, same as Comms)**: a fork is *never* a long-lived divergent clone. It is `pinned upstream tag + committed patch series`, materialized by the engine at build time into gitignored working clones under `aa_upstreams-sources/` (`ide-acode/`, `files-amaze/`, `files-amaze-utils/`). Same input → same APK. Upstream bump = edit `pinned_tag`, re-apply patches, fix rejects, commit.
 
-**Gitignore change required** (`~/git/cloud-unix/0_git/src/gitignore`, source of `.gitignore`): add `!ea_cloud-ide/` + `!ea_cloud-ide/**` exceptions following the documented `ea_cloud-superapp` precedent (lines 71–76) — **Phase 0, first commit**, or all work is silently untracked.
+**Gitignore change required** (`~/git/cloud-unix/0_git/src/gitignore`, source of `.gitignore`): add `!aa_cloud-ide/` + `!aa_cloud-ide/**` exceptions following the documented `aa_cloud-superapp` precedent (lines 71–76) — **Phase 0, first commit**, or all work is silently untracked.
 
-**Signing**: the SAME key as SuperApp + Cloud-Comms (one signature-permission family across both constellations). Key material in `~/git/cloud-vault/A0_keys/providers/system/` (vault carve-out); CI consumption via sops `src/secrets.yaml` in `ea_cloud-ide/`. If Cloud-Comms Phase 0 already generated this key, REUSE it — do not mint a second one.
+**Signing**: the SAME key as SuperApp + Cloud-Comms (one signature-permission family across both constellations). Key material in `~/git/cloud-vault/A0_keys/providers/system/` (vault carve-out); CI consumption via sops `src/secrets.yaml` in `aa_cloud-ide/`. If Cloud-Comms Phase 0 already generated this key, REUSE it — do not mint a second one.
 
 **Hub sharing**: the hub APK is structurally identical to cloud-comms-hub (switcher + broker + updater, only the contract differs). If comms-hub exists when this plan executes, extract its broker/updater into a shared gradle module (e.g. `ea_cloud-comms/hub-core/` consumed by both hubs, or a sibling `ea_constellation-hub-core/`) instead of copy-pasting. If IDE goes first, build hub with that extraction in mind. Dev agent documents the choice in `hub/README.md`.
 
@@ -128,7 +128,7 @@ Fork exporters implement the table shapes they own under their own authorities (
 
 ### Phase 0 — Scaffold + contract + keys
 - gitignore exceptions (see §3) — **first commit**.
-- `ea_cloud-ide/` skeleton: build.sh / build.json / flake.nix (copy engine pattern from `ea_cloud-superapp`; devShell adds nodejs + Cordova CLI for the Acode fork).
+- `aa_cloud-ide/` skeleton: build.sh / build.json / flake.nix (copy engine pattern from `aa_cloud-superapp`; devShell adds nodejs + Cordova CLI for the Acode fork).
 - `contract/ide-ipc-v1.json` + `data/ide-endpoints.json` (gitea HTTPS, 4× SFTP-over-WG entries flagged `"wg_only": true`, code-server URL, workspace root path).
 - Signing key: reuse the constellation key if Cloud-Comms already created it; otherwise generate, store in vault, wire sops.
 - Two design assumptions PRE-VERIFIED at architecture time (2026-06-11) — dev agent confirms versions at the pinned tags, does not re-investigate from scratch:
@@ -156,7 +156,7 @@ Fork exporters implement the table shapes they own under their own authorities (
 - **Tester**: patch-applies-clean CI; instrumented: opening a file in Acode appears in hub `recent_files` within 5s; `openFile()` via AIDL opens the right buffer; SFTP preset connects over WG.
 
 ### Phase 3 — SuperApp consumption
-- In `ea_cloud-superapp`: new `libs:ide-client` (mirror the CommsDataSource pattern) that queries the hub provider + binds the AIDL service; a "dev card" surface — recent files, workspaces with git dirty/ahead markers, storage summary, tap-through deep links. **No fallback engine**: hub absent → card hides. SuperApp must never hard-depend on Cloud-IDE.
+- In `aa_cloud-superapp`: new `libs:ide-client` (mirror the CommsDataSource pattern) that queries the hub provider + binds the AIDL service; a "dev card" surface — recent files, workspaces with git dirty/ahead markers, storage summary, tap-through deep links. **No fallback engine**: hub absent → card hides. SuperApp must never hard-depend on Cloud-IDE.
 - **Tester**: instrumented — card renders counts matching provider cursors; uninstalling hub at runtime hides the card without crash.
 
 ### Phase 4 — Distribution

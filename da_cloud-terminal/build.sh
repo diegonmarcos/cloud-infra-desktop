@@ -5,7 +5,7 @@
 # ║ Port of the Electron app to Tauri. Toolchain (rust/cargo/          ║
 # ║ cargo-tauri/webkitgtk/node/magick) ALL comes from flake.nix —      ║
 # ║ never assume the host has them. Every build call goes through      ║
-# ║ `nix develop` (in_nix), same law as the ea_cloud-* Android apps.   ║
+# ║ `nix develop` (in_nix), same law as the aa_cloud-* Android apps.   ║
 # ║                                                                    ║
 # ║   build.sh vendor    copy xterm assets node_modules → frontend/    ║
 # ║   build.sh icons     generate src-tauri/icons from src/assets      ║
