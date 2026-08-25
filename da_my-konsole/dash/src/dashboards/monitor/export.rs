@@ -68,11 +68,13 @@ pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<Strin
     row(&mut m, "cpu", format!("{:.1}%", n("cpu")));
     row(&mut m, "load", format!("{:.2} {:.2} {:.2}", n("load1"), n("load5"), n("load15")));
     row(
+        &mut m,
         "memory",
         format!("{:.1}%  {} of {}", n("mem"), fmt_gib(n("mem_detail.used")), fmt_gib(n("mem_detail.total"))),
     );
     row(&mut m, "swap", format!("{:.1}%", n("swap")));
     row(
+        &mut m,
         "psi cpu / io / mem",
         format!("{:.2} / {:.2} / {:.2}", n("psi.cpu.some10"), n("psi.io.full10"), n("psi.memory.full10")),
     );
