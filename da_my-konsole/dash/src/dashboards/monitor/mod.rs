@@ -104,6 +104,54 @@ const FREE: [(&str, &str, &str); 3] = [
 
 /// The three things the big box can be. Naming them in the frame is the only
 /// way anyone finds out the other two exist.
+/// Keys the FRAME handles before a dashboard ever sees them.
+///
+/// frame.rs takes r and a for refresh and auto-refresh unless the dashboard
+/// claims them, and it advertises both in its own header line. Binding one of
+/// these in a view produces a key that is listed everywhere and works nowhere —
+/// which is exactly what "about a" did. The test at the bottom of this file
+/// fails if anything here is ever bound again.
+const FRAME_RESERVED: &[char] = &['r', 'a'];
+
+/// The sort columns reachable by a single key.
+///
+/// ONE table: the handler dispatches from it and the help renders from it, so
+/// a key cannot be documented and unhandled, or handled and undocumented.
+const SORT_KEYS: &[(char, Sort, &str)] = &[
+    ('c', Sort::Cpu, "cpu"),
+    ('m', Sort::Mem, "memory %"),
+    ('d', Sort::Disk, "disk"),
+    ('g', Sort::Runq, "run-queue wait"),
+    ('p', Sort::Pid, "pid"),
+    ('n', Sort::Name, "name"),
+    ('u', Sort::User, "user"),
+    ('e', Sort::Net, "network"),
+    ('s', Sort::Slice, "slice"),
+];
+
+/// Everything else this dashboard binds: key, section, what it does.
+///
+/// The views live in VIEW_TABS and the sorts in SORT_KEYS because those two
+/// tables are also the dispatch; this is the remainder, and the help is built
+/// from all three rather than written a second time beside them.
+const OTHER_KEYS: &[(&str, &str, &str)] = &[
+    ("sorting", "← →", "move the sort to the next column, glances style"),
+    ("sorting", "", "← → also reach C10s C60s M10s M60s and PSS"),
+    ("sorting", "i", "invert the direction"),
+    ("sorting", "w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
+    ("acting", "enter", "full disclosure — command, tree, cpu, mem, io, cgroup"),
+    ("acting", "k", "act on it — restart, or any of the signals"),
+    ("acting", "o", "in the detail view: open the binary's folder"),
+    ("acting", "x", "free memory — reap zombies, reclaim, find orphans"),
+    ("acting", "E", "export this snapshot — {host}-{user}-{time}.json and .md"),
+    ("moving", "↑ ↓", "move the cursor through the list"),
+    ("moving", "pgup pgdn", "ten rows at a time"),
+    ("moving", "home end", "first / last row"),
+    ("leaving", "esc", "open the menu — it does NOT quit"),
+    ("leaving", "h ? F1", "this page"),
+    ("leaving", "ctrl-c ctrl-d", "quit. the only keys that do"),
+];
+
 const VIEW_TABS: &[(&str, char)] = &[
     ("proc", 'p'),
     ("tree", 't'),
@@ -800,8 +848,41 @@ impl Monitor {
 
         let ifaces = arr(&v, "host_info.ifaces");
         if !ifaces.is_empty() {
+            // The mesh interfaces first and in full — v4 AND v6, both of which
+            // a peer has — because the mesh address is how this machine is
+            // reached and the one people come here for.
+            let mesh: Vec<&Value> = ifaces
+                .iter()
+                .filter(|i| i.get("mesh").and_then(|m| m.as_bool()).unwrap_or(false))
+                .collect();
+            if !mesh.is_empty() {
+                l.push(head("mesh"));
+                for i in mesh {
+                    let mtu = text(i, "mtu");
+                    let st = text(i, "state");
+                    l.push(kv(
+                        &text(i, "name"),
+                        format!(
+                            "{}{}{}",
+                            text(i, "addr"),
+                            if mtu.is_empty() { String::new() } else { format!("   mtu {mtu}") },
+                            if st.is_empty() { String::new() } else { format!("   {st}") },
+                        ),
+                    ));
+                }
+                l.push(Line::from(Span::styled(
+                    "  keys, last handshake and per-peer transfer need root — wg(8) and",
+                    Style::default().fg(DIM),
+                )));
+                l.push(Line::from(Span::styled(
+                    "  /etc/wireguard are unreadable to an unprivileged sampler, here and on every peer.",
+                    Style::default().fg(DIM),
+                )));
+            }
             l.push(head("network"));
-            for i in ifaces.iter().take(6) {
+            // Every remaining interface, not the first six: a box with a dozen
+            // docker bridges was silently cutting the one address that mattered.
+            for i in ifaces.iter().filter(|i| !i.get("mesh").and_then(|m| m.as_bool()).unwrap_or(false)) {
                 l.push(kv(&text(i, "name"), text(i, "addr")));
             }
             let dns: Vec<String> = arr(&v, "host_info.dns")
@@ -1020,53 +1101,67 @@ impl Monitor {
                 Style::default().fg(accent).add_modifier(Modifier::BOLD),
             ))
         };
-        let mut l = vec![
-            head("moving"),
-            key("↑ ↓", "move the cursor through the process list"),
-            key("pgup pgdn", "ten rows at a time"),
-            key("home end", "first / last process"),
-            head("view mode"),
-            key("p", "the flat process list"),
-            key("t", "the process tree — parents, children, zombies"),
-            key("z", "only zombies and orphans — the ones nothing owns"),
-            key("o", "containers — docker's or podman's own numbers"),
-            key("b", "about — what this machine is, rather than what it is doing"),
-            key("y", "the last 24 hours: what this machine actually did"),
-            key("f", "the fleet — every mesh peer's totals side by side"),
-            key("v", "add the declared units that are stopped or idle"),
-            head("sorting"),
-            key("← →", "move the sort to the next column, glances style"),
-            key("c m d g", "sort by cpu · mem · disk · run-queue wait"),
-            key("", "PSS is the share-adjusted memory figure; RSS double-counts"),
-            key("p n u e s", "sort by pid · name · user · net · slice"),
-            key("", "← → also reach C10s C60s M10s M60s"),
-            key("i", "invert the direction"),
-            key("E", "export this snapshot — {host}-{user}-{time}.json and .md"),
+        let mut l: Vec<Line> = vec![];
 
-            key("x", "free memory — reap zombies, reclaim, find orphans"),
-            // Short enough to survive the 78-column modal: the long version
-            // was clipped mid-cycle at "→ 5m".
-            key("w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
-            head("acting"),
-            key("enter", "full disclosure — command, tree, cpu, mem, io, cgroup"),
-            key("k", "act on it — restart, or any of the signals"),
-            key("o", "in the detail view: open the binary's folder"),
-            head("layout"),
-        ];
+        // Rendered FROM the tables the handler dispatches from, never written
+        // out a second time beside them. Two lists of keybindings is how a key
+        // ends up documented and unhandled — or, as "about a" was, listed in
+        // two places and eaten by the frame before either could act on it.
+        let section = |l: &mut Vec<Line>, name: &str| {
+            l.push(head(name));
+            for (sec, k, d) in OTHER_KEYS.iter().filter(|(s, _, _)| *s == name) {
+                let _ = sec;
+                l.push(key(k, d));
+            }
+        };
+
+        section(&mut l, "moving");
+
+        l.push(head("tabs"));
+        for (name, k) in VIEW_TABS {
+            l.push(key(
+                &k.to_string(),
+                &format!(
+                    "{name}{}",
+                    match *name {
+                        "proc" => " — the flat process list",
+                        "tree" => " — parents, children, zombies",
+                        "zombies" => " — only the ones nothing owns",
+                        "containers" => " — docker's or podman's own numbers",
+                        "fleet" => " — every mesh peer's totals side by side",
+                        "history" => " — what this machine did over the last day",
+                        "about" => " — what this machine is, not what it is doing",
+                        _ => "",
+                    }
+                ),
+            ));
+        }
+        l.push(key("v", "add the declared units that are stopped or idle"));
+
+        l.push(head("sorting"));
+        // One line per group of four so nine sort keys do not take nine rows.
+        for chunk in SORT_KEYS.chunks(4) {
+            let ks: Vec<String> = chunk.iter().map(|(k, _, _)| k.to_string()).collect();
+            let ds: Vec<&str> = chunk.iter().map(|(_, _, d)| *d).collect();
+            l.push(key(&ks.join(" "), &format!("sort by {}", ds.join(" · "))));
+        }
+        for (sec, k, d) in OTHER_KEYS.iter().filter(|(s, _, _)| *s == "sorting") {
+            let _ = sec;
+            l.push(key(k, d));
+        }
+
+        section(&mut l, "acting");
+
+        l.push(head("layout"));
         for (i, b) in BOX_NAMES.iter().enumerate() {
             l.push(key(
                 &format!("{}", i + 1),
                 &format!("show/hide the {b} box ({})", if self.show[i] { "shown" } else { "hidden" }),
             ));
         }
-        l.push(head("leaving"));
-        l.push(key("esc", "open the menu — it does NOT quit"));
-        l.push(key("h ? F1", "this page"));
-        l.push(key("ctrl-c ctrl-d", "quit. the only keys that do"));
-        l.push(Line::from(Span::styled(
-            "  any key returns",
-            Style::default().fg(DIM),
-        )));
+
+        section(&mut l, "leaving");
+        l.push(Line::from(Span::styled("  any key returns", Style::default().fg(DIM))));
         let h = l.len() as u16 + 2;
         let inner = Self::modal(f, area, 78, h, "keys", accent);
         f.render_widget(Paragraph::new(l), inner);
@@ -1929,14 +2024,11 @@ impl Dashboard for Monitor {
             // that — so ←→← puts you back exactly where you started.
             KeyCode::Left => self.sort = self.sort.step(-1),
             KeyCode::Right => self.sort = self.sort.step(1),
-            KeyCode::Char('c') => self.sort = Sort::Cpu,
-            KeyCode::Char('m') => self.sort = Sort::Mem,
-            KeyCode::Char('d') => self.sort = Sort::Disk,
-            KeyCode::Char('p') => self.sort = Sort::Pid,
-            KeyCode::Char('n') => self.sort = Sort::Name,
-            KeyCode::Char('u') => self.sort = Sort::User,
-            KeyCode::Char('g') => self.sort = Sort::Runq,
-            KeyCode::Char('e') => self.sort = Sort::Net,
+            // From SORT_KEYS, not from nine hand-written arms: the help
+            // renders from the same table, so the two cannot disagree.
+            KeyCode::Char(c) if SORT_KEYS.iter().any(|(k, _, _)| *k == c) => {
+                self.sort = SORT_KEYS.iter().find(|(k, _, _)| *k == c).map(|(_, s, _)| *s).unwrap();
+            }
             KeyCode::Char('E') => {
                 let snap = self.snap.clone();
                 let t = self.mesh.target();
@@ -3518,6 +3610,42 @@ impl Dashboard for Monitor {
 mod tests {
     use super::*;
     use serde_json::json;
+
+    // The whole point of the keybinding tables: a key cannot be advertised in
+    // one place and handled in another, and it cannot collide with a key the
+    // frame already took. "about" was bound to 'a' — listed in the tab strip
+    // AND in the help, and swallowed by frame.rs for auto-refresh before the
+    // dashboard ever saw it, so the view was simply unreachable. This fails if
+    // that is ever true again.
+    #[test]
+    fn no_keybinding_collides_with_the_frame_or_itself() {
+        let mut seen: Vec<(char, &str)> = Vec::new();
+        for (name, k) in VIEW_TABS {
+            seen.push((*k, name));
+        }
+        for (k, _, d) in SORT_KEYS {
+            seen.push((*k, d));
+        }
+        // The single-character entries in OTHER_KEYS are real bindings too;
+        // the multi-key ones ("← →", "pgup pgdn") describe non-char keys.
+        for (_, k, d) in OTHER_KEYS {
+            let mut ch = k.chars();
+            if let (Some(c), None) = (ch.next(), ch.next()) {
+                seen.push((c, d));
+            }
+        }
+        for (c, what) in &seen {
+            assert!(
+                !FRAME_RESERVED.contains(c),
+                "{c:?} ({what}) is reserved by frame.rs — it would never reach this dashboard"
+            );
+        }
+        for (i, (c, a)) in seen.iter().enumerate() {
+            for (d, b) in seen.iter().skip(i + 1) {
+                assert_ne!(c, d, "{c:?} is bound twice: {a} and {b}");
+            }
+        }
+    }
 
     // ←/→ walks the header left to right and wraps. If step() ever clamped
     // instead, the two ends of the header would be dead keys.
