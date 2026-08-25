@@ -5,7 +5,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod clipboard;
-use my_watchdog::watchdog;
 
 use pty_core::{PtyBroker, PtyEvent};
 use serde::Serialize;
@@ -1008,11 +1007,11 @@ fn main() {
             // else in the GUI process reads its return value or depends on it having run.
             if tray_daemon {
                 setup_systrays(app);
-                // Same reasoning as the trays: ONE publisher. The watchdog
-                // samples /proc once every 2s and writes a snapshot the panel
-                // widgets read, instead of fourteen KSysGuard applets each
-                // running their own sensor stack inside plasmashell.
-                watchdog::spawn();
+                // The sampler is my-watchdog's now, not ours. It is its own
+                // product with its own tray and its own systemd unit, and it
+                // runs whether or not a terminal emulator happens to be up —
+                // which is the whole reason it moved out. my-konsole reads the
+                // snapshot like every other consumer.
                 // Second native ksni tray, same "ONE publisher" rule as the
                 // trays above — see clipboard.rs's module doc for why it is
                 // NOT one more entry in systrays.json.

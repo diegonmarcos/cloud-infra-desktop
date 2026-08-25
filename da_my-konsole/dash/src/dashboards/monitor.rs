@@ -3825,7 +3825,15 @@ impl Dashboard for Monitor {
             let got = self.mesh.fleet();
             let peers = self.mesh.list();
             let mut frows: Vec<Row> = vec![];
-            for p in peers.iter() {
+            for (fi, p) in peers.iter().enumerate() {
+                // Without this the cursor moves and nothing on screen says so,
+                // which reads as arrow keys that do not work.
+                let fsel = fi == self.sel;
+                let base = if fsel {
+                    Style::default().bg(Color::Rgb(38, 48, 66)).add_modifier(Modifier::BOLD)
+                } else {
+                    Style::default()
+                };
                 // This machine is described by the snapshot already on screen;
                 // there is no reason to ssh to ourselves to learn it.
                 let res = if p.local { Some(Ok(s.clone())) } else { got.get(&p.alias).cloned() };
@@ -3834,11 +3842,12 @@ impl Dashboard for Monitor {
                     _ => None,
                 };
                 let name = Span::styled(
-                    // 18: "oci-analytics-pub" is 17 and was losing its tail.
-                    format!("{:<18}", trunc(&p.alias, 18)),
-                    Style::default().fg(if p.local { Color::Rgb(120, 200, 255) } else { Color::White }),
+                    // 17 plus the cursor mark: "oci-analytics-pub" is 17 and
+                    // was losing its tail before that.
+                    format!("{}{:<17}", if fsel { "▶" } else { " " }, trunc(&p.alias, 17)),
+                    base.fg(if p.local { Color::Rgb(120, 200, 255) } else { Color::White }),
                 );
-                let addr = Span::styled(format!("{:<16}", p.ip), Style::default().fg(DIM));
+                let addr = Span::styled(format!("{:<16}", p.ip), base.fg(DIM));
                 let Some(v) = snap else {
                     // Reachable but not yet collected, or not reachable at all
                     // — two different states and they must not read the same.
@@ -3872,7 +3881,7 @@ impl Dashboard for Monitor {
                     continue;
                 };
                 let g = |k: &str| num(&v, k);
-                let pct = |x: f64| Cell::from(z(x, 5, format!("{x:>5.1}"))).style(Style::default().fg(grad(x / 100.0)));
+                let pct = |x: f64| Cell::from(z(x, 5, format!("{x:>5.1}"))).style(base.fg(grad(x / 100.0)));
                 let ncpu = arr(&v, "cores").len().max(1) as f64;
                 let l1 = g("load1");
                 frows.push(Row::new(vec![
@@ -3884,7 +3893,7 @@ impl Dashboard for Monitor {
                     } else {
                         format!("{:>7}", "down")
                     })
-                    .style(Style::default().fg(DIM)),
+                    .style(base.fg(DIM)),
                     pct(g("cpu")),
                     pct(g("mem")),
                     pct(g("swap")),
@@ -3913,8 +3922,7 @@ impl Dashboard for Monitor {
                             ),
                         ]))
                     },
-                    Cell::from(format!("{:>6.1}G", num(&v, "mem_detail.total")))
-                        .style(Style::default().fg(Color::Gray)),
+                    Cell::from(format!("{:>6.1}G", num(&v, "mem_detail.total"))).style(base.fg(Color::Gray)),
                     // btrfs allocates in chunks and df cannot see that, so on a
                     // machine that publishes storage the pool figure is the
                     // true one; peers fall back to their own df.
@@ -3933,7 +3941,7 @@ impl Dashboard for Monitor {
                             Style::default().fg(Color::Gray),
                         ),
                     ])),
-                    Cell::from(format!("{:>4.0}", ncpu)).style(Style::default().fg(DIM)),
+                    Cell::from(format!("{:>4.0}", ncpu)).style(base.fg(DIM)),
                     // some-cpu, full-io, full-mem at 10s: the three that
                     // actually tell you what a machine is stuck on. `full`
                     // for io and memory because that is every task stalled,
@@ -3952,8 +3960,7 @@ impl Dashboard for Monitor {
                             Style::default().fg(grad(g("psi.memory.full10") / 20.0)),
                         ),
                     ])),
-                    Cell::from(format!("{:>6}", arr(&v, "proc_table").len()))
-                        .style(Style::default().fg(DIM)),
+                    Cell::from(format!("{:>6}", arr(&v, "proc_table").len())).style(base.fg(DIM)),
                 ]));
             }
             let ftable = Table::new(
@@ -3992,7 +3999,7 @@ impl Dashboard for Monitor {
                 match &self.msg {
                     Some((m, _)) => format!(" {m}"),
                     None => format!(
-                        " {} peers · collected over ssh every 20s · h keys · ^c quits",
+                        " {} peers · ↑↓ to move · enter for the whole machine · swept every 20s",
                         peers.len()
                     ),
                 },

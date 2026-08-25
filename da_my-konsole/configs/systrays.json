@@ -1,5 +1,5 @@
 {
-  "_doc": "my-konsole IS the systray daemon. Each entry here becomes a real StatusNotifierItem tray icon, created natively by src-tauri/src/main.rs's setup_systrays() (Tauri's tray-icon feature) when my-konsole runs with --tray-daemon. `menu` items shell-exec `command` on click. `profile` names the my-konsole profile this tray's content mirrors (for the future --initial-profile jump-to-tab support — see _TODO). build.sh install copies this file to ~/.local/share/my-konsole/systrays.json and installs+starts a systemd --user service running `my-konsole --tray-daemon` (Restart=always) — no nix module, no separate python/GTK process. Icons are the SVGs in configs/systray-icons/ — `icon` is that basename; they are rasterised at load, so every tray has its OWN icon (they all shared the app icon before).",
+  "_doc": "my-konsole IS the systray daemon for its OWN trays. The watchdog tray is NOT here any more: my-watchdog is a separate product and ships its own StatusNotifierItem, so a machine that runs only the sampler still gets a tray and a machine running both does not get two. Each entry here becomes a real StatusNotifierItem tray icon, created natively by src-tauri/src/main.rs's setup_systrays() (Tauri's tray-icon feature) when my-konsole runs with --tray-daemon. `menu` items shell-exec `command` on click. `profile` names the my-konsole profile this tray's content mirrors (for the future --initial-profile jump-to-tab support — see _TODO). build.sh install copies this file to ~/.local/share/my-konsole/systrays.json and installs+starts a systemd --user service running `my-konsole --tray-daemon` (Restart=always) — no nix module, no separate python/GTK process. Icons are the SVGs in configs/systray-icons/ — `icon` is that basename; they are rasterised at load, so every tray has its OWN icon (they all shared the app icon before).",
   "_TODO": "my-konsole has no CLI/env initial-profile support yet — `profile` here is documentation only until that lands.",
   "trays": [
     {
@@ -29,36 +29,6 @@
         {
           "label": "Nix Daemon: RESET (restart)",
           "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"NixOS\" \"nix-daemon reset\"'"
-        }
-      ]
-    },
-    {
-      "id": "watchdog-systray",
-      "icon": "watchdog",
-      "title": "Watchdog",
-      "profile": "watchdog",
-      "enable": true,
-      "default_command": "bash -lc watchdog-status",
-      "menu": [
-        {
-          "label": "Status / PSI",
-          "command": "bash -lc watchdog-status"
-        },
-        {
-          "label": "🔴 Trigger OOM (Alt+SysRq+F)",
-          "command": "bash -lc watchdog-oom"
-        },
-        {
-          "label": "Watch guard logs",
-          "command": "bash -lc watchdog-logs"
-        },
-        {
-          "label": "freeze-guard log",
-          "command": "konsole --hold -e journalctl -u freeze-guard.service -f"
-        },
-        {
-          "label": "Nix Daemon: RESET",
-          "command": "bash -lc 'sudo systemctl restart nix-daemon.service && notify-send \"Watchdog\" \"nix-daemon reset\"'"
         }
       ]
     },
