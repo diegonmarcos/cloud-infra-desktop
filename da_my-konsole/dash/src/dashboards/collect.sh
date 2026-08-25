@@ -17,15 +17,21 @@
 # so those boxes read as "no data" instead of "all zero".
 f="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/my-konsole-watchdog.json"
 if [ -r "$f" ]; then cat "$f"; exit 0; fi
-# df once, for the root filesystem percentage the fleet view shows.
-> /tmp/.mkdf df -P / 2>/dev/null
-> /tmp/.mk1 cat /proc/stat
-> /tmp/.mkp1 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
-sleep 1
-> /tmp/.mk2 cat /proc/stat
-> /tmp/.mkp2 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
+# Unique per run. The same machine is reachable at several addresses and the
+# hub collects them concurrently, so fixed paths meant two runs on one host
+# overwrote each other's samples — which showed up as a peer reporting one
+# core and no processes.
+T=/tmp/.mk.$$
 
-awk -v NOW="$(date +%s)" '
+# df once, for the root filesystem percentage the fleet view shows.
+> $T.df df -P / 2>/dev/null
+> $T.1 cat /proc/stat
+> $T.p1 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
+sleep 1
+> $T.2 cat /proc/stat
+> $T.p2 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
+
+awk -v NOW="$(date +%s)" -v T="$T" '
 function j(k,v){ printf "%s\"%s\":%s", sep, k, v; sep="," }
 function esc(s){ gsub(/\\/,"\\\\",s); gsub(/"/,"\\\"",s); return s }
 function psi(f, l,a,r){ r="{}"; while((getline l < f)>0){
@@ -35,10 +41,10 @@ function psi(f, l,a,r){ r="{}"; while((getline l < f)>0){
     P["someavg10"]+0,P["someavg60"]+0,P["someavg300"]+0,P["fullavg10"]+0,P["fullavg60"]+0,P["fullavg300"]+0) }
 BEGIN{
   # ── cpu, two samples ────────────────────────────────────────────────
-  while((getline l < "/tmp/.mk1")>0){ n=split(l,a," "); if(a[1]~/^cpu/){ tot=0; for(i=2;i<=n;i++)tot+=a[i]; T1[a[1]]=tot; I1[a[1]]=a[5]+a[6]; for(i=2;i<=n;i++) M1[a[1],i]=a[i] } }
-  close("/tmp/.mk1")
-  while((getline l < "/tmp/.mk2")>0){ n=split(l,a," "); if(a[1]~/^cpu/){ tot=0; for(i=2;i<=n;i++)tot+=a[i]; T2[a[1]]=tot; I2[a[1]]=a[5]+a[6]; for(i=2;i<=n;i++) M2[a[1],i]=a[i]; if(a[1]!="cpu"){ order[++nc]=a[1] } } }
-  close("/tmp/.mk2")
+  while((getline l < (T ".1"))>0){ n=split(l,a," "); if(a[1]~/^cpu/){ tot=0; for(i=2;i<=n;i++)tot+=a[i]; T1[a[1]]=tot; I1[a[1]]=a[5]+a[6]; for(i=2;i<=n;i++) M1[a[1],i]=a[i] } }
+  close(T ".1")
+  while((getline l < (T ".2"))>0){ n=split(l,a," "); if(a[1]~/^cpu/){ tot=0; for(i=2;i<=n;i++)tot+=a[i]; T2[a[1]]=tot; I2[a[1]]=a[5]+a[6]; for(i=2;i<=n;i++) M2[a[1],i]=a[i]; if(a[1]!="cpu"){ order[++nc]=a[1] } } }
+  close(T ".2")
   dt=T2["cpu"]-T1["cpu"]; if(dt<=0)dt=1
   cpu=100*(1-(I2["cpu"]-I1["cpu"])/dt)
   det=sprintf("{\"user\":%.1f,\"nice\":%.1f,\"system\":%.1f,\"iowait\":%.1f,\"irq\":%.1f,\"steal\":%.1f}",
@@ -80,13 +86,13 @@ BEGIN{
     DR+=a[6]; DW+=a[10] } close("/proc/diskstats")
 
   # ── processes ───────────────────────────────────────────────────────
-  while((getline l < "/tmp/.mkp1")>0){ split(l,a," "); C1[a[1]]=a[12]+a[13] } close("/tmp/.mkp1")
+  while((getline l < (T ".p1"))>0){ split(l,a," "); C1[a[1]]=a[12]+a[13] } close(T ".p1")
   np=0
-  while((getline l < "/tmp/.mkp2")>0){ split(l,a," "); pid=a[1]
+  while((getline l < (T ".p2"))>0){ split(l,a," "); pid=a[1]
     if(!(pid in C1)) continue
     tick=(a[12]+a[13])-C1[pid]; if(tick<0)tick=0
     np++; PID[np]=pid; PCT[np]=tick     # USER_HZ=100, 1s window -> ticks == percent
-  } close("/tmp/.mkp2")
+  } close(T ".p2")
   # top 40 by cpu, simple selection sort (np is a few thousand at most)
   n=(np<40?np:40)
   # bi, not b: b is an array in the totals block above and awk has one
@@ -112,8 +118,8 @@ BEGIN{
   j("cpu",sprintf("%.1f",cpu)); j("cores",cores); j("cpu_detail",det)
   j("mem",sprintf("%.1f",(mt>0?100.0*used/mt:0))); j("swap",sprintf("%.1f",(st>0?100.0*(st-sf)/st:0)))
   j("mem_detail",memd); j("swap_detail",swapd)
-  while((getline l < "/tmp/.mkdf")>0){ n=split(l,a," "); if(a[n]=="/"){ DP=a[n-1]; gsub(/%/,"",DP) } }
-  close("/tmp/.mkdf")
+  while((getline l < (T ".df"))>0){ n=split(l,a," "); if(a[n]=="/"){ DP=a[n-1]; gsub(/%/,"",DP) } }
+  close(T ".df")
   j("disk",DP+0); j("disk_r",0); j("disk_w",0); j("disks","[]")
   j("net_rx",0); j("net_tx",0)
   j("load1",L[1]+0); j("load5",L[2]+0); j("load15",L[3]+0)
@@ -127,4 +133,4 @@ BEGIN{
   j("ts",NOW+0)
   printf "}\n"
 }' < /dev/null
-rm -f /tmp/.mk1 /tmp/.mk2 /tmp/.mkp1 /tmp/.mkp2 /tmp/.mkdf
+rm -f "$T".*
