@@ -51,7 +51,7 @@ pub(crate) const SORT_ORDER: [Sort; 15] = [
 ];
 
 impl Sort {
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Sort::Cpu => "cpu",
             // Lowercased header names, so the box title names the same column
@@ -76,7 +76,7 @@ impl Sort {
     /// Step `d` columns along SORT_ORDER, wrapping. Wrapping rather than
     /// clamping because a sort cycle with dead ends at both edges is a worse
     /// answer than one you can spin.
-    fn step(self, d: i32) -> Sort {
+    pub(crate) fn step(self, d: i32) -> Sort {
         let n = SORT_ORDER.len() as i32;
         let i = SORT_ORDER.iter().position(|x| *x == self).unwrap_or(0) as i32;
         SORT_ORDER[(((i + d) % n + n) % n) as usize]
@@ -95,7 +95,7 @@ pub(crate) enum Win {
 }
 
 impl Win {
-    fn label(self) -> &'static str {
+    pub(crate) fn label(self) -> &'static str {
         match self {
             Win::Now => "now",
             Win::M1 => "1m",
@@ -103,7 +103,7 @@ impl Win {
             Win::M15 => "15m",
         }
     }
-    fn next(self) -> Win {
+    pub(crate) fn next(self) -> Win {
         match self {
             Win::Now => Win::M1,
             Win::M1 => Win::M5,
@@ -113,7 +113,7 @@ impl Win {
     }
     /// Read `field` from the chosen window, falling back to the instant value
     /// when the daemon has not accumulated that window for this pid yet.
-    fn get(self, p: &Value, field: &str) -> f64 {
+    pub(crate) fn get(self, p: &Value, field: &str) -> f64 {
         match self {
             Win::Now => num(p, field),
             Win::M1 => avg_or(p, "1m", field),
