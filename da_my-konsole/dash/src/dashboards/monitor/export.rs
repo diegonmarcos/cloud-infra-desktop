@@ -87,11 +87,15 @@ pub(crate) fn to_yaml(v: &Value, indent: usize, out: &mut String) {
 /// The name is {host}-{user}-{timestamp}: the triple that stays unambiguous
 /// once you have exported the same peer twice and a second machine once. The
 /// host comes from the SNAPSHOT, so exporting a peer names the peer.
+///
+/// `fleet` EMPTY is the default and the common case: one export, one machine.
+/// Pass peers to fold the whole mesh into the same file — everything the
+/// panel could show, at the cost of a file several times the size.
 pub(crate) fn export_snapshot(
     s: &Value,
     target: Option<String>,
-    fleet: &[(String, Value)],
     files: &[String],
+    fleet: &[(String, Value)],
 ) -> Result<String, String> {
     let hi = |k: &str| text(s, &format!("host_info.{k}"));
     let host = if hi("host").is_empty() { "unknown".to_string() } else { hi("host") };
@@ -121,36 +125,44 @@ pub(crate) fn export_snapshot(
     fs::create_dir_all(&dir).map_err(|e| format!("{dir}: {e}"))?;
     let stem = format!("{dir}/{}-{}-{stamp}", safe(&host), safe(&user));
 
-    // An ENVELOPE, not the bare snapshot. Every tab, because half of what is
-    // on screen does not live in this machine's snapshot: the fleet is one
-    // snapshot per peer collected over ssh, and the file tree is read from
-    // disk by the panel. An export covering only the tabs whose data happened
-    // to sit in one JSON would be an export you have to remember the limits
-    // of.
+    // ONE MACHINE BY DEFAULT — the one being measured, whichever that is.
+    // `target` picks it, so exporting while viewing a peer writes that peer's
+    // file under that peer's name, and the file tree is the one on screen.
     //
+    // The fleet was 772KB of a 1030KB export and is now opt-in, because an
+    // export is normally a snapshot OF something and folding four other
+    // machines into it made the common case pay for the rare one.
+    //
+    // Still an envelope rather than the bare snapshot: the file tree is read
+    // from disk by the panel and never appears in what the sampler publishes.
+    let mut envelope = serde_json::Map::new();
+    envelope.insert("snapshot".into(), s.clone());
+    envelope.insert("files".into(), serde_json::json!(files));
+    envelope.insert("exported".into(), serde_json::json!(stamp));
+    envelope.insert(
+        "measured".into(),
+        serde_json::json!(target.clone().unwrap_or_else(|| "local".into())),
+    );
+
     // DEDUPED BY MACHINE, not by alias. ~/.ssh/config gives several ways in to
     // the same box — oci-analytics, -pub and -v6 are one host — and the fleet
     // map is keyed by alias, so a naive dump wrote that machine's whole
-    // snapshot three times. On one measured export that was 772KB of fleet in
-    // a 1030KB file. The peer's own hostname is the identity; the aliases that
-    // reached it are recorded beside it, because which route answered is worth
-    // knowing and costs a string.
-    let mut by_host: serde_json::Map<String, Value> = serde_json::Map::new();
-    let mut aliases: std::collections::BTreeMap<String, Vec<String>> = Default::default();
-    for (alias, v) in fleet {
-        let host = text(v, "host_info.host");
-        let key = if host.is_empty() { alias.clone() } else { host };
-        aliases.entry(key.clone()).or_default().push(alias.clone());
-        by_host.entry(key).or_insert_with(|| v.clone());
+    // snapshot three times. The peer's own hostname is the identity; the
+    // aliases that reached it are recorded beside it, because which route
+    // answered is worth knowing and costs a string.
+    if !fleet.is_empty() {
+        let mut by_host: serde_json::Map<String, Value> = serde_json::Map::new();
+        let mut aliases: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+        for (alias, v) in fleet {
+            let peer = text(v, "host_info.host");
+            let key = if peer.is_empty() { alias.clone() } else { peer };
+            aliases.entry(key.clone()).or_default().push(alias.clone());
+            by_host.entry(key).or_insert_with(|| v.clone());
+        }
+        envelope.insert("fleet".into(), Value::Object(by_host));
+        envelope.insert("fleet_aliases".into(), serde_json::json!(aliases));
     }
-    let envelope = serde_json::json!({
-        "snapshot": s,
-        "fleet": by_host,
-        "fleet_aliases": aliases,
-        "files": files,
-        "exported": stamp,
-        "measured": target.clone().unwrap_or_else(|| "local".into()),
-    });
+    let envelope = Value::Object(envelope);
     // Compact, not pretty. Indentation was 35% of the file and this is the
     // machine-readable half of the pair — the Markdown beside it is the one
     // meant to be read. `jq .` puts the whitespace back for free.
@@ -325,6 +337,7 @@ pub(crate) fn export_snapshot(
     }
 
     // ── fleet ──────────────────────────────────────────────────────────
+    // Only in a fleet export; a single-machine file has no peers to table.
     if !fleet.is_empty() {
         m.push_str("\n## Fleet\n\n| peer | cpu | mem | swap | load | cores | psi cpu/io/mem |\n|---|---|---|---|---|---|---|\n");
         for (alias, v) in fleet {
@@ -386,10 +399,15 @@ pub(crate) fn export_snapshot(
         m.push_str("```\n");
     }
 
-    m.push_str(
-        "\n<sub>my-konsole-dash · the JSON beside this file is the same data in full: \
-         the machine's snapshot, one per fleet peer, and the whole file tree.</sub>\n",
-    );
+    // The Markdown caps its lists; the two machine-readable files do not, and
+    // saying which is which here is cheaper than finding out later that the
+    // table stopped at sixty units.
+    m.push_str(&format!(
+        "\n<sub>my-konsole-dash · the JSON and YAML beside this file are the same data \
+         in full — this machine's snapshot, its file tree{}. \
+         The YAML is the same content at roughly a third of the tokens.</sub>\n",
+        if fleet.is_empty() { "" } else { " and every fleet peer" }
+    ));
     fs::write(format!("{stem}.md"), m).map_err(|e| format!("{stem}.md: {e}"))?;
 
     Ok(stem)

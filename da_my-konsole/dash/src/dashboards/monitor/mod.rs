@@ -151,7 +151,8 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("modal", "o", "in the detail view: open the binary's folder"),
     ("modal", ".", "in the files tab: show or hide dotfiles"),
     ("acting", "x", "free memory — reap zombies, reclaim, find orphans"),
-    ("acting", "E", "export this snapshot — {host}-{user}-{time}.json and .md"),
+    ("acting", "E", "export THIS machine — {host}-{user}-{time}.json, .yaml, .md"),
+    ("acting", "A", "export all — the same, with every fleet peer folded in"),
     ("moving", "↑ ↓", "move the cursor through the list"),
     ("moving", "pgup pgdn", "ten rows at a time"),
     ("moving", "home end", "first / last row"),
@@ -1440,24 +1441,26 @@ impl Monitor {
         });
     }
 
-    /// The tab keys, honoured from whichever view you are in.
-    ///
-    /// They were handled per-view, so pressing `z` while looking at containers
-    /// did nothing at all — a tab strip that only works from one tab is not a
-    /// tab strip. Returns true when the key was a tab switch.
     /// Write every tab out. Kept in one place so the global key path is the
     /// only thing that has to know how.
-    fn export_now(&mut self) {
+    ///
+    /// `all` folds every peer into the same file. Off by default: the fleet
+    /// was three quarters of the old export, and most exports are about the
+    /// machine in front of you.
+    fn export_now(&mut self, all: bool) {
         let snap = self.snap.clone();
         let t = self.mesh.target();
-        // Including the two things that are not in this machine's snapshot:
-        // the peers, and the tree.
-        let fleet: Vec<(String, Value)> = self
-            .mesh
-            .fleet()
-            .into_iter()
-            .filter_map(|(k, v)| v.ok().map(|v| (k, v)))
-            .collect();
+        // Peers are collected only when asked for — fleet() is an ssh round
+        // trip per peer, so the default export does not pay for it at all.
+        let fleet: Vec<(String, Value)> = if all {
+            self.mesh
+                .fleet()
+                .into_iter()
+                .filter_map(|(k, v)| v.ok().map(|v| (k, v)))
+                .collect()
+        } else {
+            Vec::new()
+        };
         // Exporting without having opened the files tab should still carry the
         // tree rather than an empty list.
         let levels = if self.files_cache.iter().all(|v| v.is_empty()) {
@@ -1471,20 +1474,28 @@ impl Monitor {
         // the level that carries the shape of the tree without the leaf spray
         // of L4, and one pane is the whole of it.
         let files: Vec<String> = levels[2].clone();
-        self.msg = Some(match export_snapshot(&snap, t, &fleet, &files) {
-            Ok(stem) => (format!("exported {stem}.json .yaml .md"), false),
+        self.msg = Some(match export_snapshot(&snap, t, &files, &fleet) {
+            Ok(stem) => {
+                let what = if all { format!(" + {} peers", fleet.len()) } else { String::new() };
+                (format!("exported {stem}.json .yaml .md{what}"), false)
+            }
             Err(e) => (format!("export failed: {e}"), true),
         });
     }
 
+    /// The tab keys, honoured from whichever view you are in.
+    ///
+    /// They were handled per-view, so pressing `z` while looking at containers
+    /// did nothing at all — a tab strip that only works from one tab is not a
+    /// tab strip. Returns true when the key was a tab switch.
     fn view_key(&mut self, k: KeyCode) -> bool {
         let KeyCode::Char(c) = k else { return false };
         // Export is a GLOBAL action and must be handled before the per-view
         // branches, not inside the process view's match. It was reachable only
         // from the process list and silently did nothing everywhere else —
         // the same failure as a key the frame had already taken.
-        if c == 'E' {
-            self.export_now();
+        if c == 'E' || c == 'A' {
+            self.export_now(c == 'A');
             return true;
         }
         let _ = ();
