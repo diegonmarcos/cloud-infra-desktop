@@ -515,6 +515,17 @@ struct ProcSample {
     runq_wait_ns: u64,
     net_rx: u64,
     net_tx: u64,
+    /// Accumulated since this daemon first saw the pid.
+    ///
+    /// net_rx/net_tx above are a sum over CURRENTLY OPEN sockets, so they fall
+    /// when a connection closes and can never be a lifetime figure on their
+    /// own. Integrating the positive deltas is the only way to get one without
+    /// the kernel keeping per-process network counters, which it does not.
+    /// It undercounts — traffic on a socket opened and closed between two
+    /// samples is never seen — and it never overcounts, which is the right way
+    /// round for a number people read as a total.
+    net_rx_total: u64,
+    net_tx_total: u64,
     avg: [ProcAvg; 4],
     /// False until this pid has produced one real rate sample, so the first
     /// EWMA step SEEDS with the live value instead of ramping up from zero
@@ -716,6 +727,10 @@ fn build_proc_table(
         write_bps: f64,
         net_rx_bps: f64,
         net_tx_bps: f64,
+        net_rx_total: u64,
+        net_tx_total: u64,
+        read_total: u64,
+        write_total: u64,
         runq_wait_pct: f64,
         avg: [ProcAvg; 4],
     }
@@ -789,6 +804,14 @@ fn build_proc_table(
             .unwrap_or((0.0, 0.0));
         // saturating_sub, so a closed socket leaving the sum reads as no
         // traffic rather than as a negative rate. See read_proc_net.
+        let (net_rx_total, net_tx_total) = p
+            .map(|p| {
+                (
+                    p.net_rx_total + net_rx.saturating_sub(p.net_rx),
+                    p.net_tx_total + net_tx.saturating_sub(p.net_tx),
+                )
+            })
+            .unwrap_or((0, 0));
         let (net_rx_bps, net_tx_bps) = p
             .map(|p| {
                 if secs <= 0.0 { (0.0, 0.0) } else {
@@ -846,6 +869,8 @@ fn build_proc_table(
                 runq_wait_ns,
                 net_rx,
                 net_tx,
+                net_rx_total,
+                net_tx_total,
                 avg,
                 seeded: seeded || p.is_some(),
             },
@@ -874,6 +899,12 @@ fn build_proc_table(
             write_bps,
             net_rx_bps,
             net_tx_bps,
+            net_rx_total,
+            net_tx_total,
+            // /proc/PID/io is already cumulative for the life of the
+            // process, so these need no integrating.
+            read_total: read_bytes,
+            write_total: write_bytes,
             runq_wait_pct,
             avg,
         });
@@ -967,12 +998,16 @@ fn build_proc_table(
                   \"cpu_pct\":{:.1},\"mem_rss_bytes\":{:.0},\"mem_pss_bytes\":{},\"mem_pct\":{:.2},\
                   \"read_bytes_per_s\":{:.0},\"write_bytes_per_s\":{:.0},\
                   \"net_rx_bytes_per_s\":{:.0},\"net_tx_bytes_per_s\":{:.0},\
+                  \"net_rx_bytes_total\":{},\"net_tx_bytes_total\":{},\
+                  \"read_bytes_total\":{},\"write_bytes_total\":{},\
                   \"runq_wait_pct\":{:.2},\"protected\":{is_protected},\
                   \"protected_reason\":{},\"avg\":{{{}}}}}",
                 r.pid, r.ppid, r.cpu_pct, r.rss_kb * 1024.0,
                 r.pss_bytes.map(|v| format!("{v:.0}")).unwrap_or_else(|| "null".into()),
                 r.mem_pct, r.read_bps, r.write_bps,
-                r.net_rx_bps, r.net_tx_bps, r.runq_wait_pct,
+                r.net_rx_bps, r.net_tx_bps,
+                r.net_rx_total, r.net_tx_total, r.read_total, r.write_total,
+                r.runq_wait_pct,
                 if is_protected { format!("\"{}\"", json_escape(&reason)) } else { "null".to_string() },
                 avg_json.join(","),
             )
@@ -1566,6 +1601,25 @@ fn totals_json(uptime_s: f64) -> String {
     )
 }
 
+/// Globally routable? Everything RFC1918, CGNAT, loopback, link-local and
+/// unique-local is not, and on this fleet that is exactly the set that means
+/// "you cannot reach it from the internet".
+fn is_global(a: &str) -> bool {
+    if a.contains(':') {
+        return !(a.starts_with("fe80") || a.starts_with("fc") || a.starts_with("fd") || a == "::1");
+    }
+    let o: Vec<u32> = a.split('.').filter_map(|x| x.parse().ok()).collect();
+    if o.len() != 4 {
+        return false;
+    }
+    !(o[0] == 10
+        || o[0] == 127
+        || (o[0] == 172 && (16..=31).contains(&o[1]))
+        || (o[0] == 192 && o[1] == 168)
+        || (o[0] == 169 && o[1] == 254)
+        || (o[0] == 100 && (64..=127).contains(&o[1])))
+}
+
 /// Who and where this machine is: the identity the panel puts in its header,
 /// and the network configuration the net box shows.
 ///
@@ -1591,6 +1645,7 @@ fn host_info_json() -> String {
         .and_then(|o| String::from_utf8(o.stdout).ok())
         .unwrap_or_default();
     let mut ifaces: Vec<String> = Vec::new();
+    let mut addr_list: Vec<(String, String)> = Vec::new();
     for line in addrs.lines() {
         let f: Vec<&str> = line.split_whitespace().collect();
         if f.len() < 4 || f[1] == "lo" {
@@ -1600,6 +1655,7 @@ fn host_info_json() -> String {
         if f[3].starts_with("fe80:") {
             continue;
         }
+        addr_list.push((f[1].to_string(), f[3].split('/').next().unwrap_or("").to_string()));
         ifaces.push(format!(
             "{{\"name\":\"{}\",\"addr\":\"{}\"}}",
             json_escape(f[1]),
@@ -1617,6 +1673,17 @@ fn host_info_json() -> String {
     let gateway = gw.iter().position(|x| *x == "via").and_then(|i| gw.get(i + 1)).copied().unwrap_or("");
     let wan_if = gw.iter().position(|x| *x == "dev").and_then(|i| gw.get(i + 1)).copied().unwrap_or("");
 
+    // The public address, worked out from the interfaces rather than asked of
+    // a third party. On a VM with a routable NIC that IS the public address
+    // and no lookup is needed; on a machine behind NAT it genuinely cannot be
+    // known from here, and saying "behind NAT" is a truer answer than quietly
+    // handing this machine's identity to whatever echo service was handy.
+    let public = addr_list
+        .iter()
+        .find(|(name, a)| !name.starts_with("wg") && is_global(a))
+        .map(|(_, a)| a.clone())
+        .unwrap_or_default();
+
     let resolv = fs::read_to_string("/etc/resolv.conf").unwrap_or_default();
     let dns: Vec<String> = resolv
         .lines()
@@ -1631,12 +1698,13 @@ fn host_info_json() -> String {
         .collect();
 
     format!(
-        "{{\"host\":\"{}\",\"os\":\"{}\",\"kernel\":\"{}\",\"gateway\":\"{}\",\"wan_if\":\"{}\",\"ifaces\":[{}],\"dns\":[{}],\"search\":[{}]}}",
+        "{{\"host\":\"{}\",\"os\":\"{}\",\"kernel\":\"{}\",\"gateway\":\"{}\",\"wan_if\":\"{}\",\"public\":\"{}\",\"ifaces\":[{}],\"dns\":[{}],\"search\":[{}]}}",
         json_escape(&host),
         json_escape(&os),
         json_escape(&kernel),
         json_escape(gateway),
         json_escape(wan_if),
+        json_escape(&public),
         ifaces.join(","),
         dns.join(","),
         search.join(","),
