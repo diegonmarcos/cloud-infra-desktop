@@ -240,7 +240,18 @@ BEGIN{
     if(a[1]=="nameserver") DNS[++nd]=a[2]
     else if(a[1]=="search") for(i=2;i<=n;i++) SRCH[++ns]=a[i] }
   close(T ".resolv")
-  ifj=""; for(i=1;i<=nif;i++) ifj=ifj sprintf("%s{\"name\":\"%s\",\"addr\":\"%s\"}",(i>1?",":""),esc(IFN[i]),esc(IFA[i]))
+  # mtu/state from sysfs; wg keys and handshakes are root-only and simply not
+  # available here, which the panel says rather than showing blanks.
+  ifj=""
+  for(i=1;i<=nif;i++){
+    mtu=""; st=""
+    if((getline mline < ("/sys/class/net/" IFN[i] "/mtu"))>0) mtu=mline
+    close("/sys/class/net/" IFN[i] "/mtu")
+    if((getline sline < ("/sys/class/net/" IFN[i] "/operstate"))>0) st=sline
+    close("/sys/class/net/" IFN[i] "/operstate")
+    ifj=ifj sprintf("%s{\"name\":\"%s\",\"addr\":\"%s\",\"mtu\":\"%s\",\"state\":\"%s\",\"mesh\":%s}",
+      (i>1?",":""),esc(IFN[i]),esc(IFA[i]),esc(mtu),esc(st),(IFN[i] ~ /^wg/ ? "true" : "false"))
+  }
   dnj=""; for(i=1;i<=nd;i++) dnj=dnj sprintf("%s\"%s\"",(i>1?",":""),esc(DNS[i]))
   srj=""; for(i=1;i<=ns;i++) srj=srj sprintf("%s\"%s\"",(i>1?",":""),esc(SRCH[i]))
   j("host_info",sprintf("{\"host\":\"%s\",\"os\":\"%s\",\"kernel\":\"%s\",\"user\":\"%s\",\"gateway\":\"%s\",\"wan_if\":\"%s\",\"public\":\"%s\",\"ifaces\":[%s],\"dns\":[%s],\"search\":[%s]}",
