@@ -5,7 +5,7 @@
 # of toolchain choice.
 { config, pkgs, lib, ... }:
 {
-  home.packages = with pkgs; [
-    (callPackage ../../pkgs/octocode.nix {})  # Rust code-analysis CLI
-  ];
+  # octocode removed 2026-08-25: the code graph is built and served in GHA/oci-apps
+  # (cloud-cgc-*-mcp); nothing indexes on the desktop.
+  home.packages = with pkgs; [ ];
 }

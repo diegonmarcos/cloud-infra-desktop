@@ -24,7 +24,6 @@
 
   # Packages needed by MCP servers (all profiles)
   home.packages = [
-    (pkgs.callPackage ../pkgs/octocode.nix {})  # code-graph-context MCP
     (pkgs.callPackage ../pkgs/goose.nix {})       # cloud-ai-cli (MCP-native AI agent)
     (pkgs.callPackage ../pkgs/goose-desktop.nix {}) # goose desktop UI (Electron)
     pkgs.zstd  # used by build.sh (nar.zst import + per-path GHCR nix cache decompress)
@@ -88,10 +87,6 @@
     LESS_TERMCAP_so = "$(printf '\\e[1;44;33m')";
     LESS_TERMCAP_ue = "$(printf '\\e[0m')";
     LESS_TERMCAP_us = "$(printf '\\e[1;32m')";
-
-    # Octocode — OpenAI-compatible endpoint (Ollama on oci-apps)
-    OPENAI_BASE_URL = "http://10.0.0.6:11435/v1";
-    OPENAI_API_KEY = "sk-dummy";
 
     # Authelia OIDC — paths to vault credentials + tokens
     AUTHELIA_OIDC_CREDENTIALS_DIR = "$HOME/git/cloud-vault/A0_keys/providers/authelia/signed-bearer_jwt/credentials";
