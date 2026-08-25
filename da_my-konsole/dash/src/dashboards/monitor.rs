@@ -126,6 +126,45 @@ const LABEL: Color = Color::Rgb(120, 128, 145);
 
 /// btop's box: rounded corners, the title bracketed into the top border, and
 /// the keys that act on that box parked in the bottom-right of its frame.
+/// The box name, replaced by a strip of tabs. Same rounded frame, same
+/// bracketed title slot — but the slot names the three views and marks which
+/// one you are in, because a box labelled "proc" while showing a fleet table
+/// is a label that lies, and nothing on screen said the other views existed.
+fn tabbox(tabs: &[(&str, char)], active: usize, hint: &str) -> Block<'static> {
+    let mut spans = vec![Span::styled("┤", Style::default().fg(DIM))];
+    for (i, (name, key)) in tabs.iter().enumerate() {
+        if i > 0 {
+            spans.push(Span::styled(" · ", Style::default().fg(DIM)));
+        }
+        let on = i == active;
+        spans.push(Span::styled(
+            name.to_string(),
+            if on {
+                Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD)
+            } else {
+                Style::default().fg(LABEL)
+            },
+        ));
+        spans.push(Span::styled(
+            format!(" {key}"),
+            Style::default().fg(if on { Color::Rgb(120, 200, 255) } else { DIM }),
+        ));
+    }
+    spans.push(Span::styled("├", Style::default().fg(DIM)));
+    let mut b = Block::default()
+        .borders(Borders::ALL)
+        .border_type(BorderType::Rounded)
+        .border_style(Style::default().fg(DIM))
+        .title(Line::from(spans));
+    if !hint.is_empty() {
+        b = b.title_bottom(
+            Line::from(Span::styled(format!("┤{hint}├"), Style::default().fg(DIM)))
+                .alignment(Alignment::Right),
+        );
+    }
+    b
+}
+
 fn bbox(title: &str, hint: &str) -> Block<'static> {
     let mut b = Block::default()
         .borders(Borders::ALL)
@@ -268,6 +307,13 @@ fn push(v: &mut Vec<f64>, x: f64) {
 /// unit row with nothing to measure): "-" means we looked and it was zero,
 /// "—" means we could not look. Collapsing the two would be the easy thing
 /// and would quietly turn "no permission" into "no activity".
+/// A percentage cell. Anything under one percent is rounded to nothing: a
+/// column of 0.1s and 0.4s is the same visual weight as a column of real
+/// numbers and none of the information.
+fn zp(v: f64, w: usize) -> String {
+    if v < 1.0 { format!("{:>w$}", "-") } else { format!("{:>w$.1}", v) }
+}
+
 fn z(v: f64, w: usize, shown: String) -> String {
     if v == 0.0 { format!("{:>w$}", "-") } else { shown }
 }
@@ -646,6 +692,10 @@ const FREE: [(&str, &str, &str); 3] = [
         "filter to processes reparented to init — look first, then k them",
     ),
 ];
+
+/// The three things the big box can be. Naming them in the frame is the only
+/// way anyone finds out the other two exist.
+const VIEW_TABS: &[(&str, char)] = &[("proc", 'p'), ("tree", 't'), ("fleet", 'f')];
 
 /// One row under `v`: either a group heading or a declared unit.
 #[derive(Clone, Debug)]
@@ -1323,6 +1373,8 @@ impl Monitor {
                 .iter()
                 .filter_map(|d| d.as_str().map(|x| x.to_string()))
                 .collect();
+            let pubip = text(&v, "host_info.public");
+            l.push(kv("public", if pubip.is_empty() { "behind NAT".into() } else { pubip }));
             l.push(kv("gateway", text(&v, "host_info.gateway")));
             l.push(kv("dns", if dns.is_empty() { "—".into() } else { dns.join("  ") }));
         }
@@ -1476,6 +1528,11 @@ impl Monitor {
             key("↑ ↓", "move the cursor through the process list"),
             key("pgup pgdn", "ten rows at a time"),
             key("home end", "first / last process"),
+            head("view mode"),
+            key("p", "the flat process list"),
+            key("t", "the process tree — parents, children, zombies"),
+            key("f", "the fleet — every mesh peer's totals side by side"),
+            key("v", "add the declared units that are stopped or idle"),
             head("sorting"),
             key("← →", "move the sort to the next column, glances style"),
             key("c m d g", "sort by cpu · mem · disk · run-queue wait"),
@@ -1483,9 +1540,7 @@ impl Monitor {
             key("p n u e s", "sort by pid · name · user · net · slice"),
             key("", "← → also reach C10s C60s M10s M60s"),
             key("i", "invert the direction"),
-            key("t", "group by process tree — parents, children, zombies"),
-            key("v", "also list declared units that are stopped or idle"),
-            key("f", "fleet view — every mesh peer's totals side by side"),
+
             key("x", "free memory — reap zombies, reclaim, find orphans"),
             // Short enough to survive the 78-column modal: the long version
             // was clipped mid-cycle at "→ 5m".
@@ -1821,6 +1876,32 @@ impl Monitor {
             "read / write",
             format!("{}  {}", fmt_bps(num(&p, "read_bytes_per_s")), fmt_bps(num(&p, "write_bytes_per_s"))),
         ));
+        l.push(kv(
+            "down / up",
+            format!(
+                "{}  {}",
+                fmt_bps(num(&p, "net_rx_bytes_per_s")),
+                fmt_bps(num(&p, "net_tx_bytes_per_s"))
+            ),
+        ));
+        // Everything this process has moved, not the rate it is moving at.
+        // Disk comes straight from /proc/PID/io, which is cumulative for the
+        // life of the process. Network is integrated by the daemon: the
+        // kernel keeps no per-process network counter, so a total can only be
+        // built by summing what it sees, which means traffic on a socket
+        // opened and closed between two samples is missed. It undercounts and
+        // never overcounts — the right way round for a number read as a total.
+        l.push(kv(
+            "downloaded (total)",
+            fmt_bytes_short(num(&p, "net_rx_bytes_total")),
+        ));
+        l.push(kv("uploaded (total)", fmt_bytes_short(num(&p, "net_tx_bytes_total"))));
+        l.push(kv("read (total)", fmt_bytes_short(num(&p, "read_bytes_total"))));
+        l.push(kv("written (total)", fmt_bytes_short(num(&p, "write_bytes_total"))));
+        l.push(Line::from(Span::styled(
+            "  disk totals are the process's own since it started; network is the daemon's running sum",
+            Style::default().fg(DIM),
+        )));
         for k in ["read_bytes", "write_bytes", "syscr", "syscw"] {
             let v = rd("io")
                 .lines()
@@ -2338,6 +2419,12 @@ impl Dashboard for Monitor {
                     false,
                 ));
             }
+            KeyCode::Char('p') if self.tree => {
+                // `p` is sort-by-pid when there is no view to leave, and the
+                // tab it names when there is.
+                self.tree = false;
+                self.msg = Some(("process list".into(), false));
+            }
             KeyCode::Char('t') => {
                 self.tree = !self.tree;
                 self.msg = Some((
@@ -2679,7 +2766,7 @@ impl Dashboard for Monitor {
             // Every interface, plus a gateway line and a DNS line. Capped only
             // by the box: "all the network config" is the point, and hiding
             // the third wg address to save a row defeats it.
-            let cfg_h = (cfg.len() + 2).min(net_in.height.saturating_sub(6) as usize).max(2) as u16;
+            let cfg_h = (cfg.len() + 3).min(net_in.height.saturating_sub(6) as usize).max(3) as u16;
             let nrows = Layout::vertical([
                 Constraint::Length(1),
                 Constraint::Min(2),
@@ -2716,7 +2803,7 @@ impl Dashboard for Monitor {
             );
 
             let mut cl: Vec<Line> = vec![];
-            for i in cfg.iter().take(cfg_h.saturating_sub(2) as usize) {
+            for i in cfg.iter().take(cfg_h.saturating_sub(3) as usize) {
                 let n = text(i, "name");
                 cl.push(Line::from(vec![
                     Span::styled(
@@ -2733,6 +2820,20 @@ impl Dashboard for Monitor {
             }
             let gw = text(&s, "host_info.gateway");
             let ns: Vec<String> = dns.iter().map(|d| d.as_str().unwrap_or("").to_string()).collect();
+            let pubip = text(&s, "host_info.public");
+            cl.push(Line::from(vec![
+                Span::styled(format!("{:<10}", "public"), Style::default().fg(LABEL)),
+                Span::styled(
+                    if pubip.is_empty() {
+                        // Not a failure: from behind NAT it cannot be known
+                        // without asking somebody outside.
+                        "behind NAT — no routable address on any interface".to_string()
+                    } else {
+                        pubip.clone()
+                    },
+                    Style::default().fg(if pubip.is_empty() { DIM } else { Color::Rgb(240, 169, 66) }),
+                ),
+            ]));
             cl.push(Line::from(vec![
                 Span::styled(format!("{:<10}", "gateway"), Style::default().fg(LABEL)),
                 Span::styled(
@@ -2940,7 +3041,7 @@ impl Dashboard for Monitor {
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
         if self.fleet {
-            let fb = bbox("fleet", "f back to processes · esc → measure to open one");
+            let fb = tabbox(VIEW_TABS, 2, "enter opens a machine · esc → measure");
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
             let got = self.mesh.fleet();
@@ -3106,7 +3207,7 @@ impl Dashboard for Monitor {
             if self.tree { "tree · " } else { "" },
             if self.orphans { "ORPHANS ONLY · " } else { "" },
         );
-        let proc_b = bbox("proc", &hint);
+        let proc_b = tabbox(VIEW_TABS, if self.tree { 1 } else { 0 }, &hint);
         let proc_in = proc_b.inner(rows[4]);
         f.render_widget(proc_b, rows[4]);
 
@@ -3187,12 +3288,12 @@ impl Dashboard for Monitor {
                     Cell::from(text(p, "slice")).style(base.fg(if sel { Color::White } else { DIM })),
                     Cell::from(text(p, "user")).style(base.fg(if sel { Color::White } else { LABEL })),
                     Cell::from(name).style(base),
-                    Cell::from(z(cpu, 5, format!("{cpu:>5.1}"))).style(base.fg(grad(cpu / 100.0))),
-                    Cell::from(z(a("10s", "cpu_pct"), 5, format!("{:>5.1}", a("10s", "cpu_pct")))).style(base.fg(grad(a("10s", "cpu_pct") / 100.0))),
-                    Cell::from(z(a("1m", "cpu_pct"), 5, format!("{:>5.1}", a("1m", "cpu_pct")))).style(base.fg(grad(a("1m", "cpu_pct") / 100.0))),
-                    Cell::from(z(memp, 5, format!("{memp:>5.1}"))).style(base.fg(grad(memp / 100.0))),
-                    Cell::from(z(a("10s", "mem_pct"), 5, format!("{:>5.1}", a("10s", "mem_pct")))).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
-                    Cell::from(z(a("1m", "mem_pct"), 5, format!("{:>5.1}", a("1m", "mem_pct")))).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
+                    Cell::from(zp(cpu, 5)).style(base.fg(grad(cpu / 100.0))),
+                    Cell::from(zp(a("10s", "cpu_pct"), 5)).style(base.fg(grad(a("10s", "cpu_pct") / 100.0))),
+                    Cell::from(zp(a("1m", "cpu_pct"), 5)).style(base.fg(grad(a("1m", "cpu_pct") / 100.0))),
+                    Cell::from(zp(memp, 5)).style(base.fg(grad(memp / 100.0))),
+                    Cell::from(zp(a("10s", "mem_pct"), 5)).style(base.fg(grad(a("10s", "mem_pct") / 100.0))),
+                    Cell::from(zp(a("1m", "mem_pct"), 5)).style(base.fg(grad(a("1m", "mem_pct") / 100.0))),
                     Cell::from(fmt_mem_cell(rss)).style(base.fg(Color::Gray)),
                     // null when the daemon could not read another user's
                     // smaps_rollup. A dash, not a zero — we do not know.
@@ -3205,6 +3306,9 @@ impl Dashboard for Monitor {
                     Cell::from(fmt_bps(num(p, "net_tx_bytes_per_s"))).style(base.fg(Color::Rgb(240, 169, 66))),
                     Cell::from(fmt_bps(rd)).style(base.fg(Color::Rgb(120, 220, 140))),
                     Cell::from(fmt_bps(wr)).style(base.fg(Color::Rgb(220, 140, 240))),
+                    // runq is a pressure share, not a load percentage: a
+                    // tenth of a percent of stall time is still a real signal
+                    // and keeps its digits.
                     Cell::from(z(rq, 5, format!("{rq:>5.2}"))).style(base.fg(grad(rq / 20.0))),
                 ])
             })
