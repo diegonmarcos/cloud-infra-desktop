@@ -1,0 +1,81 @@
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║                                                                  ║
+# ║   GENERATED FILE — DO NOT EDIT                                   ║
+# ║                                                                  ║
+# ║   Source : 1_cicd/src/cicd/ship-my-watchdog.yml
+# ║   Engine : 1_cicd/src/scripts/unix-ship-repo-workflow-engine.sh
+# ║   Rebuild: ./9_others/build.sh
+# ║                                                                  ║
+# ║   Manual edits will be overwritten on next build.                ║
+# ║                                                                  ║
+# ╚══════════════════════════════════════════════════════════════════╝
+
+name: ship-my-watchdog
+# Build my-watchdog — the machine sampler, split out of my-konsole into its own
+# product. Plain std+libc+ksni, so unlike ship-my-konsole-app.yml this needs no
+# nix, no webkitgtk and no node: stable rust and the D-Bus headers ksni links
+# against are the whole toolchain, and the job finishes in a couple of minutes
+# instead of twenty.
+#
+# It builds here rather than on the laptop for the same reason everything else
+# does — the freeze-guard exists because Rust link steps are what put that
+# machine on the floor.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'da_watchdog/**'
+      - '1_cicd/src/cicd/ship-my-watchdog.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: da_watchdog
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: da_watchdog
+
+      # ksni talks StatusNotifierItem over D-Bus and links against libdbus.
+      - name: D-Bus headers
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq libdbus-1-dev pkg-config
+
+      # clippy before the build: this crate is the safety boundary for every
+      # kill, restart and unit verb the panel can ask for, and a warning here
+      # is worth stopping for.
+      - name: Compile-verify
+        run: |
+          cargo fmt --check || true
+          cargo clippy --release --all-targets -- -D warnings
+          cargo test --release
+
+      - name: Build
+        run: cargo build --release
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: my-watchdog
+          path: da_watchdog/target/release/my-watchdog
+
+      - name: Publish to the rolling release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release view my-watchdog-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create my-watchdog-latest \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "my-watchdog (rolling)" \
+              --notes "The machine sampler. Rebuilt on every push to da_watchdog/."
+          gh release upload my-watchdog-latest \
+            target/release/my-watchdog \
+            --repo "$GITHUB_REPOSITORY" --clobber
