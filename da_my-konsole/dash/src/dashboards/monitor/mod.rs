@@ -115,6 +115,10 @@ const FRAME_RESERVED: &[char] = &['r', 'a'];
 
 /// The sort columns reachable by a single key.
 ///
+/// PID is deliberately NOT here: 'p' is the proc tab, and a key that sorts in
+/// one mode and switches view in another is exactly the ambiguity this table
+/// exists to prevent. ←/→ still walks onto PID like every other column.
+///
 /// ONE table: the handler dispatches from it and the help renders from it, so
 /// a key cannot be documented and unhandled, or handled and undocumented.
 const SORT_KEYS: &[(char, Sort, &str)] = &[
@@ -122,7 +126,6 @@ const SORT_KEYS: &[(char, Sort, &str)] = &[
     ('m', Sort::Mem, "memory %"),
     ('d', Sort::Disk, "disk"),
     ('g', Sort::Runq, "run-queue wait"),
-    ('p', Sort::Pid, "pid"),
     ('n', Sort::Name, "name"),
     ('u', Sort::User, "user"),
     ('e', Sort::Net, "network"),
@@ -141,7 +144,11 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("sorting", "w", "cycle the CPU%/MEM% window: now → 1m → 5m → 15m"),
     ("acting", "enter", "full disclosure — command, tree, cpu, mem, io, cgroup"),
     ("acting", "k", "act on it — restart, or any of the signals"),
-    ("acting", "o", "in the detail view: open the binary's folder"),
+    // "modal" entries are scoped to an overlay, so they may reuse a
+    // top-level key: `o` opens a folder inside the detail view and switches
+    // tab outside it, and the two can never both be live. The collision test
+    // skips this section for that reason.
+    ("modal", "o", "in the detail view: open the binary's folder"),
     ("acting", "x", "free memory — reap zombies, reclaim, find orphans"),
     ("acting", "E", "export this snapshot — {host}-{user}-{time}.json and .md"),
     ("moving", "↑ ↓", "move the cursor through the list"),
@@ -156,12 +163,81 @@ const VIEW_TABS: &[(&str, char)] = &[
     ("proc", 'p'),
     ("tree", 't'),
     ("zombies", 'z'),
-    ("containers", 'o'),
+    ("containers-c", 'o'),
+    ("containers-i", 'I'),
     ("fleet", 'f'),
     ("history", 'y'),
     // 'b', not 'a': the frame owns r and a for refresh/auto and advertises
     // them in its own header, so a view key named 'a' silently never arrives.
     ("about", 'b'),
+];
+
+/// Which slot in the strip a view sits in, by name.
+///
+/// Not a hard-coded number at each call site: inserting containers-i shifted
+/// three of them and every one would have highlighted the wrong tab, silently.
+/// The name is the identity; the position is a detail of the table.
+fn tab(name: &str) -> usize {
+    VIEW_TABS.iter().position(|(n, _)| *n == name).unwrap_or(0)
+}
+
+/// What a container row can be ranked by, and how to read the value out.
+///
+/// docker renders these as strings ("12.34%", "469.7MiB / 7.595GiB"), which is
+/// what the table shows; ranking needs a number, so each column says how to
+/// get one from its own text. ←/→ walks this list the way it walks the process
+/// header.
+const CTR_SORT: &[(&str, &str)] = &[
+    ("cpu", "cpu"),
+    ("mem", "mem_pct"),
+    ("name", "name"),
+    ("disk", "block"),
+    ("net", "net"),
+    ("pids", "pids"),
+];
+
+/// The first number in a docker-rendered field. "469.7MiB / 7.595GiB" ranks by
+/// what the container is using, not by its limit; "12.34%" ranks by 12.34.
+fn ctr_num(v: &str) -> f64 {
+    let mut out = String::new();
+    for c in v.chars() {
+        if c.is_ascii_digit() || c == '.' {
+            out.push(c);
+        } else if !out.is_empty() {
+            break;
+        }
+    }
+    let n: f64 = out.parse().unwrap_or(0.0);
+    // A bare number followed by a unit has to be scaled or 900kB outranks 5GB.
+    let rest = v.trim_start_matches(|c: char| c.is_ascii_digit() || c == '.');
+    let mult = if rest.starts_with("GiB") || rest.starts_with("GB") {
+        1_073_741_824.0
+    } else if rest.starts_with("MiB") || rest.starts_with("MB") {
+        1_048_576.0
+    } else if rest.starts_with("kB") || rest.starts_with("KiB") {
+        1024.0
+    } else {
+        1.0
+    };
+    n * mult
+}
+
+/// What can be done to a container. No `rm`: stopping one is reversible and
+/// removing one is not, and a keystroke is the wrong weight for that.
+const CTR_ACTIONS: [(&str, &str); 5] = [
+    ("restart", "stop it and bring it back"),
+    ("stop", "take it down"),
+    ("start", "bring it up"),
+    ("pause", "freeze it, keeping its memory"),
+    ("unpause", "thaw one you froze"),
+];
+
+/// What can be done to an image. `rm` is here because an unused image is dead
+/// weight and removing it is the point of looking — docker itself refuses if a
+/// container still references it, which is the guard.
+const IMG_ACTIONS: [(&str, &str); 2] = [
+    ("pull", "fetch the current version of this tag"),
+    ("rm", "delete it — refused while a container uses it"),
 ];
 
 /// One row under `v`: either a group heading or a declared unit.
@@ -200,6 +276,10 @@ enum Overlay {
     Unit,
     /// One machine's totals, opened from the fleet view.
     Machine,
+    /// One container, with the verbs that act on it.
+    Ctr,
+    /// One image, with the verbs that act on it.
+    Img,
     /// Pick which machine the whole dashboard is measuring.
     Target,
 }
@@ -257,6 +337,11 @@ pub struct Monitor {
     history: bool,
     /// `o`: containers and what they are using.
     docker: bool,
+    /// `I`: the images on the box, running or not.
+    images: bool,
+    /// Which column containers-c ranks by, and which way.
+    ctr_sort: usize,
+    ctr_desc: bool,
     /// `a`: the static facts — what this machine IS, not what it is doing.
     about: bool,
     sel: usize,
@@ -317,6 +402,9 @@ impl Monitor {
             zombies: false,
             history: false,
             docker: false,
+            images: false,
+            ctr_sort: 0,
+            ctr_desc: true,
             about: false,
             sel: 0,
             sel_pid: None,
@@ -738,6 +826,8 @@ impl Monitor {
             Overlay::Free => self.render_free(f, area),
             Overlay::Unit => self.render_unit(f, area),
             Overlay::Machine => self.render_machine(f, area),
+            Overlay::Ctr => self.render_ctr(f, area),
+            Overlay::Img => self.render_img(f, area),
             Overlay::None => {}
         }
     }
@@ -902,6 +992,203 @@ impl Monitor {
         f.render_widget(Paragraph::new(l).scroll((self.detail_scroll.min(max), 0)), inner);
     }
 
+    /// The container rows in the order the view shows them — ranked and, for
+    /// the name column, alphabetical. One function so the renderer and the
+    /// cursor agree on which row is which.
+    fn ctr_rows<'a>(&self, s: &'a Value) -> Vec<&'a Value> {
+        let mut v: Vec<&Value> = arr(s, "containers").iter().collect();
+        let (label, field) = CTR_SORT[self.ctr_sort.min(CTR_SORT.len() - 1)];
+        v.sort_by(|a, b| {
+            let ord = if label == "name" {
+                text(a, field).to_lowercase().cmp(&text(b, field).to_lowercase())
+            } else {
+                ctr_num(&text(a, field))
+                    .partial_cmp(&ctr_num(&text(b, field)))
+                    .unwrap_or(std::cmp::Ordering::Equal)
+            };
+            if self.ctr_desc { ord.reverse() } else { ord }
+        });
+        v
+    }
+
+    /// One container, whole, with the verbs that act on it.
+    fn render_ctr(&self, f: &mut Frame, area: Rect) {
+        let s = self.snap.clone();
+        let rows = self.ctr_rows(&s);
+        let Some(c) = rows.get(self.sel) else { return };
+        let accent = Color::Rgb(120, 200, 255);
+        let name = text(c, "name");
+        let inner = Self::modal(f, area, 92, 24, &name, accent);
+        let kv = |k: &str, v: String| -> Line<'static> {
+            Line::from(vec![
+                Span::styled(format!("  {k:<16}"), Style::default().fg(LABEL)),
+                Span::styled(v, Style::default().fg(Color::Gray)),
+            ])
+        };
+        let or = |k: &str| -> String {
+            let v = text(c, k);
+            // Empty means docker could not read the cgroup, which is not zero.
+            if v.is_empty() { "—".into() } else { v }
+        };
+        let mut l = vec![Line::from(Span::styled(
+            "what it is",
+            Style::default().fg(accent).add_modifier(Modifier::BOLD),
+        ))];
+        l.push(kv("image", text(c, "image")));
+        l.push(kv("on disk", or("image_size")));
+        l.push(kv("state", format!("{}  {}", text(c, "state"), text(c, "status"))));
+        l.push(kv("up", or("uptime")));
+        l.push(kv("command", or("command")));
+        l.push(kv("ports", or("ports")));
+        l.push(Line::from(Span::styled(
+            "using",
+            Style::default().fg(accent).add_modifier(Modifier::BOLD),
+        )));
+        l.push(kv("cpu", or("cpu")));
+        l.push(kv("memory", format!("{}   {}", or("mem"), or("mem_pct"))));
+        l.push(kv("net i/o", or("net")));
+        l.push(kv("block i/o", or("block")));
+        l.push(kv("pids", or("pids")));
+        l.push(Line::from(Span::styled(
+            "act",
+            Style::default().fg(Color::Rgb(240, 169, 66)).add_modifier(Modifier::BOLD),
+        )));
+        for (i, (verb, why)) in CTR_ACTIONS.iter().enumerate() {
+            let sel = i == self.act_sel;
+            l.push(Line::from(vec![
+                Span::styled(if sel { "▶ " } else { "  " }, Style::default().fg(accent)),
+                Span::styled(format!(" {}  ", i + 1), Style::default().fg(DIM)),
+                Span::styled(
+                    format!("{verb:<10}"),
+                    if sel {
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ),
+                Span::styled(why.to_string(), Style::default().fg(LABEL)),
+            ]));
+        }
+        l.push(Line::from(Span::styled(
+            "  ↑↓ pick · enter or a digit sends it · any other key returns · no remove, on purpose",
+            Style::default().fg(DIM),
+        )));
+        f.render_widget(Paragraph::new(l), inner);
+    }
+
+    /// One image, whole, with the verbs that act on it.
+    fn render_img(&self, f: &mut Frame, area: Rect) {
+        let s = self.snap.clone();
+        let imgs = arr(&s, "images");
+        let Some(i) = imgs.get(self.sel) else { return };
+        let accent = Color::Rgb(120, 200, 255);
+        let full = format!("{}:{}", text(i, "repo"), text(i, "tag"));
+        let inner = Self::modal(f, area, 92, 16, &full, accent);
+        let kv = |k: &str, v: String| -> Line<'static> {
+            Line::from(vec![
+                Span::styled(format!("  {k:<16}"), Style::default().fg(LABEL)),
+                Span::styled(v, Style::default().fg(Color::Gray)),
+            ])
+        };
+        // Which containers this image is behind. It is the answer to "can I
+        // delete this", and docker's own refusal is the other half.
+        let users: Vec<String> = arr(&s, "containers")
+            .iter()
+            .filter(|c| text(c, "image") == full)
+            .map(|c| text(c, "name"))
+            .collect();
+        let mut l = vec![Line::from(Span::styled(
+            "image",
+            Style::default().fg(accent).add_modifier(Modifier::BOLD),
+        ))];
+        l.push(kv("repository", text(i, "repo")));
+        l.push(kv("tag", text(i, "tag")));
+        l.push(kv("id", text(i, "id")));
+        l.push(kv("size", text(i, "size")));
+        l.push(kv("created", text(i, "created")));
+        l.push(kv(
+            "used by",
+            if users.is_empty() { "nothing — this is dead weight".into() } else { users.join(", ") },
+        ));
+        l.push(Line::from(Span::styled(
+            "act",
+            Style::default().fg(Color::Rgb(240, 169, 66)).add_modifier(Modifier::BOLD),
+        )));
+        for (n, (verb, why)) in IMG_ACTIONS.iter().enumerate() {
+            let sel = n == self.act_sel;
+            l.push(Line::from(vec![
+                Span::styled(if sel { "▶ " } else { "  " }, Style::default().fg(accent)),
+                Span::styled(format!(" {}  ", n + 1), Style::default().fg(DIM)),
+                Span::styled(
+                    format!("{verb:<10}"),
+                    if sel {
+                        Style::default().fg(Color::White).add_modifier(Modifier::BOLD)
+                    } else {
+                        Style::default().fg(Color::Gray)
+                    },
+                ),
+                Span::styled(why.to_string(), Style::default().fg(LABEL)),
+            ]));
+        }
+        l.push(Line::from(Span::styled(
+            "  ↑↓ pick · enter or a digit sends it · any other key returns",
+            Style::default().fg(DIM),
+        )));
+        f.render_widget(Paragraph::new(l), inner);
+    }
+
+    /// Both action modals share their key handling: pick a row, fire a verb on
+    /// the mailbox, close. `ctr` picks which table and which verb prefix.
+    fn ctr_img_key(&mut self, k: KeyCode, ctr: bool) {
+        let n = if ctr { CTR_ACTIONS.len() } else { IMG_ACTIONS.len() };
+        let fire = |me: &mut Self, i: usize| {
+            let s = me.snap.clone();
+            let target = if ctr {
+                me.ctr_rows(&s).get(me.sel).map(|c| text(c, "name"))
+            } else {
+                arr(&s, "images")
+                    .get(me.sel)
+                    .map(|x| format!("{}:{}", text(x, "repo"), text(x, "tag")))
+            };
+            if let Some(t) = target {
+                let verb = if ctr { CTR_ACTIONS[i].0 } else { IMG_ACTIONS[i].0 };
+                me.request_docker(if ctr { "CTR" } else { "IMG" }, verb, &t);
+            }
+            me.overlay = Overlay::None;
+        };
+        match k {
+            KeyCode::Down => self.act_sel = (self.act_sel + 1) % n,
+            KeyCode::Up => self.act_sel = (self.act_sel + n - 1) % n,
+            KeyCode::Char(c) if c.is_ascii_digit() => {
+                let i = c.to_digit(10).unwrap_or(0) as usize;
+                if i >= 1 && i <= n {
+                    fire(self, i - 1);
+                }
+            }
+            KeyCode::Enter => {
+                let i = self.act_sel;
+                fire(self, i);
+            }
+            _ => self.overlay = Overlay::None,
+        }
+    }
+
+    /// "0 CTR <verb> <name>" / "0 IMG <verb> <ref>" on the same mailbox the
+    /// signals use — the daemon allow-lists the verb, the panel decides
+    /// nothing.
+    fn request_docker(&mut self, kind: &str, verb: &str, target: &str) {
+        let path = kill_path();
+        let res = fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&path)
+            .and_then(|mut f| writeln!(f, "0 {kind} {verb} {target}"));
+        self.msg = Some(match res {
+            Ok(()) => (format!("{verb} {target} → queued for the daemon"), false),
+            Err(e) => (format!("could not write {path}: {e}"), true),
+        });
+    }
+
     /// What can be done to a declared unit. Same mailbox as the signals, so
     /// the daemon applies one policy to everything the panel asks for.
     fn render_unit(&self, f: &mut Frame, area: Rect) {
@@ -990,14 +1277,15 @@ impl Monitor {
     /// tab strip. Returns true when the key was a tab switch.
     fn view_key(&mut self, k: KeyCode) -> bool {
         let KeyCode::Char(c) = k else { return false };
-        let flat =
-            !self.tree && !self.zombies && !self.docker && !self.fleet && !self.history && !self.about;
-        // `p` means sort-by-pid when there is no view to leave, and the tab it
-        // names when there is.
-        if c == 'p' && flat {
-            return false;
-        }
-        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'f' | 'y' | 'b') {
+        let _ = ();
+        let flat = !self.tree
+            && !self.zombies
+            && !self.docker
+            && !self.images
+            && !self.fleet
+            && !self.history
+            && !self.about;
+        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'I' | 'f' | 'y' | 'b') {
             return false;
         }
         // A view is a single choice, so every switch clears the others rather
@@ -1007,6 +1295,7 @@ impl Monitor {
         self.tree = false;
         self.zombies = false;
         self.docker = false;
+        self.images = false;
         self.fleet = false;
         self.history = false;
         self.about = false;
@@ -1021,7 +1310,13 @@ impl Monitor {
             }
             'o' => {
                 self.docker = true;
+                self.sel = 0;
                 "containers"
+            }
+            'I' => {
+                self.images = true;
+                self.sel = 0;
+                "images — running or not"
             }
             'f' => {
                 self.fleet = true;
@@ -1127,7 +1422,8 @@ impl Monitor {
                         "proc" => " — the flat process list",
                         "tree" => " — parents, children, zombies",
                         "zombies" => " — only the ones nothing owns",
-                        "containers" => " — docker's or podman's own numbers",
+                        "containers-c" => " — running containers, enter for detail and actions",
+                    "containers-i" => " — every image on the box, enter for detail and actions",
                         "fleet" => " — every mesh peer's totals side by side",
                         "history" => " — what this machine did over the last day",
                         "about" => " — what this machine is, not what it is doing",
@@ -1151,6 +1447,7 @@ impl Monitor {
         }
 
         section(&mut l, "acting");
+        section(&mut l, "modal");
 
         l.push(head("layout"));
         for (i, b) in BOX_NAMES.iter().enumerate() {
@@ -1863,6 +2160,8 @@ impl Dashboard for Monitor {
         match self.overlay {
             Overlay::Kill => return self.kill_key(k),
             Overlay::Free => return self.free_key(k),
+            Overlay::Ctr => return self.ctr_img_key(k, true),
+            Overlay::Img => return self.ctr_img_key(k, false),
             Overlay::Unit => return self.unit_key(k),
             Overlay::Machine => {
                 match k {
@@ -1964,7 +2263,7 @@ impl Dashboard for Monitor {
         if self.view_key(k) {
             return;
         }
-        if self.docker || self.history || self.about {
+        if self.history || self.about {
             // None of these has a row cursor; about scrolls, the rest are one
             // screen.
             match k {
@@ -1973,6 +2272,47 @@ impl Dashboard for Monitor {
                 }
                 KeyCode::Up => self.detail_scroll = self.detail_scroll.saturating_sub(1),
                 KeyCode::Home => self.detail_scroll = 0,
+                KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
+                KeyCode::Esc => {
+                    self.overlay = Overlay::Menu;
+                    self.menu_sel = 0;
+                }
+                _ => {}
+            }
+            return;
+        }
+        if self.docker || self.images {
+            // Two lists, one cursor. Without arrow keys a tab showing 52
+            // containers can only ever display the first screenful, which is
+            // what oci-apps looks like.
+            let n = if self.docker {
+                arr(&self.snap, "containers").len()
+            } else {
+                arr(&self.snap, "images").len()
+            };
+            match k {
+                KeyCode::Down | KeyCode::Char('j') => self.sel = (self.sel + 1).min(n.saturating_sub(1)),
+                KeyCode::Up => self.sel = self.sel.saturating_sub(1),
+                KeyCode::PageDown => self.sel = (self.sel + 10).min(n.saturating_sub(1)),
+                KeyCode::PageUp => self.sel = self.sel.saturating_sub(10),
+                KeyCode::Home => self.sel = 0,
+                KeyCode::End => self.sel = n.saturating_sub(1),
+                // Same gesture as the process header: ←/→ walks the column
+                // this list is ranked by.
+                KeyCode::Left if self.docker => {
+                    self.ctr_sort = (self.ctr_sort + CTR_SORT.len() - 1) % CTR_SORT.len();
+                }
+                KeyCode::Right if self.docker => {
+                    self.ctr_sort = (self.ctr_sort + 1) % CTR_SORT.len();
+                }
+                KeyCode::Char('i') if self.docker => self.ctr_desc = !self.ctr_desc,
+                KeyCode::Enter => {
+                    if n > 0 {
+                        self.overlay = if self.docker { Overlay::Ctr } else { Overlay::Img };
+                        self.act_sel = 0;
+                        self.detail_scroll = 0;
+                    }
+                }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
                 KeyCode::Esc => {
                     self.overlay = Overlay::Menu;
@@ -2743,7 +3083,7 @@ impl Dashboard for Monitor {
         // changes on the scale of a reboot or a reinstall, which is exactly
         // why it does not belong in a box that redraws every second.
         if self.about {
-            let ab = tabbox(VIEW_TABS, 6, "b back to processes");
+            let ab = tabbox(VIEW_TABS, tab("about"), "b back to processes");
             let ain = ab.inner(rows[4]);
             f.render_widget(ab, rows[4]);
             let hi2 = |k: &str| text(&s, &format!("host_info.{k}"));
@@ -2887,17 +3227,25 @@ impl Dashboard for Monitor {
             return;
         }
 
-        // ── docker ────────────────────────────────────────────────────────────
+        // ── containers-c ──────────────────────────────────────────────────────
         // Containers are processes too, but a container is not a row in the
         // process table: the thing you want named is the container, and what
         // it uses is the sum of everything inside it. docker already computes
         // that, so this shows docker's own numbers rather than re-deriving
         // them from cgroups and getting a subtly different answer.
         if self.docker {
-            let ob = tabbox(VIEW_TABS, 3, "o back to processes");
-            let oin = ob.inner(rows[4]);
-            f.render_widget(ob, rows[4]);
-            let cs = arr(&s, "containers");
+            let (label, _) = CTR_SORT[self.ctr_sort.min(CTR_SORT.len() - 1)];
+            let cb = tabbox(
+                VIEW_TABS,
+                tab("containers-c"),
+                &format!(
+                    "{label}{} · ←→ rank · i inv · enter acts",
+                    if self.ctr_desc { "▼" } else { "▲" }
+                ),
+            );
+            let cin = cb.inner(rows[4]);
+            f.render_widget(cb, rows[4]);
+            let cs = self.ctr_rows(&s);
             if cs.is_empty() {
                 f.render_widget(
                     Paragraph::new(vec![
@@ -2906,60 +3254,74 @@ impl Dashboard for Monitor {
                             Style::default().fg(Color::Rgb(240, 160, 90)),
                         )),
                         Line::from(Span::styled(
-                            "  nothing running, no docker, or this user is not in the docker group —",
+                            "  nothing running, no docker or podman, or this user is not in the",
                             Style::default().fg(DIM),
                         )),
                         Line::from(Span::styled(
-                            "  all three look the same from here, and all three mean the same thing.",
+                            "  docker group — all three look the same from here, and all three",
                             Style::default().fg(DIM),
                         )),
+                        Line::from(Span::styled("  mean the same thing.", Style::default().fg(DIM))),
                     ]),
-                    oin,
+                    cin,
                 );
             } else {
-                let cell = |t: String, c: Color| Cell::from(t).style(Style::default().fg(c));
+                // Scroll, because oci-apps has 52 of these and a view that can
+                // only ever show the first screenful is not a list.
+                let vis = (cin.height as usize).saturating_sub(1).max(1);
+                self.sel = self.sel.min(cs.len().saturating_sub(1));
+                if self.sel < self.offset {
+                    self.offset = self.sel;
+                } else if self.sel >= self.offset + vis {
+                    self.offset = self.sel + 1 - vis;
+                }
+                if self.offset + vis > cs.len() {
+                    self.offset = cs.len().saturating_sub(vis);
+                }
                 let pct = |t: &str| -> f64 { t.trim_end_matches('%').parse().unwrap_or(0.0) };
-                // Split: the containers on top, the images underneath. A
-                // container list answers "what is running"; it cannot answer
-                // "what is this costing me on disk", because the images
-                // nothing is running are exactly the ones nobody notices.
-                let imgs = arr(&s, "images");
-                let ih = if imgs.is_empty() {
-                    0
-                } else {
-                    ((imgs.len() + 2) as u16).min(oin.height / 2)
-                };
-                let split = Layout::vertical([Constraint::Min(3), Constraint::Length(ih)]).split(oin);
                 let crows: Vec<Row> = cs
                     .iter()
-                    .map(|c| {
+                    .enumerate()
+                    .skip(self.offset)
+                    .take(vis)
+                    .map(|(n, c)| {
+                        let sel = n == self.sel;
+                        let base = if sel {
+                            Style::default().bg(Color::Rgb(38, 48, 66)).add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default()
+                        };
                         let cpu = pct(&text(c, "cpu"));
                         let mem = pct(&text(c, "mem_pct"));
-                        // stats is absent whenever docker could not read the
-                        // cgroup; a dash says so rather than showing 0.0%.
+                        // Empty is docker failing to read the cgroup, not zero.
                         let st = |k: &str, w: usize| -> String {
                             let v = text(c, k);
                             if v.is_empty() { format!("{:>w$}", "-") } else { format!("{v:>w$}") }
                         };
                         Row::new(vec![
-                            cell(trunc(&text(c, "name"), 22), Color::White),
-                            cell(
-                                trunc(&text(c, "status"), 18),
+                            Cell::from(format!(
+                                "{}{}",
+                                if sel { "▶" } else { " " },
+                                trunc(&text(c, "name"), 22)
+                            ))
+                            .style(base.fg(Color::White)),
+                            Cell::from(trunc(&text(c, "status"), 18)).style(base.fg(
                                 if text(c, "state") == "running" {
                                     Color::Rgb(120, 220, 140)
                                 } else {
                                     Color::Rgb(240, 160, 90)
                                 },
-                            ),
-                            cell(st("cpu", 7), grad(cpu / 100.0)),
-                            cell(st("mem_pct", 7), grad(mem / 100.0)),
-                            cell(st("mem", 21), Color::Gray),
-                            cell(st("net", 19), Color::Rgb(120, 200, 255)),
-                            cell(st("block", 19), Color::Rgb(220, 140, 240)),
-                            cell(st("pids", 5), DIM),
-                            cell(trunc(&text(c, "ports"), 30), Color::Rgb(150, 170, 200)),
-                            cell(format!("{:>8}", text(c, "image_size")), Color::Gray),
-                            cell(trunc(&text(c, "image"), 40), DIM),
+                            )),
+                            Cell::from(st("cpu", 7)).style(base.fg(grad(cpu / 100.0))),
+                            Cell::from(st("mem_pct", 7)).style(base.fg(grad(mem / 100.0))),
+                            Cell::from(st("mem", 21)).style(base.fg(Color::Gray)),
+                            Cell::from(st("net", 19)).style(base.fg(Color::Rgb(120, 200, 255))),
+                            Cell::from(st("block", 19)).style(base.fg(Color::Rgb(220, 140, 240))),
+                            Cell::from(st("pids", 5)).style(base.fg(DIM)),
+                            Cell::from(trunc(&text(c, "ports"), 30))
+                                .style(base.fg(Color::Rgb(150, 170, 200))),
+                            Cell::from(format!("{:>8}", text(c, "image_size"))).style(base.fg(Color::Gray)),
+                            Cell::from(trunc(&text(c, "image"), 40)).style(base.fg(DIM)),
                         ])
                     })
                     .collect();
@@ -2986,57 +3348,105 @@ impl Dashboard for Monitor {
                     ]
                     .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
                 ));
-                f.render_widget(table, split[0]);
-
-                if ih > 0 {
-                    let used: std::collections::HashSet<String> =
-                        cs.iter().map(|c| text(c, "image")).collect();
-                    let irows: Vec<Row> = imgs
-                        .iter()
-                        .take(ih.saturating_sub(1) as usize)
-                        .map(|i| {
-                            let full = format!("{}:{}", text(i, "repo"), text(i, "tag"));
-                            let idle = !used.contains(&full);
-                            Row::new(vec![
-                                cell(
-                                    trunc(&full, 52),
-                                    if idle { Color::Rgb(150, 140, 110) } else { Color::Gray },
-                                ),
-                                cell(format!("{:>9}", text(i, "size")), Color::White),
-                                cell(format!("{:>16}", text(i, "created")), DIM),
-                                cell(text(i, "id"), DIM),
-                                // Named, because an image nothing runs is the
-                                // usual answer to "where did the disk go".
-                                cell(
-                                    if idle { "nothing runs this".into() } else { String::new() },
-                                    Color::Rgb(240, 160, 90),
-                                ),
-                            ])
-                        })
-                        .collect();
-                    let itable = Table::new(
-                        irows,
-                        [
-                            Constraint::Length(53),
-                            Constraint::Length(10),
-                            Constraint::Length(17),
-                            Constraint::Length(14),
-                            Constraint::Min(10),
-                        ],
-                    )
-                    .header(Row::new(
-                        ["IMAGE", "SIZE", "CREATED", "ID", ""]
-                            .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
-                    ));
-                    f.render_widget(itable, split[1]);
-                }
+                f.render_widget(table, cin);
             }
             let status = Line::from(Span::styled(
                 match &self.msg {
                     Some((m, _)) => format!(" {m}"),
                     None => format!(
-                        " {} containers · {} images · refreshed every 30s · h keys · ^c quits",
+                        " {} containers · {} of them · ↑↓ to move · enter for detail and actions",
                         cs.len(),
+                        self.sel + 1
+                    ),
+                },
+                Style::default().fg(LABEL),
+            ));
+            f.render_widget(Paragraph::new(status), rows[5]);
+            self.render_overlays(f, area);
+            return;
+        }
+
+        // ── containers-i ──────────────────────────────────────────────────────
+        // A container list answers "what is running". It cannot answer "what is
+        // this costing me on disk", because the images nothing runs are exactly
+        // the ones nobody notices — so those get their own tab and are called
+        // out by name.
+        if self.images {
+            let ib = tabbox(VIEW_TABS, tab("containers-i"), "enter for detail and actions");
+            let iin = ib.inner(rows[4]);
+            f.render_widget(ib, rows[4]);
+            let imgs = arr(&s, "images");
+            if imgs.is_empty() {
+                f.render_widget(
+                    Paragraph::new(Line::from(Span::styled(
+                        "  no images — nothing pulled here, or no docker this user can reach",
+                        Style::default().fg(Color::Rgb(240, 160, 90)),
+                    ))),
+                    iin,
+                );
+            } else {
+                let used: std::collections::HashSet<String> =
+                    arr(&s, "containers").iter().map(|c| text(c, "image")).collect();
+                let vis = (iin.height as usize).saturating_sub(1).max(1);
+                self.sel = self.sel.min(imgs.len().saturating_sub(1));
+                if self.sel < self.offset {
+                    self.offset = self.sel;
+                } else if self.sel >= self.offset + vis {
+                    self.offset = self.sel + 1 - vis;
+                }
+                if self.offset + vis > imgs.len() {
+                    self.offset = imgs.len().saturating_sub(vis);
+                }
+                let irows: Vec<Row> = imgs
+                    .iter()
+                    .enumerate()
+                    .skip(self.offset)
+                    .take(vis)
+                    .map(|(n, i)| {
+                        let sel = n == self.sel;
+                        let base = if sel {
+                            Style::default().bg(Color::Rgb(38, 48, 66)).add_modifier(Modifier::BOLD)
+                        } else {
+                            Style::default()
+                        };
+                        let full = format!("{}:{}", text(i, "repo"), text(i, "tag"));
+                        let idle = !used.contains(&full);
+                        Row::new(vec![
+                            Cell::from(format!(
+                                "{}{}",
+                                if sel { "▶" } else { " " },
+                                trunc(&full, 51)
+                            ))
+                            .style(base.fg(if idle { Color::Rgb(150, 140, 110) } else { Color::Gray })),
+                            Cell::from(format!("{:>9}", text(i, "size"))).style(base.fg(Color::White)),
+                            Cell::from(format!("{:>16}", text(i, "created"))).style(base.fg(DIM)),
+                            Cell::from(text(i, "id")).style(base.fg(DIM)),
+                            Cell::from(if idle { "nothing runs this" } else { "" })
+                                .style(base.fg(Color::Rgb(240, 160, 90))),
+                        ])
+                    })
+                    .collect();
+                let itable = Table::new(
+                    irows,
+                    [
+                        Constraint::Length(53),
+                        Constraint::Length(10),
+                        Constraint::Length(17),
+                        Constraint::Length(14),
+                        Constraint::Min(10),
+                    ],
+                )
+                .header(Row::new(
+                    ["IMAGE", "SIZE", "CREATED", "ID", ""]
+                        .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
+                ));
+                f.render_widget(itable, iin);
+            }
+            let status = Line::from(Span::styled(
+                match &self.msg {
+                    Some((m, _)) => format!(" {m}"),
+                    None => format!(
+                        " {} images · ↑↓ to move · enter for detail and actions",
                         arr(&s, "images").len()
                     ),
                 },
@@ -3052,7 +3462,7 @@ impl Dashboard for Monitor {
         // daemon keeps the series and computes the window; the panel only
         // renders it, so a peer would answer the same way if it kept one.
         if self.history {
-            let hb = tabbox(VIEW_TABS, 5, "y back to processes");
+            let hb = tabbox(VIEW_TABS, tab("history"), "y back to processes");
             let hin = hb.inner(rows[4]);
             f.render_widget(hb, rows[4]);
             let win = num(&s, "history.window_s");
@@ -3145,7 +3555,7 @@ impl Dashboard for Monitor {
         // come from the same collector the measure-a-peer path uses, so a peer
         // is described by its own /proc rather than by anything guessed here.
         if self.fleet {
-            let fb = tabbox(VIEW_TABS, 4, "enter opens a machine · esc → measure");
+            let fb = tabbox(VIEW_TABS, tab("fleet"), "enter opens a machine · esc → measure");
             let fin = fb.inner(rows[4]);
             f.render_widget(fb, rows[4]);
             let got = self.mesh.fleet();
@@ -3370,7 +3780,7 @@ impl Dashboard for Monitor {
         );
         let proc_b = tabbox(
             VIEW_TABS,
-            if self.zombies { 2 } else if self.tree { 1 } else { 0 },
+            tab(if self.zombies { "zombies" } else if self.tree { "tree" } else { "proc" }),
             &hint,
         );
         let proc_in = proc_b.inner(rows[4]);
@@ -3628,7 +4038,10 @@ mod tests {
         }
         // The single-character entries in OTHER_KEYS are real bindings too;
         // the multi-key ones ("← →", "pgup pgdn") describe non-char keys.
-        for (_, k, d) in OTHER_KEYS {
+        for (sec, k, d) in OTHER_KEYS {
+            if *sec == "modal" {
+                continue;
+            }
             let mut ch = k.chars();
             if let (Some(c), None) = (ch.next(), ch.next()) {
                 seen.push((c, d));
