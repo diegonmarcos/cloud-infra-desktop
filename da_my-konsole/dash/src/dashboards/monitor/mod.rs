@@ -1439,8 +1439,42 @@ impl Monitor {
     /// They were handled per-view, so pressing `z` while looking at containers
     /// did nothing at all — a tab strip that only works from one tab is not a
     /// tab strip. Returns true when the key was a tab switch.
+    /// Write every tab out. Kept in one place so the global key path is the
+    /// only thing that has to know how.
+    fn export_now(&mut self) {
+        let snap = self.snap.clone();
+        let t = self.mesh.target();
+        // Including the two things that are not in this machine's snapshot:
+        // the peers, and the tree.
+        let fleet: Vec<(String, Value)> = self
+            .mesh
+            .fleet()
+            .into_iter()
+            .filter_map(|(k, v)| v.ok().map(|v| (k, v)))
+            .collect();
+        // Exporting without having opened the files tab should still carry the
+        // tree rather than an empty list.
+        let files = if self.files_cache.is_empty() {
+            file_tree(self.files_hidden)
+        } else {
+            self.files_cache.clone()
+        };
+        self.msg = Some(match export_snapshot(&snap, t, &fleet, &files) {
+            Ok(stem) => (format!("exported {stem}.json and .md"), false),
+            Err(e) => (format!("export failed: {e}"), true),
+        });
+    }
+
     fn view_key(&mut self, k: KeyCode) -> bool {
         let KeyCode::Char(c) = k else { return false };
+        // Export is a GLOBAL action and must be handled before the per-view
+        // branches, not inside the process view's match. It was reachable only
+        // from the process list and silently did nothing everywhere else —
+        // the same failure as a key the frame had already taken.
+        if c == 'E' {
+            self.export_now();
+            return true;
+        }
         let _ = ();
         let flat = !self.tree
             && !self.zombies
@@ -2595,23 +2629,6 @@ impl Dashboard for Monitor {
             // renders from the same table, so the two cannot disagree.
             KeyCode::Char(c) if SORT_KEYS.iter().any(|(k, _, _)| *k == c) => {
                 self.sort = SORT_KEYS.iter().find(|(k, _, _)| *k == c).map(|(_, s, _)| *s).unwrap();
-            }
-            KeyCode::Char('E') => {
-                let snap = self.snap.clone();
-                let t = self.mesh.target();
-                // Everything the tabs show, including the two things that are
-                // not in this machine's snapshot: the peers, and the tree.
-                let fleet: Vec<(String, Value)> = self
-                    .mesh
-                    .fleet()
-                    .into_iter()
-                    .filter_map(|(k, v)| v.ok().map(|v| (k, v)))
-                    .collect();
-                let files = self.files_cache.clone();
-                self.msg = Some(match export_snapshot(&snap, t, &fleet, &files) {
-                    Ok(stem) => (format!("exported {stem}.json and .md"), false),
-                    Err(e) => (format!("export failed: {e}"), true),
-                });
             }
             KeyCode::Char('s') => self.sort = Sort::Slice,
             KeyCode::Char('i') => self.desc = !self.desc,
