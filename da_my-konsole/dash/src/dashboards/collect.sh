@@ -74,6 +74,22 @@ for engine in docker podman; do
   break
 done
 
+# GPU memory. amdgpu publishes both kinds through sysfs; nvidia publishes
+# neither, so nvidia-smi is the only way in and it is bounded like the
+# container calls. Intel i915 exposes usage only through debugfs, which is
+# root, so those boxes report absent rather than a guessed number.
+: > $T.gpu
+for c in /sys/class/drm/card[0-9]*/device; do
+  [ -r "$c/mem_info_vram_used" ] && echo "VU $(cat "$c/mem_info_vram_used" 2>/dev/null)" >> $T.gpu
+  [ -r "$c/mem_info_vram_total" ] && echo "VT $(cat "$c/mem_info_vram_total" 2>/dev/null)" >> $T.gpu
+  [ -r "$c/mem_info_gtt_used" ] && echo "GU $(cat "$c/mem_info_gtt_used" 2>/dev/null)" >> $T.gpu
+  [ -r "$c/mem_info_gtt_total" ] && echo "GT $(cat "$c/mem_info_gtt_total" 2>/dev/null)" >> $T.gpu
+done
+if ! grep -q '^VT' $T.gpu 2>/dev/null && command -v nvidia-smi >/dev/null 2>&1; then
+  $TO nvidia-smi --query-gpu=memory.used,memory.total --format=csv,noheader,nounits 2>/dev/null \
+    | head -1 | tr -d ' ' | awk -F, 'NF==2{printf "VU %.0f\nVT %.0f\n", $1*1048576, $2*1048576}' >> $T.gpu
+fi
+
 > $T.1 cat /proc/stat
 > $T.p1 sh -c 'for f in /proc/[0-9]*/stat; do p=${f%/stat}; p=${p##*/}; s=$(cat "$f" 2>/dev/null) || continue; echo "$p ${s#*) }"; done'
 sleep 1
@@ -164,6 +180,17 @@ BEGIN{
 
   sep=""
   printf "{"
+  # ── gpu memory ──────────────────────────────────────────────────────
+  vu=""; vt=""; gu=""; gt=""; gsrc="none"
+  while((getline l < (T ".gpu"))>0){ split(l,a," ")
+    if(a[1]=="VU") vu=a[2]; else if(a[1]=="VT") vt=a[2]
+    else if(a[1]=="GU") gu=a[2]; else if(a[1]=="GT") gt=a[2] }
+  close(T ".gpu")
+  if(vt!="" || gt!="") gsrc="sysfs"
+  ded = (vt!="" && vt+0>0) ? sprintf("{\"used\":%.0f,\"total\":%.0f}",vu+0,vt+0) : "null"
+  shr = (gt!="" && gt+0>0) ? sprintf("{\"used\":%.0f,\"total\":%.0f}",gu+0,gt+0) : "null"
+  j("vram_detail",sprintf("{\"dedicated\":%s,\"shared\":%s,\"source\":\"%s\"}",ded,shr,gsrc))
+
   j("cpu",sprintf("%.1f",cpu)); j("cores",cores); j("cpu_detail",det)
   j("mem",sprintf("%.1f",(mt>0?100.0*used/mt:0))); j("swap",sprintf("%.1f",(st>0?100.0*(st-sf)/st:0)))
   j("mem_detail",memd); j("swap_detail",swapd)
