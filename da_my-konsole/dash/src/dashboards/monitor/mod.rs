@@ -181,6 +181,18 @@ const OTHER_KEYS: &[(&str, &str, &str)] = &[
     ("leaving", "ctrl-c ctrl-d", "quit. the only keys that do"),
 ];
 
+/// The `:` vocabulary. A table, so the width rule below can measure it and
+/// the help cannot describe a command that does not exist.
+const CMD_HELP: &[(&str, &str)] = &[
+    (":f1 … :f9", "a sub-tab of this tab, by its number"),
+    (":<tab>", "any tab by name — :fleet :files :about"),
+    (":<sub-tab>", "any sub-tab by name — :tree :images :wg0-ipv4"),
+    ("", "an unambiguous prefix is enough; :wg-public is not one"),
+    (":e  :ea", "export this machine · export all, with every peer"),
+    (":h  :q", "help · quit"),
+    ("esc backspace", "leave — backspacing past the colon also leaves"),
+];
+
 /// One mode of a tab.
 ///
 /// `key` is the direct shortcut where the mode used to be a tab of its own —
@@ -2058,11 +2070,22 @@ impl Monitor {
     /// the handlers use, so a key that changes cannot leave the help behind.
     fn render_help(&self, f: &mut Frame, area: Rect) {
         let accent = Color::Rgb(120, 200, 255);
+        // DERIVED, not a magic number. This column has been widened by hand
+        // twice — 12 → 14 for "ctrl-c ctrl-d", then again for "esc backspace"
+        // — and each time the new number EQUALLED the longest label rather
+        // than exceeding it, which is precisely what leaves no gap at all.
+        // Measured from the tables, it cannot be wrong again.
+        let kw = OTHER_KEYS
+            .iter()
+            .map(|(_, k, _)| k.chars().count())
+            .chain(CMD_HELP.iter().map(|(k, _)| k.chars().count()))
+            .chain(std::iter::once("m → options".chars().count()))
+            .max()
+            .unwrap_or(12)
+            + 2;
         let key = |k: &str, d: &str| -> Line<'static> {
             Line::from(vec![
-                // 14, not 12: "ctrl-c ctrl-d" is 13 wide and ran straight into
-                // its description with no gap at all.
-                Span::styled(format!("  {k:<14}"), Style::default().fg(Color::Rgb(120, 220, 140))),
+                Span::styled(format!("  {k:<kw$}"), Style::default().fg(Color::Rgb(120, 220, 140))),
                 Span::styled(d.to_string(), Style::default().fg(Color::Gray)),
             ])
         };
@@ -2140,13 +2163,9 @@ impl Monitor {
         // The command line gets its own block: it is the one thing here you
         // TYPE rather than press, so a list of keys cannot describe it.
         l.push(head("command line  :"));
-        l.push(key(":f1 … :f9", "a sub-tab of this tab, by its number"));
-        l.push(key(":<tab>", "any tab by name — :fleet :files :about"));
-        l.push(key(":<sub-tab>", "any sub-tab by name — :tree :images :wg0-ipv4"));
-        l.push(key("", "an unambiguous prefix is enough; :wg-public is not one"));
-        l.push(key(":e  :ea", "export this machine · export all, with every peer"));
-        l.push(key(":h  :q", "help · quit"));
-        l.push(key("esc  backspace", "leave — backspacing past the colon also leaves"));
+        for (k, d) in CMD_HELP {
+            l.push(key(k, d));
+        }
 
         section(&mut l, "leaving");
         l.push(head("the frame owns these"));
@@ -5375,6 +5394,30 @@ mod tests {
     // a string, and one that does not must stay bare or the whole point (token
     // count) is lost. Structure is checked at the same time, since a map value
     // that is itself a map has to start on the next line and a scalar must not.
+    // A label that exactly FILLS its column welds itself to the description:
+    //   esc  backspaceleave — backspacing past the colon also leaves
+    // This has happened three times now — the help column twice and the fleet
+    // peer name once — always by setting the width EQUAL to the longest value
+    // instead of wider than it. The width is derived from these tables now, so
+    // this asserts the derivation still leaves a gap.
+    #[test]
+    fn no_help_label_fills_its_column() {
+        let kw = OTHER_KEYS
+            .iter()
+            .map(|(_, k, _)| k.chars().count())
+            .chain(CMD_HELP.iter().map(|(k, _)| k.chars().count()))
+            .chain(std::iter::once("m → options".chars().count()))
+            .max()
+            .unwrap()
+            + 2;
+        for (_, k, _) in OTHER_KEYS {
+            assert!(k.chars().count() < kw, "{k:?} fills the {kw}-wide key column");
+        }
+        for (k, _) in CMD_HELP {
+            assert!(k.chars().count() < kw, "{k:?} fills the {kw}-wide key column");
+        }
+    }
+
     // The help is the ONLY place anybody looks, so a key that works but is not
     // listed may as well not exist. Everything the panel dispatches outside an
     // overlay has to appear in one of the three tables the help is built from.
