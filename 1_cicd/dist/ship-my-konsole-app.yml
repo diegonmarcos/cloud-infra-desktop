@@ -28,6 +28,8 @@ on:
     branches: [main]
     paths:
       - 'da_my-konsole/**'
+      # my-konsole compiles the shared sampler from here.
+      - 'da_watchdog/**'
       - '1_cicd/src/cicd/ship-my-konsole-app.yml'
   workflow_dispatch:
 
