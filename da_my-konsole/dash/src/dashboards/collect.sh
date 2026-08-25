@@ -59,15 +59,19 @@ cat /etc/resolv.conf > $T.resolv 2>/dev/null || : > $T.resolv
 # gone silent rather than a peer with no container data.
 TO=""
 command -v timeout >/dev/null 2>&1 && TO="timeout 6"
-: > $T.ctr; : > $T.ctrps
+: > $T.ctr; : > $T.ctrps; : > $T.img
 for engine in docker podman; do
   command -v "$engine" >/dev/null 2>&1 || continue
   # ps FIRST, and it is the authoritative list: it is fast and it always
   # works, where `stats` can spend twenty seconds and hand back "--" in every
   # column, which is exactly what oci-apps does. A list of containers with no
   # numbers beside them is far more useful than no list at all.
-  $TO "$engine" ps --format '{{.Names}}	{{.Status}}	{{.Image}}' > $T.ctrps 2>/dev/null || continue
+  $TO "$engine" ps --format '{{.Names}}	{{.Status}}	{{.Image}}	{{.Ports}}	{{.RunningFor}}	{{.Command}}	{{.State}}' > $T.ctrps 2>/dev/null || continue
   [ -s $T.ctrps ] || continue
+  # Images, running or not: a container list cannot answer "what is this
+  # costing me on disk", because the images nothing is running are exactly
+  # the ones nobody notices.
+  $TO "$engine" images --format '{{.Repository}}	{{.Tag}}	{{.Size}}	{{.CreatedSince}}	{{.ID}}' > $T.img 2>/dev/null
   $TO "$engine" stats --no-stream \
     --format '{{.Name}}	{{.CPUPerc}}	{{.MemUsage}}	{{.MemPerc}}	{{.NetIO}}	{{.BlockIO}}	{{.PIDs}}' \
     > $T.ctr 2>/dev/null
@@ -264,11 +268,20 @@ BEGIN{
   while((getline l < (T ".ctr"))>0){ n=split(l,a,"\t"); if(n<7 || a[2]=="--") continue
     SC[a[1]]=a[2]; SM[a[1]]=a[3]; SMP[a[1]]=a[4]; SN[a[1]]=a[5]; SB[a[1]]=a[6]; SPI[a[1]]=a[7] }
   close(T ".ctr")
+  nim=0; imj=""
+  while((getline l < (T ".img"))>0){ n=split(l,a,"\t"); if(n<5) continue
+    nim++
+    ISZ[a[1] ":" a[2]]=a[3]
+    imj=imj sprintf("%s{\"repo\":\"%s\",\"tag\":\"%s\",\"size\":\"%s\",\"created\":\"%s\",\"id\":\"%s\"}",
+      (nim>1?",":""),esc(a[1]),esc(a[2]),esc(a[3]),esc(a[4]),esc(a[5])) }
+  close(T ".img")
+  j("images",sprintf("[%s]",imj))
   ncc=0; ctj=""
   while((getline l < (T ".ctrps"))>0){ n=split(l,a,"\t"); if(a[1]=="") continue
     nm=a[1]; ncc++
-    ctj=ctj sprintf("%s{\"name\":\"%s\",\"cpu\":\"%s\",\"mem\":\"%s\",\"mem_pct\":\"%s\",\"net\":\"%s\",\"block\":\"%s\",\"pids\":\"%s\",\"status\":\"%s\",\"image\":\"%s\"}",
-      (ncc>1?",":""),esc(nm),esc(SC[nm]),esc(SM[nm]),esc(SMP[nm]),esc(SN[nm]),esc(SB[nm]),esc(SPI[nm]),esc(a[2]),esc(a[3])) }
+    ctj=ctj sprintf("%s{\"name\":\"%s\",\"cpu\":\"%s\",\"mem\":\"%s\",\"mem_pct\":\"%s\",\"net\":\"%s\",\"block\":\"%s\",\"pids\":\"%s\",\"status\":\"%s\",\"image\":\"%s\",\"image_size\":\"%s\",\"ports\":\"%s\",\"uptime\":\"%s\",\"command\":\"%s\",\"state\":\"%s\"}",
+      (ncc>1?",":""),esc(nm),esc(SC[nm]),esc(SM[nm]),esc(SMP[nm]),esc(SN[nm]),esc(SB[nm]),esc(SPI[nm]),
+      esc(a[2]),esc(a[3]),esc(ISZ[a[3]]),esc(a[4]),esc(a[5]),esc(a[6]),esc(a[7])) }
   close(T ".ctrps")
   j("containers",sprintf("[%s]",ctj))
 
