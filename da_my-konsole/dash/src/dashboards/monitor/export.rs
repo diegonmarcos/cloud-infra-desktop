@@ -55,17 +55,37 @@ pub(crate) fn export_snapshot(
     // An ENVELOPE, not the bare snapshot. Every tab, because half of what is
     // on screen does not live in this machine's snapshot: the fleet is one
     // snapshot per peer collected over ssh, and the file tree is read from
-    // disk by the panel. An export that covered only the tabs whose data
-    // happened to be in one JSON would be an export you have to remember the
-    // limits of.
+    // disk by the panel. An export covering only the tabs whose data happened
+    // to sit in one JSON would be an export you have to remember the limits
+    // of.
+    //
+    // DEDUPED BY MACHINE, not by alias. ~/.ssh/config gives several ways in to
+    // the same box — oci-analytics, -pub and -v6 are one host — and the fleet
+    // map is keyed by alias, so a naive dump wrote that machine's whole
+    // snapshot three times. On one measured export that was 772KB of fleet in
+    // a 1030KB file. The peer's own hostname is the identity; the aliases that
+    // reached it are recorded beside it, because which route answered is worth
+    // knowing and costs a string.
+    let mut by_host: serde_json::Map<String, Value> = serde_json::Map::new();
+    let mut aliases: std::collections::BTreeMap<String, Vec<String>> = Default::default();
+    for (alias, v) in fleet {
+        let host = text(v, "host_info.host");
+        let key = if host.is_empty() { alias.clone() } else { host };
+        aliases.entry(key.clone()).or_default().push(alias.clone());
+        by_host.entry(key).or_insert_with(|| v.clone());
+    }
     let envelope = serde_json::json!({
         "snapshot": s,
-        "fleet": fleet.iter().cloned().collect::<serde_json::Map<String, Value>>(),
+        "fleet": by_host,
+        "fleet_aliases": aliases,
         "files": files,
         "exported": stamp,
         "measured": target.clone().unwrap_or_else(|| "local".into()),
     });
-    let json = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
+    // Compact, not pretty. Indentation was 35% of the file and this is the
+    // machine-readable half of the pair — the Markdown beside it is the one
+    // meant to be read. `jq .` puts the whitespace back for free.
+    let json = serde_json::to_string(&envelope).map_err(|e| e.to_string())?;
     fs::write(format!("{stem}.json"), json).map_err(|e| format!("{stem}.json: {e}"))?;
 
     let n = |k: &str| num(s, k);
