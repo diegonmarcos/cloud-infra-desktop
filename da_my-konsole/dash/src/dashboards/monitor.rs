@@ -1491,6 +1491,62 @@ impl Monitor {
         });
     }
 
+    /// The tab keys, honoured from whichever view you are in.
+    ///
+    /// They were handled per-view, so pressing `z` while looking at containers
+    /// did nothing at all — a tab strip that only works from one tab is not a
+    /// tab strip. Returns true when the key was a tab switch.
+    fn view_key(&mut self, k: KeyCode) -> bool {
+        let KeyCode::Char(c) = k else { return false };
+        let flat = !self.tree && !self.zombies && !self.docker && !self.fleet && !self.history;
+        // `p` means sort-by-pid when there is no view to leave, and the tab it
+        // names when there is.
+        if c == 'p' && flat {
+            return false;
+        }
+        if !matches!(c, 'p' | 't' | 'z' | 'o' | 'f' | 'y') {
+            return false;
+        }
+        // A view is a single choice, so every switch clears the others rather
+        // than leaving two flags true and the tab strip disagreeing with the
+        // body.
+        let was_fleet = self.fleet;
+        self.tree = false;
+        self.zombies = false;
+        self.docker = false;
+        self.fleet = false;
+        self.history = false;
+        let name = match c {
+            't' => {
+                self.tree = true;
+                "process tree"
+            }
+            'z' => {
+                self.zombies = true;
+                "zombies and orphans — dead, or reparented to init"
+            }
+            'o' => {
+                self.docker = true;
+                "containers"
+            }
+            'f' => {
+                self.fleet = true;
+                "fleet — every mesh peer, collected over ssh"
+            }
+            'y' => {
+                self.history = true;
+                "the last 24 hours"
+            }
+            _ => "process list",
+        };
+        if was_fleet != self.fleet {
+            self.mesh.set_fleet(self.fleet);
+            self.sel = 0;
+        }
+        self.msg = Some((name.to_string(), false));
+        true
+    }
+
     fn free_key(&mut self, k: KeyCode) {
         let run = |me: &mut Self, i: usize| {
             match FREE[i].0 {
@@ -2367,32 +2423,12 @@ impl Dashboard for Monitor {
             }
             Overlay::None => {}
         }
-        if self.docker {
-            match k {
-                KeyCode::Char('o') | KeyCode::Char('p') => {
-                    self.docker = false;
-                    self.msg = Some(("back to processes".into(), false));
-                }
-                KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
-                KeyCode::Esc => {
-                    self.overlay = Overlay::Menu;
-                    self.menu_sel = 0;
-                }
-                _ => {}
-            }
+        if self.view_key(k) {
             return;
         }
-        if self.history {
+        if self.docker || self.history {
+            // Neither view has a cursor; only the shared keys apply.
             match k {
-                KeyCode::Char('y') | KeyCode::Char('p') => {
-                    self.history = false;
-                    self.msg = Some(("back to processes".into(), false));
-                }
-                KeyCode::Char('f') => {
-                    self.history = false;
-                    self.fleet = true;
-                    self.mesh.set_fleet(true);
-                }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
                 KeyCode::Esc => {
                     self.overlay = Overlay::Menu;
@@ -2417,18 +2453,6 @@ impl Dashboard for Monitor {
                         self.detail_scroll = 0;
                         self.overlay = Overlay::Machine;
                     }
-                }
-                KeyCode::Char('f') | KeyCode::Char('p') => {
-                    self.fleet = false;
-                    self.mesh.set_fleet(false);
-                    self.sel = 0;
-                    self.msg = Some(("back to processes".into(), false));
-                }
-                KeyCode::Char('y') => {
-                    self.fleet = false;
-                    self.mesh.set_fleet(false);
-                    self.history = true;
-                    self.sel = 0;
                 }
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
                 KeyCode::Esc => {
@@ -2471,19 +2495,6 @@ impl Dashboard for Monitor {
                 self.free_sel = 0;
                 self.overlay = Overlay::Free;
             }
-            KeyCode::Char('f') => {
-                self.fleet = !self.fleet;
-                self.history = false;
-                self.mesh.set_fleet(self.fleet);
-                self.msg = Some((
-                    if self.fleet {
-                        "fleet view — one row per peer, collected over ssh".into()
-                    } else {
-                        "back to processes".to_string()
-                    },
-                    false,
-                ));
-            }
             KeyCode::Char('v') => {
                 self.units = !self.units;
                 self.msg = Some((
@@ -2491,47 +2502,6 @@ impl Dashboard for Monitor {
                         "declared units {}",
                         if self.units { "shown — stopped and idle services" } else { "hidden" }
                     ),
-                    false,
-                ));
-            }
-            KeyCode::Char('p') if self.tree || self.zombies => {
-                // `p` is sort-by-pid when there is no view to leave, and the
-                // tab it names when there is.
-                self.tree = false;
-                self.zombies = false;
-                self.msg = Some(("process list".into(), false));
-            }
-            KeyCode::Char('z') => {
-                self.zombies = !self.zombies;
-                self.tree = false;
-                self.msg = Some((
-                    if self.zombies {
-                        "zombies and orphans — dead, or reparented to init".into()
-                    } else {
-                        "process list".to_string()
-                    },
-                    false,
-                ));
-            }
-            KeyCode::Char('o') => {
-                self.docker = !self.docker;
-                self.msg = Some((
-                    if self.docker { "containers".into() } else { "back to processes".to_string() },
-                    false,
-                ));
-            }
-            KeyCode::Char('y') => {
-                self.history = !self.history;
-                self.docker = false;
-                self.msg = Some((
-                    if self.history { "last 24 hours".into() } else { "back to processes".to_string() },
-                    false,
-                ));
-            }
-            KeyCode::Char('t') => {
-                self.tree = !self.tree;
-                self.msg = Some((
-                    format!("process tree {}", if self.tree { "on" } else { "off" }),
                     false,
                 ));
             }
