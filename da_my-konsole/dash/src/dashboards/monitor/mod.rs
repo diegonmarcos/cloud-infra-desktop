@@ -4293,9 +4293,13 @@ impl Dashboard for Monitor {
                     _ => None,
                 };
                 let name = Span::styled(
-                    // 17 plus the cursor mark: "oci-analytics-pub" is 17 and
-                    // was losing its tail before that.
-                    format!("{}{:<17}", if fsel { "▶" } else { " " }, trunc(&p.alias, 17)),
+                    // 18 plus the cursor mark, for a 17-character name.
+                    // "oci-analytics-pub" is exactly 17: widening the field to
+                    // 17 stopped truncating it and left it welded to the
+                    // address, because a value that fills its field leaves no
+                    // separator behind it. The width has to exceed the longest
+                    // name, not equal it.
+                    format!("{}{:<18}", if fsel { "▶" } else { " " }, trunc(&p.alias, 17)),
                     base.fg(if p.local { Color::Rgb(120, 200, 255) } else { Color::White }),
                 );
                 let addr = Span::styled(format!("{:<16}", p.ip), base.fg(DIM));
