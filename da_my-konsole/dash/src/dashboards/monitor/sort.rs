@@ -28,11 +28,13 @@ pub(crate) enum Sort {
     User,
     Slice,
     Runq,
+    /// Major faults per second — who is thrashing.
+    Majflt,
 }
 
 /// Left-to-right order of the sortable columns, so ←/→ walks the header the
 /// way glances does rather than jumping around an enum's declaration order.
-pub(crate) const SORT_ORDER: [Sort; 15] = [
+pub(crate) const SORT_ORDER: [Sort; 16] = [
     Sort::Pid,
     Sort::Slice,
     Sort::User,
@@ -48,6 +50,7 @@ pub(crate) const SORT_ORDER: [Sort; 15] = [
     Sort::Net,
     Sort::Disk,
     Sort::Runq,
+    Sort::Majflt,
 ];
 
 impl Sort {
@@ -70,6 +73,7 @@ impl Sort {
             Sort::User => "user",
             Sort::Slice => "slice",
             Sort::Runq => "runq",
+            Sort::Majflt => "majflt",
         }
     }
 
@@ -163,6 +167,7 @@ pub(crate) fn sort_procs<'a>(snap: &'a Value, sort: Sort, desc: bool, win: Win) 
                 Sort::Net => num(p, "net_rx_bytes_per_s") + num(p, "net_tx_bytes_per_s"),
                 Sort::Pss => num(p, "mem_pss_bytes"),
                 Sort::Runq => win.get(p, "runq_wait_pct"),
+                Sort::Majflt => win.get(p, "majflt_per_s"),
                 // Fixed windows, so these ignore `win` entirely. "1m" is the
                 // daemon's label for the 60s bucket.
                 Sort::C10s => avg_or(p, "10s", "cpu_pct"),

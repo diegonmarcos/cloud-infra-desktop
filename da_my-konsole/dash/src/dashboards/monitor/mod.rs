@@ -63,7 +63,8 @@ use data::{arr, kill_path, now_secs, num, read_json, snapshot_path, text, HIST};
 use draw::{bbox, braille_graph, grad, meter, tabbox, DIM, GRAPH_FLOOR, LABEL};
 use export::{exe_dir, export_snapshot, open_dir, proc_comm};
 use fmt::{
-    fmt_bps, fmt_bytes_short, fmt_fixed, fmt_g, fmt_gib, fmt_mem_cell, fmt_rate_mb, fmt_uptime,
+    fmt_bps, fmt_bytes_short, fmt_fixed, fmt_g, fmt_gib, fmt_mem_cell, fmt_rate, fmt_rate_mb,
+    fmt_uptime,
     push, trunc, z, zp,
 };
 use sort::{avg_or, num_opt, sort_procs, tree_order, Sort, Win, SORT_ORDER};
@@ -2425,6 +2426,13 @@ impl Monitor {
         // Time spent runnable but not running: the number that says "this box
         // is oversubscribed" as opposed to "this process is busy".
         l.push(kv("run-queue wait", format!("{:.2}%", num(&p, "runq_wait_pct"))));
+        // The memory-stall number, beside the cpu-stall one. A page fetched
+        // back from disk is what memory pressure is actually made of, so this
+        // is the line that says whether THIS process is the one thrashing.
+        l.push(kv(
+            "major faults",
+            format!("{:.1}/s  (pages read back from disk)", num(&p, "majflt_per_s")),
+        ));
 
         l.push(head("memory"));
         l.push(kv(
@@ -3277,8 +3285,14 @@ impl Dashboard for Monitor {
         // The lower band only costs rows when something is in it; folding both
         // its boxes away (2/4) gives every one of those rows to the process
         // table rather than leaving a labelled gap.
+        // 13, not 10. The psi box held exactly eight lines of content in eight
+        // rows of inner space — full to the edge — so the three reclaim rows
+        // would have silently clipped the guard line off the bottom rather
+        // than appearing. It costs three rows of the process table, which is
+        // the right trade: this is the box you read when the machine is in
+        // trouble, and those three lines are the ones that say WHY.
         let low_h: u16 =
-            if self.show[B_PSI] || self.show[B_SLICES] || self.show[B_MESH] { 10 } else { 0 };
+            if self.show[B_PSI] || self.show[B_SLICES] || self.show[B_MESH] { 13 } else { 0 };
         let rows = Layout::vertical([
             Constraint::Length(1),     // header
             Constraint::Length(11),    // cpu
@@ -3795,6 +3809,47 @@ impl Dashboard for Monitor {
                     pl.push(Line::from(sp));
                 }
         }
+            // WHAT IS PRODUCING THAT MEMORY PRESSURE.
+            //
+            // The grid above says pressure exists; these three lines say what
+            // kind. The pair that matters is direct vs kswapd: reclaim by
+            // kswapd is background work on its own thread and surfaces as
+            // `some`, while DIRECT reclaim is a process being made to free
+            // memory before its own allocation can proceed — a synchronous
+            // stall, and what drives `full`. Same numbers, completely
+            // different responses.
+            let rc = |k: &str| num(&s, &format!("reclaim.{k}"));
+            let pair = |label: &str, a: (&str, f64), b: (&str, f64), scale: f64| -> Line<'static> {
+                Line::from(vec![
+                    Span::styled(format!("{label:<9}"), Style::default().fg(Color::Rgb(120, 200, 255))),
+                    Span::styled(format!("{:<7}", a.0), Style::default().fg(LABEL)),
+                    Span::styled(
+                        format!("{:>7}", fmt_rate(a.1)),
+                        Style::default().fg(grad(a.1 / scale)),
+                    ),
+                    Span::styled(format!("   {:<6}", b.0), Style::default().fg(LABEL)),
+                    Span::styled(
+                        format!("{:>7}", fmt_rate(b.1)),
+                        Style::default().fg(grad(b.1 / scale)),
+                    ),
+                ])
+            };
+            pl.push(pair(
+                "reclaim/s",
+                // Direct reclaim is the one that stalls, so it is scaled ten
+                // times tighter — any of it at all is worth seeing.
+                ("direct", rc("scan_direct")),
+                ("kswapd", rc("scan_kswapd")),
+                2000.0,
+            ));
+            pl.push(pair(
+                "refault/s",
+                ("file", rc("refault_file")),
+                ("anon", rc("refault_anon")),
+                2000.0,
+            ));
+            pl.push(pair("swap/s", ("in", rc("swap_in")), ("out", rc("swap_out")), 500.0));
+
         let voters = arr(&self.guard, "voters");
         if voters.is_empty() {
             pl.push(Line::from(Span::styled(
@@ -4927,6 +4982,11 @@ impl Dashboard for Monitor {
                 let rd = w.get(p, "read_bytes_per_s");
                 let wr = w.get(p, "write_bytes_per_s");
                 let rq = w.get(p, "runq_wait_pct");
+                // The memory-stall counterpart to RUNQ. A major fault is a
+                // page fetched back from disk, so this names the process that
+                // is actually thrashing — the one thing this table could never
+                // say before, however loud the psi box was.
+                let mf = w.get(p, "majflt_per_s");
                 // The average columns are fixed windows, NOT the `w` window:
                 // the point of showing them beside the live value is comparing
                 // the three, which a column that moved with `w` could not do.
@@ -4995,6 +5055,9 @@ impl Dashboard for Monitor {
                     // tenth of a percent of stall time is still a real signal
                     // and keeps its digits.
                     Cell::from(z(rq, 5, format!("{rq:>5.2}"))).style(base.fg(grad(rq / 20.0))),
+                    // 50/s is a machine in trouble, so that is where the
+                    // gradient tops out — the same reasoning as runq at 20%.
+                    Cell::from(z(mf, 6, format!("{mf:>6.0}"))).style(base.fg(grad(mf / 50.0))),
                 ])
             })
             .collect();
@@ -5073,6 +5136,7 @@ impl Dashboard for Monitor {
                 Constraint::Length(6),  // R/s
                 Constraint::Length(6),  // W/s
                 Constraint::Length(5),  // RUNQ
+                Constraint::Length(6),  // MAJF/s
             ],
         )
         .header(Row::new(vec![
@@ -5093,6 +5157,7 @@ impl Dashboard for Monitor {
             hdr("R/s", Sort::Disk),
             hdr("W/s", Sort::Disk),
             hdr("RUNQ", Sort::Runq),
+            hdr("MAJF/s", Sort::Majflt),
         ]));
         f.render_widget(table, proc_in);
 
@@ -5194,7 +5259,7 @@ mod tests {
         let header_order = [
             Sort::Pid, Sort::Slice, Sort::User, Sort::Name, Sort::Cpu,
             Sort::C10s, Sort::C60s, Sort::Mem, Sort::M10s, Sort::M60s,
-            Sort::Pss, Sort::Net, Sort::Disk, Sort::Runq,
+            Sort::Pss, Sort::Net, Sort::Disk, Sort::Runq, Sort::Majflt,
         ];
         for w in header_order.windows(2) {
             assert!(at(w[0]) < at(w[1]), "{:?} must sort before {:?}", w[0], w[1]);

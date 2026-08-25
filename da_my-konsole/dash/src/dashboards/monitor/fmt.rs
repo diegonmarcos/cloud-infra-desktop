@@ -97,6 +97,25 @@ pub(crate) fn fmt_g(b: f64) -> String {
     format!("{:.1}G", b / 1_073_741_824.0)
 }
 
+/// A pages-per-second figure, short.
+///
+/// These run from single digits to hundreds of thousands during a reclaim
+/// storm, and a column of raw integers that wide cannot be read at a glance.
+/// PAGES, not bytes — that is what /proc/vmstat counts, and converting would
+/// mean assuming a page size the dashboard has no way to ask for. The row
+/// labels carry the unit.
+pub(crate) fn fmt_rate(v: f64) -> String {
+    if v < 1.0 {
+        "-".into()
+    } else if v < 1000.0 {
+        format!("{v:.0}")
+    } else if v < 1_000_000.0 {
+        format!("{:.1}k", v / 1000.0)
+    } else {
+        format!("{:.1}M", v / 1_000_000.0)
+    }
+}
+
 pub(crate) fn fmt_bytes_short(b: f64) -> String {
     const U: [&str; 5] = ["B", "K", "M", "G", "T"];
     let mut v = b;
