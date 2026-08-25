@@ -25,6 +25,7 @@ set -uo pipefail
 
 SSHD_BIN="${CLOUD_IDE_SSHD_BIN:?cloud-ide-sshd.sh: CLOUD_IDE_SSHD_BIN not set by Nix module}"
 SSH_KEYGEN_BIN="${CLOUD_IDE_SSH_KEYGEN_BIN:?cloud-ide-sshd.sh: CLOUD_IDE_SSH_KEYGEN_BIN not set by Nix module}"
+SFTP_SERVER_BIN="${CLOUD_IDE_SFTP_SERVER_BIN:?cloud-ide-sshd.sh: CLOUD_IDE_SFTP_SERVER_BIN not set by Nix module}"
 
 CONFIG_JSON="${CLOUD_IDE_SSHD_CONFIG_JSON:-${XDG_CONFIG_HOME:-$HOME/.config}/cloud-data/cloud-ide-sshd.json}"
 if [ ! -r "$CONFIG_JSON" ] || ! jq -e . "$CONFIG_JSON" >/dev/null 2>&1; then
@@ -303,6 +304,7 @@ PermitRootLogin no
 PasswordAuthentication no
 PubkeyAuthentication yes
 UsePAM no
+Subsystem sftp $SFTP_SERVER_BIN
 EOF
   chmod 600 "$SSHD_CONFIG"
 

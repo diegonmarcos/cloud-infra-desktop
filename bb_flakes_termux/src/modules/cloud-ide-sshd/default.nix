@@ -89,6 +89,7 @@ let
     runtimeEnv = {
       CLOUD_IDE_SSHD_BIN = "${opensshPinned}/bin/sshd";
       CLOUD_IDE_SSH_KEYGEN_BIN = "${opensshPinned}/bin/ssh-keygen";
+      CLOUD_IDE_SFTP_SERVER_BIN = "${opensshPinned}/libexec/sftp-server";
     };
     text = builtins.readFile ./cloud-ide-sshd.sh;
   };
