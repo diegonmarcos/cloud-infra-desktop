@@ -195,8 +195,14 @@ fn file_tree(hidden: bool) -> Vec<String> {
     args.extend(["-I", ".git|node_modules|.cache|target"]);
     args.push(&home);
     let out = std::process::Command::new("tree").args(&args).output();
+    // The OUTPUT is the signal, not the exit code. tree returns 2 whenever any
+    // directory could not be opened, which in a home directory is the normal
+    // case and not a failure — it still printed the other 2685 lines. Treating
+    // non-zero as failure sent every run to the find fallback, so the tab
+    // showed a flat list of absolute paths and none of the structure it exists
+    // to draw.
     let text = match out {
-        Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).into_owned(),
+        Ok(o) if !o.stdout.is_empty() => String::from_utf8_lossy(&o.stdout).into_owned(),
         _ => {
             let mut f: Vec<String> = vec!["-maxdepth".into(), "4".into()];
             if !hidden {
