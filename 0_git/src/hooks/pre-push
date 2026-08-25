@@ -89,6 +89,37 @@ else
   fi
 fi
 
+# THE REBASE CAN SUCCEED AND STILL WRECK YOUR WORKING TREE.
+#
+# With rebase.autoStash on, `git pull --rebase` stashes the dirty worktree,
+# rebases, then reapplies. If the incoming commits touched the same lines you
+# were editing, that reapply conflicts — and git reports the REBASE's status,
+# not the stash's. It prints "Applying autostash resulted in conflicts. Your
+# changes are safe in the stash" and EXITS 0. The `if !` above cannot see it.
+#
+# What is left behind is a working tree full of <<<<<<< markers, a hook that
+# says "just push again", and a push that then ships the markers. That has
+# happened here twice, both times committing conflict markers into a source
+# file. Unmerged index entries are the unambiguous signal, so check for them.
+_unmerged="$(git ls-files -u | awk '{print $4}' | sort -u)"
+if [ -n "$_unmerged" ]; then
+  echo "" >&2
+  echo "[pre-push] REFUSING TO PUSH — the rebase reapplied your stashed changes" >&2
+  echo "[pre-push] with conflicts. These files hold <<<<<<< markers right now:" >&2
+  echo "$_unmerged" | sed 's/^/[pre-push]     /' >&2
+  echo "[pre-push]" >&2
+  echo "[pre-push] Nothing is lost — your work is also kept in stash@{0}." >&2
+  echo "[pre-push] The markers ARE the merge, so resolving them is the fix:" >&2
+  echo "[pre-push]   edit the files, then  git add <them> && git stash drop" >&2
+  echo "[pre-push] To start over from the rebased upstream state instead:" >&2
+  echo "[pre-push]   git reset && git checkout -- .        (stash is kept)" >&2
+  echo "[pre-push]" >&2
+  echo "[pre-push] Note: plain \`git checkout -- .\` fails on unmerged paths, and" >&2
+  echo "[pre-push] \`git stash pop\` just recreates the same conflict. Push again" >&2
+  echo "[pre-push] only once this is clean — pushing now would ship the markers." >&2
+  exit 1
+fi
+
 # Submodules are READ-ONLY / pull-only by design — no local commits or edits
 # should ever exist inside one. The engine's step 6 uses `update --rebase`,
 # which ABORTS on a dirty submodule worktree (2026-08-07: a dirty
