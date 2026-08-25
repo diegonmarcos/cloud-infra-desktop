@@ -3425,48 +3425,126 @@ impl Dashboard for Monitor {
             } else {
                 let cell = |t: String, c: Color| Cell::from(t).style(Style::default().fg(c));
                 let pct = |t: &str| -> f64 { t.trim_end_matches('%').parse().unwrap_or(0.0) };
+                // Split: the containers on top, the images underneath. A
+                // container list answers "what is running"; it cannot answer
+                // "what is this costing me on disk", because the images
+                // nothing is running are exactly the ones nobody notices.
+                let imgs = arr(&s, "images");
+                let ih = if imgs.is_empty() {
+                    0
+                } else {
+                    ((imgs.len() + 2) as u16).min(oin.height / 2)
+                };
+                let split = Layout::vertical([Constraint::Min(3), Constraint::Length(ih)]).split(oin);
                 let crows: Vec<Row> = cs
                     .iter()
                     .map(|c| {
                         let cpu = pct(&text(c, "cpu"));
                         let mem = pct(&text(c, "mem_pct"));
+                        // stats is absent whenever docker could not read the
+                        // cgroup; a dash says so rather than showing 0.0%.
+                        let st = |k: &str, w: usize| -> String {
+                            let v = text(c, k);
+                            if v.is_empty() { format!("{:>w$}", "-") } else { format!("{v:>w$}") }
+                        };
                         Row::new(vec![
-                            cell(trunc(&text(c, "name"), 24), Color::White),
-                            cell(trunc(&text(c, "status"), 20), Color::Rgb(120, 220, 140)),
-                            cell(format!("{:>7}", text(c, "cpu")), grad(cpu / 100.0)),
-                            cell(format!("{:>7}", text(c, "mem_pct")), grad(mem / 100.0)),
-                            cell(text(c, "mem"), Color::Gray),
-                            cell(text(c, "net"), Color::Rgb(120, 200, 255)),
-                            cell(text(c, "block"), Color::Rgb(220, 140, 240)),
-                            cell(format!("{:>5}", text(c, "pids")), DIM),
-                            cell(trunc(&text(c, "image"), 30), DIM),
+                            cell(trunc(&text(c, "name"), 22), Color::White),
+                            cell(
+                                trunc(&text(c, "status"), 18),
+                                if text(c, "state") == "running" {
+                                    Color::Rgb(120, 220, 140)
+                                } else {
+                                    Color::Rgb(240, 160, 90)
+                                },
+                            ),
+                            cell(st("cpu", 7), grad(cpu / 100.0)),
+                            cell(st("mem_pct", 7), grad(mem / 100.0)),
+                            cell(st("mem", 21), Color::Gray),
+                            cell(st("net", 19), Color::Rgb(120, 200, 255)),
+                            cell(st("block", 19), Color::Rgb(220, 140, 240)),
+                            cell(st("pids", 5), DIM),
+                            cell(trunc(&text(c, "ports"), 30), Color::Rgb(150, 170, 200)),
+                            cell(format!("{:>8}", text(c, "image_size")), Color::Gray),
+                            cell(trunc(&text(c, "image"), 40), DIM),
                         ])
                     })
                     .collect();
                 let table = Table::new(
                     crows,
                     [
-                        Constraint::Length(25),
-                        Constraint::Length(21),
+                        Constraint::Length(23),
+                        Constraint::Length(19),
                         Constraint::Length(8),
                         Constraint::Length(8),
                         Constraint::Length(22),
                         Constraint::Length(20),
                         Constraint::Length(20),
                         Constraint::Length(6),
+                        Constraint::Length(31),
+                        Constraint::Length(9),
                         Constraint::Min(12),
                     ],
                 )
                 .header(Row::new(
-                    ["CONTAINER", "STATUS", "CPU%", "MEM%", "MEMORY", "NET I/O", "BLOCK I/O", "PIDS", "IMAGE"]
-                        .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
+                    [
+                        "CONTAINER", "STATUS", "CPU%", "MEM%", "MEMORY", "NET I/O", "BLOCK I/O",
+                        "PIDS", "PORTS", "ON DISK", "IMAGE",
+                    ]
+                    .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
                 ));
-                f.render_widget(table, oin);
+                f.render_widget(table, split[0]);
+
+                if ih > 0 {
+                    let used: std::collections::HashSet<String> =
+                        cs.iter().map(|c| text(c, "image")).collect();
+                    let irows: Vec<Row> = imgs
+                        .iter()
+                        .take(ih.saturating_sub(1) as usize)
+                        .map(|i| {
+                            let full = format!("{}:{}", text(i, "repo"), text(i, "tag"));
+                            let idle = !used.contains(&full);
+                            Row::new(vec![
+                                cell(
+                                    trunc(&full, 52),
+                                    if idle { Color::Rgb(150, 140, 110) } else { Color::Gray },
+                                ),
+                                cell(format!("{:>9}", text(i, "size")), Color::White),
+                                cell(format!("{:>16}", text(i, "created")), DIM),
+                                cell(text(i, "id"), DIM),
+                                // Named, because an image nothing runs is the
+                                // usual answer to "where did the disk go".
+                                cell(
+                                    if idle { "nothing runs this".into() } else { String::new() },
+                                    Color::Rgb(240, 160, 90),
+                                ),
+                            ])
+                        })
+                        .collect();
+                    let itable = Table::new(
+                        irows,
+                        [
+                            Constraint::Length(53),
+                            Constraint::Length(10),
+                            Constraint::Length(17),
+                            Constraint::Length(14),
+                            Constraint::Min(10),
+                        ],
+                    )
+                    .header(Row::new(
+                        ["IMAGE", "SIZE", "CREATED", "ID", ""]
+                            .map(|h| Cell::from(h).style(Style::default().fg(LABEL))),
+                    ));
+                    f.render_widget(itable, split[1]);
+                }
             }
             let status = Line::from(Span::styled(
                 match &self.msg {
                     Some((m, _)) => format!(" {m}"),
-                    None => format!(" {} containers · refreshed every 30s · h keys · ^c quits", cs.len()),
+                    None => format!(
+                        " {} containers · {} images · refreshed every 30s · h keys · ^c quits",
+                        cs.len(),
+                        arr(&s, "images").len()
+                    ),
                 },
                 Style::default().fg(LABEL),
             ));
