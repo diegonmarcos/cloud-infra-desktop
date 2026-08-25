@@ -173,12 +173,63 @@ fn probe(ip: &str) -> Option<f64> {
 /// publishing.
 const COLLECT: &str = include_str!("collect.sh");
 
+/// The port my-webserver listens on. One constant rather than a per-peer
+/// setting: the fleet is deployed from one manifest, and a port that varies
+/// per host is a lookup table nobody maintains.
+const WEB_PORT: u16 = 8000;
+
+/// Ask the peer's my-webserver for the snapshot my-watchdog published there.
+///
+/// This is the fast path, and it is fast for a structural reason: the machine
+/// is ALREADY sampling itself every two seconds, so there is nothing to run —
+/// the request is a file read on the far end. The ssh path has to open a
+/// session, ship a hundred lines of shell, and then sit through a one-second
+/// sleep, because a cpu percentage needs two samples and a machine visited
+/// once has only one.
+///
+/// It also removes every portability question the collector had to answer:
+/// BusyBox df, mawk versus gawk, whether docker stats returns at all. The
+/// peer's own watchdog answered those locally, in Rust, before we asked.
+fn fetch_http(ip: &str) -> Option<String> {
+    let host = if ip.contains(':') { format!("[{ip}]") } else { ip.to_string() };
+    let out = Command::new("curl")
+        .args([
+            "-sS",
+            "--max-time",
+            "4",
+            "--fail",
+            &format!("http://{host}:{WEB_PORT}/__api__/watchdog"),
+        ])
+        .output()
+        .ok()?;
+    if !out.status.success() {
+        return None;
+    }
+    let body = String::from_utf8(out.stdout).ok()?;
+    // A peer running my-webserver but not my-watchdog answers 503, which
+    // --fail already rejects. This guards the other case: something else
+    // listening on that port and answering 200 with something that is not a
+    // snapshot.
+    if body.contains("\"proc_table\"") { Some(body) } else { None }
+}
+
 /// One snapshot from `alias`. Returns (stdout, why-it-is-empty).
 ///
 /// The script goes in on STDIN, not as an argument: it is 100 lines of shell
 /// and awk containing every quoting character there is, and threading that
 /// through `ssh <host> '<script>'` is a quoting problem with no good end.
 fn fetch_remote(alias: &str) -> (String, String) {
+    fetch_remote_at(alias, None)
+}
+
+/// `ip` offers the HTTP fast path. Without one this is the ssh path only,
+/// which is what a bare alias can always do.
+fn fetch_remote_at(alias: &str, ip: Option<&str>) -> (String, String) {
+    if let Some(ip) = ip {
+        if let Some(body) = fetch_http(ip) {
+            return (body, String::new());
+        }
+    }
     let mut child = match Command::new("ssh")
         .args([
             "-o", "BatchMode=yes",
@@ -271,10 +322,17 @@ impl Mesh {
 
         let target = m.target.clone();
         let remote = m.remote.clone();
+        let peers_for_target = m.peers.clone();
         std::thread::spawn(move || loop {
             let t = target.lock().ok().and_then(|x| x.clone());
             if let Some(alias) = t {
-                let (out, why) = fetch_remote(&alias);
+                // The single-target fetch knows the address too, so it takes
+                // the same fast path.
+                let ip = peers_for_target
+                    .lock()
+                    .ok()
+                    .and_then(|p| p.iter().find(|x| x.alias == alias).map(|x| x.ip.clone()));
+                let (out, why) = fetch_remote_at(&alias, ip.as_deref());
                 let parsed: Value = serde_json::from_str(out.trim()).unwrap_or(Value::Null);
                 let err = if parsed.is_null() {
                     format!("{alias}: {}", if why.is_empty() { "no data".into() } else { why })
@@ -310,9 +368,10 @@ impl Mesh {
                         .iter()
                         .map(|p| {
                             let alias = p.alias.clone();
+                            let ip = p.ip.clone();
                             let fleet = fleet.clone();
                             std::thread::spawn(move || {
-                                let (out, why) = fetch_remote(&alias);
+                                let (out, why) = fetch_remote_at(&alias, Some(&ip));
                                 let r = match serde_json::from_str::<Value>(out.trim()) {
                                     Ok(v) => Ok(v),
                                     Err(_) if !why.is_empty() => Err(why),
