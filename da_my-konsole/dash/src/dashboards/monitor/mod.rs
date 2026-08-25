@@ -1465,11 +1465,14 @@ impl Monitor {
         } else {
             self.files_cache.clone()
         };
-        // Flattened for the export, deepest-last, so the file reads as a tree
-        // rather than as four disconnected columns.
-        let files: Vec<String> = levels.concat();
+        // L3 only. The four panes overlap by construction — every L4 path has
+        // its L3 parent above it and its L1 grandparent above that — so
+        // concatenating them wrote the same prefixes four times over. L3 is
+        // the level that carries the shape of the tree without the leaf spray
+        // of L4, and one pane is the whole of it.
+        let files: Vec<String> = levels[2].clone();
         self.msg = Some(match export_snapshot(&snap, t, &fleet, &files) {
-            Ok(stem) => (format!("exported {stem}.json and .md"), false),
+            Ok(stem) => (format!("exported {stem}.json .yaml .md"), false),
             Err(e) => (format!("export failed: {e}"), true),
         });
     }
@@ -4662,5 +4665,50 @@ mod tests {
         // mem averages read mem_pct, not the rss bytes the MEM% column sorts on
         assert_eq!(num(sort_procs(&s, Sort::M10s, true, Win::Now)[0], "pid") as i32, 2);
         assert_eq!(num(sort_procs(&s, Sort::M60s, true, Win::Now)[0], "pid") as i32, 1);
+    }
+
+    // The YAML is hand-written, so the thing that can go wrong is quoting: a
+    // string that looks like a number, a bool or a comment has to come back as
+    // a string, and one that does not must stay bare or the whole point (token
+    // count) is lost. Structure is checked at the same time, since a map value
+    // that is itself a map has to start on the next line and a scalar must not.
+    #[test]
+    fn yaml_quotes_only_what_would_change_meaning() {
+        let v = json!({
+            "host": "surface-nixos",
+            "version": "1.20",
+            "flag": "true",
+            "cmd": "sh -c x",
+            "arg": "--no-tray",
+            "note": "a: b",
+            "empty": "",
+            "cpu": 12.5,
+            "on": true,
+            "gone": null,
+            "list": ["a", "b"],
+            "nested": {"k": "v"},
+            "blank": {},
+        });
+        let mut y = String::new();
+        export::to_yaml(&v, 0, &mut y);
+
+        // Bare: nothing here reparses as another type.
+        assert!(y.contains("host: surface-nixos"), "{y}");
+        // Quoted: these would come back as f64 / bool / a mapping / nothing.
+        assert!(y.contains("version: \"1.20\""), "{y}");
+        assert!(y.contains("flag: \"true\""), "{y}");
+        assert!(y.contains("note: \"a: b\""), "{y}");
+        assert!(y.contains("empty: \"\""), "{y}");
+        // A leading '-' opens a sequence entry, so that one has to be quoted.
+        assert!(y.contains("arg: \"--no-tray\""), "{y}");
+        // ...but an interior dash is harmless, and quoting it would be exactly
+        // the over-quoting this format exists to avoid.
+        assert!(y.contains("cmd: sh -c x"), "{y}");
+        // Non-strings are never quoted — they are already the right type.
+        assert!(y.contains("cpu: 12.5") && y.contains("gone: null"), "{y}");
+        // Blocks open on the next line, one space deeper; empties stay inline.
+        assert!(y.contains("nested:\n k: v"), "{y}");
+        assert!(y.contains("list:\n - a\n - b"), "{y}");
+        assert!(y.contains("blank: {}"), "{y}");
     }
 }

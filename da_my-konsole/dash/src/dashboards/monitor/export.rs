@@ -15,6 +15,75 @@ use super::fmt::{fmt_bytes_short, fmt_g, fmt_gib, fmt_uptime};
 /// Writing only the pretty one is how exports stop being useful the moment
 /// somebody needs a field it left out.
 ///
+/// A YAML scalar, quoted only where bare would parse back as something else.
+///
+/// The point of the YAML is token count, and a quote is a token — so bare is
+/// the default and quoting is the exception: a number-, bool- or null-looking
+/// string, or one carrying structural characters. Emitted as UTF-8 throughout,
+/// never \u-escaped, for the same reason.
+fn yaml_str(v: &str) -> String {
+    let needs = v.is_empty()
+        || v.trim() != v
+        || v.contains(['\n', '"', '\'', ':', '#', '\\'])
+        || v.starts_with(['-', '?', ',', '[', ']', '{', '}', '&', '*', '!', '|', '>', '%', '@', '`'])
+        || matches!(v, "true" | "false" | "null" | "yes" | "no" | "on" | "off" | "~")
+        || v.parse::<f64>().is_ok();
+    if !needs {
+        return v.to_string();
+    }
+    format!("\"{}\"", v.replace('\\', "\\\\").replace('"', "\\\"").replace('\n', "\\n"))
+}
+
+/// Forty lines against a serde_yaml dependency and its transitive tree, for
+/// one output format used in one function — the same trade the sampler makes
+/// by writing its JSON by hand. Empty containers go inline so a map of mostly
+/// empties does not become a page of bare keys.
+///
+/// ONE space of indent, not two. This file is the machine-facing half of the
+/// pair — the Markdown beside it is the one meant to be read — and on a
+/// snapshot nested this deep the second space buys nothing but 95 KB.
+pub(crate) fn to_yaml(v: &Value, indent: usize, out: &mut String) {
+    let pad = " ".repeat(indent);
+    let block = |v: &Value| {
+        matches!(v, Value::Object(o) if !o.is_empty()) || matches!(v, Value::Array(a) if !a.is_empty())
+    };
+    match v {
+        Value::Object(m) if m.is_empty() => out.push_str("{}\n"),
+        Value::Array(a) if a.is_empty() => out.push_str("[]\n"),
+        Value::Object(m) => {
+            out.push('\n');
+            for (k, val) in m {
+                out.push_str(&pad);
+                out.push_str(&yaml_str(k));
+                out.push(':');
+                // A nested block starts on the next line at one deeper indent;
+                // a scalar sits on this one, after a single space.
+                if !block(val) {
+                    out.push(' ');
+                }
+                to_yaml(val, indent + 1, out);
+            }
+        }
+        Value::Array(a) => {
+            out.push('\n');
+            for item in a {
+                out.push_str(&pad);
+                out.push_str("- ");
+                to_yaml(item, indent + 1, out);
+            }
+        }
+        Value::String(s) => {
+            out.push_str(&yaml_str(s));
+            out.push('\n');
+        }
+        Value::Null => out.push_str("null\n"),
+        other => {
+            out.push_str(&other.to_string());
+            out.push('\n');
+        }
+    }
+}
+
 /// The name is {host}-{user}-{timestamp}: the triple that stays unambiguous
 /// once you have exported the same peer twice and a second machine once. The
 /// host comes from the SNAPSHOT, so exporting a peer names the peer.
@@ -87,6 +156,14 @@ pub(crate) fn export_snapshot(
     // meant to be read. `jq .` puts the whitespace back for free.
     let json = serde_json::to_string(&envelope).map_err(|e| e.to_string())?;
     fs::write(format!("{stem}.json"), json).map_err(|e| format!("{stem}.json: {e}"))?;
+
+    // The same data as YAML, for feeding to a model. No braces, no commas, no
+    // quotes on most strings — the structure costs a fraction of the tokens
+    // JSON spends on punctuation, and nothing is dropped to get there.
+    let mut yaml = String::new();
+    to_yaml(&envelope, 0, &mut yaml);
+    fs::write(format!("{stem}.yaml"), yaml.trim_start_matches('\n'))
+        .map_err(|e| format!("{stem}.yaml: {e}"))?;
 
     let n = |k: &str| num(s, k);
     let mut m = String::new();
@@ -294,7 +371,7 @@ pub(crate) fn export_snapshot(
     // ── files ──────────────────────────────────────────────────────────
     if !files.is_empty() {
         m.push_str(&format!(
-            "\n## Home\n\n{} entries, four levels deep.\n\n```\n",
+            "\n## Home\n\n{} entries, three levels deep.\n\n```\n",
             files.len()
         ));
         // Capped: a full tree in a report is a scroll, not a section. The
