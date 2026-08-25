@@ -1,12 +1,13 @@
 // What order the process table is in, and which sample it is reading.
 //
 // Sort is the column; Win is which of the daemon's rolling averages fills the
-// live cells. They are separate axes on purpose — "rank by the 60s average"
-// and "show me 60s values" are different questions.
+// live cells. Two axes on purpose — "rank by the 60s average" and "show me 60s
+// values" are different questions.
 use serde_json::Value;
 
 use super::data::{arr, num, text};
 
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Sort {
     Cpu,
     /// The four average columns rank on their own fixed window, independent of
@@ -122,11 +123,9 @@ impl Win {
     }
 }
 
-/// The directory holding a pid's binary. /proc/<pid>/exe is the resolved
-/// link, so this survives an argv[0] that was never a path (an ld-linux
-/// invocation, a renamed thread, a busybox applet).
-/// Cut to `n` CHARACTERS, not bytes — a byte slice through a multibyte name
-/// panics, and hostnames are not guaranteed ascii.
+/// Like num(), but keeps the difference between "zero" and "absent" —
+/// mem_pss_bytes is null when the daemon could not read smaps_rollup, and
+/// rendering that as 0 would claim a measurement nobody made.
 pub(crate) fn num_opt(p: &Value, k: &str) -> Option<f64> {
     // Dotted, like num(): callers ask for "cpu_info.temp_c", not for a key
     // that literally contains a dot.
@@ -237,12 +236,3 @@ pub(crate) fn tree_order<'a>(procs: &[&'a Value], spine: &'a [Value]) -> Vec<(&'
     out
 }
 
-/// What the `k` menu can send. RESTART is first because it is the thing people
-/// actually want most of the time — a wedged process put back rather than a
-/// hole where it used to be — and because listing it beside the signals is the
-/// only way anyone discovers the daemon grew the verb.
-///
-/// It is not a signal: the daemon restarts a user systemd unit through
-/// systemctl when the pid belongs to one, and otherwise re-execs its argv. The
-/// blurb says which, because "restart" quietly meaning two different things is
-/// worse than saying so.

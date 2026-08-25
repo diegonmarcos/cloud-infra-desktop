@@ -1,4 +1,4 @@
-// Writing the snapshot out, and the /proc reads that only the detail view needs.
+// Writing a snapshot out, and the /proc reads only the detail view needs.
 use std::fs;
 
 use serde_json::Value;
@@ -6,6 +6,18 @@ use serde_json::Value;
 use super::data::{arr, num, text};
 use super::fmt::{fmt_bytes_short, fmt_g, fmt_gib, fmt_uptime};
 
+/// Everything on screen, written out twice: the snapshot verbatim as JSON and
+/// a readable report as Markdown.
+///
+/// Both, not one. The JSON is the truth and survives being diffed against a
+/// later export or fed to something else; the Markdown is what you can paste
+/// into an issue at 3am without the reader parsing a thousand-line object.
+/// Writing only the pretty one is how exports stop being useful the moment
+/// somebody needs a field it left out.
+///
+/// The name is {host}-{user}-{timestamp}: the triple that stays unambiguous
+/// once you have exported the same peer twice and a second machine once. The
+/// host comes from the SNAPSHOT, so exporting a peer names the peer.
 pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<String, String> {
     let hi = |k: &str| text(s, &format!("host_info.{k}"));
     let host = if hi("host").is_empty() { "unknown".to_string() } else { hi("host") };
@@ -56,13 +68,11 @@ pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<Strin
     row(&mut m, "cpu", format!("{:.1}%", n("cpu")));
     row(&mut m, "load", format!("{:.2} {:.2} {:.2}", n("load1"), n("load5"), n("load15")));
     row(
-        &mut m,
         "memory",
         format!("{:.1}%  {} of {}", n("mem"), fmt_gib(n("mem_detail.used")), fmt_gib(n("mem_detail.total"))),
     );
     row(&mut m, "swap", format!("{:.1}%", n("swap")));
     row(
-        &mut m,
         "psi cpu / io / mem",
         format!("{:.2} / {:.2} / {:.2}", n("psi.cpu.some10"), n("psi.io.full10"), n("psi.memory.full10")),
     );
@@ -185,6 +195,3 @@ pub(crate) fn open_dir(dir: &str) -> Result<(), String> {
         .map_err(|e| e.to_string())
 }
 
-/// Like num(), but keeps the difference between "zero" and "absent" —
-/// mem_pss_bytes is null when the daemon could not read smaps_rollup, and
-/// rendering that as 0 would claim a measurement nobody made.
