@@ -18,7 +18,12 @@ use super::fmt::{fmt_bytes_short, fmt_g, fmt_gib, fmt_uptime};
 /// The name is {host}-{user}-{timestamp}: the triple that stays unambiguous
 /// once you have exported the same peer twice and a second machine once. The
 /// host comes from the SNAPSHOT, so exporting a peer names the peer.
-pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<String, String> {
+pub(crate) fn export_snapshot(
+    s: &Value,
+    target: Option<String>,
+    fleet: &[(String, Value)],
+    files: &[String],
+) -> Result<String, String> {
     let hi = |k: &str| text(s, &format!("host_info.{k}"));
     let host = if hi("host").is_empty() { "unknown".to_string() } else { hi("host") };
     let user = if hi("user").is_empty() { "unknown".to_string() } else { hi("user") };
@@ -47,7 +52,20 @@ pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<Strin
     fs::create_dir_all(&dir).map_err(|e| format!("{dir}: {e}"))?;
     let stem = format!("{dir}/{}-{}-{stamp}", safe(&host), safe(&user));
 
-    let json = serde_json::to_string_pretty(s).map_err(|e| e.to_string())?;
+    // An ENVELOPE, not the bare snapshot. Every tab, because half of what is
+    // on screen does not live in this machine's snapshot: the fleet is one
+    // snapshot per peer collected over ssh, and the file tree is read from
+    // disk by the panel. An export that covered only the tabs whose data
+    // happened to be in one JSON would be an export you have to remember the
+    // limits of.
+    let envelope = serde_json::json!({
+        "snapshot": s,
+        "fleet": fleet.iter().cloned().collect::<serde_json::Map<String, Value>>(),
+        "files": files,
+        "exported": stamp,
+        "measured": target.clone().unwrap_or_else(|| "local".into()),
+    });
+    let json = serde_json::to_string_pretty(&envelope).map_err(|e| e.to_string())?;
     fs::write(format!("{stem}.json"), json).map_err(|e| format!("{stem}.json: {e}"))?;
 
     let n = |k: &str| num(s, k);
@@ -165,7 +183,116 @@ pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<Strin
             fmt_bytes_short(num(p, "mem_rss_bytes"))
         ));
     }
-    m.push_str("\n<sub>my-konsole-dash · the JSON beside this file is the same snapshot in full.</sub>\n");
+    // ── containers-i ───────────────────────────────────────────────────
+    let imgs = arr(s, "images");
+    if !imgs.is_empty() {
+        let used: std::collections::HashSet<String> = arr(s, "containers")
+            .iter()
+            .map(|c| text(c, "image"))
+            .collect();
+        m.push_str("\n## Images\n\n| image | size | created | used by |\n|---|---|---|---|\n");
+        for i in imgs {
+            let full = format!("{}:{}", text(i, "repo"), text(i, "tag"));
+            m.push_str(&format!(
+                "| {full} | {} | {} | {} |\n",
+                text(i, "size"),
+                text(i, "created"),
+                if used.contains(&full) { "yes" } else { "**nothing**" }
+            ));
+        }
+    }
+
+    // ── history ────────────────────────────────────────────────────────
+    if num(s, "history.samples") >= 2.0 {
+        let h = |k: &str| num(s, &format!("history.{k}"));
+        m.push_str(&format!(
+            "\n## Last {} ({} samples)\n\n| | |\n|---|---|\n",
+            fmt_uptime(h("window_s")),
+            h("samples") as i64
+        ));
+        for (k, f) in [
+            ("downloaded", "net_rx_bytes"),
+            ("uploaded", "net_tx_bytes"),
+            ("read", "disk_read_bytes"),
+            ("written", "disk_write_bytes"),
+        ] {
+            m.push_str(&format!("| {k} | {} |\n", fmt_bytes_short(h(f))));
+        }
+        for (k, f) in [
+            ("cpu, time-weighted", "cpu_pct_avg"),
+            ("memory, time-weighted", "mem_pct_avg"),
+            ("swap, time-weighted", "swap_pct_avg"),
+        ] {
+            m.push_str(&format!("| {k} | {:.2}% |\n", h(f)));
+        }
+    }
+
+    // ── fleet ──────────────────────────────────────────────────────────
+    if !fleet.is_empty() {
+        m.push_str("\n## Fleet\n\n| peer | cpu | mem | swap | load | cores | psi cpu/io/mem |\n|---|---|---|---|---|---|---|\n");
+        for (alias, v) in fleet {
+            let g = |k: &str| num(v, k);
+            m.push_str(&format!(
+                "| {alias} | {:.1}% | {:.1}% | {:.1}% | {:.2} {:.2} {:.2} | {} | {:.2} / {:.2} / {:.2} |\n",
+                g("cpu"), g("mem"), g("swap"),
+                g("load1"), g("load5"), g("load15"),
+                arr(v, "cores").len(),
+                g("psi.cpu.some10"), g("psi.io.full10"), g("psi.memory.full10"),
+            ));
+        }
+    }
+
+    // ── declared units ─────────────────────────────────────────────────
+    let svc = arr(s, "services");
+    if !svc.is_empty() {
+        let bad: Vec<&Value> = svc
+            .iter()
+            .filter(|u| {
+                let a = text(u, "active");
+                a == "failed" || a == "inactive" || a == "not-loaded"
+            })
+            .collect();
+        m.push_str(&format!(
+            "\n## Units\n\n{} declared, {} active. Not running:\n\n| unit | state | scope |\n|---|---|---|\n",
+            svc.len(),
+            svc.iter().filter(|u| text(u, "active") == "active").count()
+        ));
+        for u in bad.iter().take(60) {
+            m.push_str(&format!(
+                "| {} | {}/{} | {} |\n",
+                text(u, "name"),
+                text(u, "active"),
+                text(u, "sub"),
+                text(u, "scope")
+            ));
+        }
+        if bad.len() > 60 {
+            m.push_str(&format!("\n… and {} more not running\n", bad.len() - 60));
+        }
+    }
+
+    // ── files ──────────────────────────────────────────────────────────
+    if !files.is_empty() {
+        m.push_str(&format!(
+            "\n## Home\n\n{} entries, four levels deep.\n\n```\n",
+            files.len()
+        ));
+        // Capped: a full tree in a report is a scroll, not a section. The
+        // whole thing is in the JSON beside it.
+        for l in files.iter().take(400) {
+            m.push_str(l);
+            m.push('\n');
+        }
+        if files.len() > 400 {
+            m.push_str(&format!("… {} more lines, all of them in the JSON\n", files.len() - 400));
+        }
+        m.push_str("```\n");
+    }
+
+    m.push_str(
+        "\n<sub>my-konsole-dash · the JSON beside this file is the same data in full: \
+         the machine's snapshot, one per fleet peer, and the whole file tree.</sub>\n",
+    );
     fs::write(format!("{stem}.md"), m).map_err(|e| format!("{stem}.md: {e}"))?;
 
     Ok(stem)
