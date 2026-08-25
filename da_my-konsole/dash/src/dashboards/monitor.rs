@@ -2891,6 +2891,39 @@ impl Dashboard for Monitor {
             ),
         ]));
 
+        // GPU memory, and the two kinds are not interchangeable. Dedicated
+        // belongs to the card and filling it makes the GPU evict; shared comes
+        // out of the same RAM as everything else, so filling it is a memory
+        // problem rather than a GPU one. A single merged "VRAM" answers
+        // neither question, which is why they are separate rows.
+        let vd = |k: &str| -> Option<(f64, f64)> {
+            let u = num_opt(&s, &format!("vram_detail.{k}.used"))?;
+            let t = num_opt(&s, &format!("vram_detail.{k}.total"))?;
+            if t > 0.0 { Some((u, t)) } else { None }
+        };
+        let ded = vd("dedicated");
+        let shr = vd("shared");
+        if ded.is_some() || shr.is_some() {
+            ml.push(Line::from(Span::styled(
+                "VRAM",
+                Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+            )));
+            if let Some((u, t)) = ded {
+                ml.push(bar(
+                    "dedicated",
+                    u / t * 100.0,
+                    format!("{} / {}", fmt_bytes_short(u), fmt_bytes_short(t)),
+                ));
+            }
+            if let Some((u, t)) = shr {
+                ml.push(bar(
+                    "shared",
+                    u / t * 100.0,
+                    format!("{} / {}", fmt_bytes_short(u), fmt_bytes_short(t)),
+                ));
+            }
+        }
+
         ml.push(Line::from(Span::styled(
             "SWAP",
             Style::default().fg(Color::Rgb(190, 150, 240)).add_modifier(Modifier::BOLD),
@@ -3276,6 +3309,26 @@ impl Dashboard for Monitor {
                 ));
             }
             al.push(kv2("memory", fmt_gib(num(&s, "mem_detail.total"))));
+            let vsrc = text(&s, "vram_detail.source");
+            let vsize = |k: &str| -> Option<String> {
+                num_opt(&s, &format!("vram_detail.{k}.total")).filter(|t| *t > 0.0).map(fmt_bytes_short)
+            };
+            match (vsize("dedicated"), vsize("shared")) {
+                (None, None) => al.push(kv2(
+                    "gpu memory",
+                    // i915 keeps its usage in debugfs, which is root-only. Not
+                    // knowing is a different answer from having none.
+                    if vsrc == "none" { "not readable here (integrated, usage is root-only)".into() } else { "—".into() },
+                )),
+                (d, sh) => {
+                    if let Some(d) = d {
+                        al.push(kv2("gpu dedicated", d));
+                    }
+                    if let Some(sh) = sh {
+                        al.push(kv2("gpu shared", sh));
+                    }
+                }
+            }
             al.push(kv2("swap", fmt_gib(num(&s, "swap_detail.total"))));
             for pool in arr(&s, "storage") {
                 let label = text(pool, "label");
@@ -3589,6 +3642,31 @@ impl Dashboard for Monitor {
                     pct(g("cpu")),
                     pct(g("mem")),
                     pct(g("swap")),
+                    // Absent is not zero: most of this fleet has no readable
+                    // GPU memory at all, and a 0% bar would claim a measurement.
+                    {
+                        let vg = |k: &str| -> Option<f64> {
+                            let u = num_opt(&v, &format!("vram_detail.{k}.used"))?;
+                            let t = num_opt(&v, &format!("vram_detail.{k}.total"))?;
+                            if t > 0.0 { Some(u / t * 100.0) } else { None }
+                        };
+                        Cell::from(Line::from(vec![
+                            Span::styled(
+                                match vg("dedicated") {
+                                    Some(x) => format!("{x:>5.1}"),
+                                    None => format!("{:>5}", "-"),
+                                },
+                                Style::default().fg(grad(vg("dedicated").unwrap_or(0.0) / 100.0)),
+                            ),
+                            Span::styled(
+                                match vg("shared") {
+                                    Some(x) => format!(" {x:>5.1}"),
+                                    None => format!(" {:>5}", "-"),
+                                },
+                                Style::default().fg(grad(vg("shared").unwrap_or(0.0) / 100.0)),
+                            ),
+                        ]))
+                    },
                     Cell::from(format!("{:>6.1}G", num(&v, "mem_detail.total")))
                         .style(Style::default().fg(Color::Gray)),
                     // btrfs allocates in chunks and df cannot see that, so on a
@@ -3640,6 +3718,7 @@ impl Dashboard for Monitor {
                     Constraint::Length(5),  // cpu
                     Constraint::Length(5),  // mem
                     Constraint::Length(5),  // swap
+                    Constraint::Length(12), // vram d/s
                     Constraint::Length(7),  // ram total
                     Constraint::Length(5),  // disk
                     Constraint::Length(17), // load 1/5/15
@@ -3654,6 +3733,7 @@ impl Dashboard for Monitor {
                 Cell::from(" CPU%").style(Style::default().fg(LABEL)),
                 Cell::from(" MEM%").style(Style::default().fg(LABEL)),
                 Cell::from("SWAP%").style(Style::default().fg(LABEL)),
+                Cell::from("VRAM-d VRAM-s").style(Style::default().fg(LABEL)),
                 Cell::from("    RAM").style(Style::default().fg(LABEL)),
                 Cell::from("DISK%").style(Style::default().fg(LABEL)),
                 Cell::from(" LOAD  1     5    15").style(Style::default().fg(LABEL)),
