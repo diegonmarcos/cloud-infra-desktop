@@ -304,7 +304,9 @@ PermitRootLogin no
 PasswordAuthentication no
 PubkeyAuthentication yes
 UsePAM no
-Subsystem sftp $SFTP_SERVER_BIN
+# -e: log to stderr not syslog — /dev/log doesn't exist under proot and an
+# unlogged connect() ENOENT there is otherwise treated as fatal.
+Subsystem sftp $SFTP_SERVER_BIN -e
 EOF
   chmod 600 "$SSHD_CONFIG"
 
