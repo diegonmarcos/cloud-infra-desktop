@@ -3261,7 +3261,7 @@ impl Dashboard for Monitor {
                 // file.
                 "my-watchdog — da_watchdog, its own product".into(),
             ));
-            al.push(kv2("reads", snapshot_path().map(|p| p.display().to_string()).unwrap_or_default()));
+            al.push(kv2("reads", snapshot_path()));
             al.push(kv2("policy", "da_watchdog/configs/watchdog-policy.json".into()));
             al.push(kv2("built", format!("rustc target {}", std::env::consts::ARCH)));
 

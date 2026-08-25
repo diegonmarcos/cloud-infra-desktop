@@ -39,7 +39,12 @@ pub(crate) fn export_snapshot(s: &Value, target: Option<String>) -> Result<Strin
             .map(|c| if c.is_alphanumeric() || c == '-' || c == '_' { c } else { '-' })
             .collect()
     };
-    let dir = std::env::var("HOME").map_err(|_| "no HOME".to_string())?;
+    // ~/.watchdog, not $HOME: exports accumulate — one pair per press — and
+    // a home directory is the wrong place to accumulate anything. One
+    // directory means they are findable, listable and deletable as a set.
+    let home = std::env::var("HOME").map_err(|_| "no HOME".to_string())?;
+    let dir = format!("{home}/.watchdog");
+    fs::create_dir_all(&dir).map_err(|e| format!("{dir}: {e}"))?;
     let stem = format!("{dir}/{}-{}-{stamp}", safe(&host), safe(&user));
 
     let json = serde_json::to_string_pretty(s).map_err(|e| e.to_string())?;
