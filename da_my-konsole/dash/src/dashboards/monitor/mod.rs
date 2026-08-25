@@ -2599,7 +2599,16 @@ impl Dashboard for Monitor {
             KeyCode::Char('E') => {
                 let snap = self.snap.clone();
                 let t = self.mesh.target();
-                self.msg = Some(match export_snapshot(&snap, t) {
+                // Everything the tabs show, including the two things that are
+                // not in this machine's snapshot: the peers, and the tree.
+                let fleet: Vec<(String, Value)> = self
+                    .mesh
+                    .fleet()
+                    .into_iter()
+                    .filter_map(|(k, v)| v.ok().map(|v| (k, v)))
+                    .collect();
+                let files = self.files_cache.clone();
+                self.msg = Some(match export_snapshot(&snap, t, &fleet, &files) {
                     Ok(stem) => (format!("exported {stem}.json and .md"), false),
                     Err(e) => (format!("export failed: {e}"), true),
                 });
