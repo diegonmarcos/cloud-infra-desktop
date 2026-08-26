@@ -171,7 +171,7 @@ pub(crate) fn resolve(line: &str, cur: usize) -> Cmd {
         };
     }
     // The main menu's own entries, by their own names, read out of MENU.
-    if let Some(i) = MENU.iter().position(|(n, _)| *n == c) {
+    if let Some(i) = MENU.iter().position(|(n, _)| *n == c.as_str()) {
         return menu_cmd(i);
     }
     match c.as_str() {
