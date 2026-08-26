@@ -158,33 +158,4 @@ in
       ExecStart = "${surfaceTrackpadWatchdog}/bin/surface-trackpad-watchdog";
     };
   };
-
-  # ── CPU CLOCK: stop thermald holding it at a quarter speed ────────────────
-  #
-  # nixos-hardware's microsoft-surface-pro-intel module ships thermald with a
-  # config named "Surface Pro Intel Thermal Workaround" whose <Preference> is
-  # QUIET — the most conservative setting it has.
-  #
-  # MEASURED on this machine, not assumed: eight busy loops, CPU verifiably 78%
-  # busy, package temperature 39 °C, and every core pinned at EXACTLY 1000 MHz
-  # against a 4400 MHz ceiling. A round number like that under load at 39 °C is
-  # enforcement, not physics. The cooling device engaged was
-  #
-  #     TCC Offset   cur_state = 10 / 63
-  #
-  # which is thermald lowering the effective thermal ceiling by 10 °C, so the
-  # chip throttles as though it were 10 °C hotter than it is. Every Processor
-  # cooling device sat at 0, so nothing else was clamping — and it was not the
-  # usual suspects either: scaling_max == cpuinfo_max == 4.4GHz, no_turbo = 0,
-  # max_perf_pct = 100, PL1 35W / PL2 60W, zero entries in thermal_throttle,
-  # and running on AC.
-  #
-  # Turning it off does NOT remove the chip's protection. PROCHOT and the
-  # hardware TCC still cut in at Tjmax and intel_pstate still scales; thermald
-  # is a POLICY daemon, not the safety mechanism. What is lost is a
-  # conservative fan/temperature profile, which is the thing being rejected.
-  services.thermald.enable = lib.mkForce false;
-
-  # mkForce, not plain false: the hardware module sets it directly, and without
-  # this the two definitions collide instead of one winning.
 }
