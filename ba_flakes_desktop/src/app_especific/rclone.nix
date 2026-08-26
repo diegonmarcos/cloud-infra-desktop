@@ -20,6 +20,32 @@
     token = {"access_token":"REDACTED","token_type":"Bearer","refresh_token":"REDACTED","expiry":"REDACTED"}
     team_drive =
 
+    # The two drives named by account rather than by whose they are. Gdrive_dnm
+    # above predates them and does not say which account it holds, which is the
+    # whole problem with a name like "me": the panel lists remotes, and a list
+    # of remotes has to say what each one IS.
+    #
+    # Tokens are REDACTED here, as everywhere in this template. Authorise each
+    # one once, on the machine, with:
+    #     rclone config reconnect g-workspace-drive:
+    #     rclone config reconnect g-personal-drive:
+    # which opens the browser for that account and writes the token into the
+    # real ~/.config/rclone/rclone.conf. Nothing secret is ever committed.
+
+    # Google Drive - me@diegonmarcos.com (workspace)
+    [g-workspace-drive]
+    type = drive
+    scope = drive
+    token = {"access_token":"REDACTED","token_type":"Bearer","refresh_token":"REDACTED","expiry":"REDACTED"}
+    team_drive =
+
+    # Google Drive - diegonmarcos1@gmail.com (personal)
+    [g-personal-drive]
+    type = drive
+    scope = drive
+    token = {"access_token":"REDACTED","token_type":"Bearer","refresh_token":"REDACTED","expiry":"REDACTED"}
+    team_drive =
+
     # SFTP - GCP Arch 1 (Proxy/Auth server)
     [GCP_micro_1]
     type = sftp

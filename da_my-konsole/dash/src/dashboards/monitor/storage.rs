@@ -230,28 +230,6 @@ pub(crate) fn units() -> Vec<Unit> {
         }
     }
 
-    // THE GOOGLE DRIVES, from the accounts that exist rather than invented.
-    //
-    // Both accounts are configured on this machine and both have a Drive, so
-    // both belong in a list of what the fleet can mount. What is NOT claimed
-    // here is a size: the workspace MCP has no quota call and the personal one
-    // is Gmail/IMAP only with no Drive API at all, so a usage column would be
-    // a number somebody made up.
-    //
-    // The rclone remote below is matched to whichever of them it is mounted
-    // for; a drive with no remote reads as declared-but-unmounted, which is
-    // exactly what it is.
-    for (who, email) in [("workspace", "me@diegonmarcos.com"), ("personal", "diegonmarcos1@gmail.com")] {
-        out.push(Unit {
-            kind: "gdrive",
-            name: format!("g-{who}-drive"),
-            provider: "google".into(),
-            tier: who.into(),
-            addr: email.into(),
-            at: String::new(),
-        });
-    }
-
     for (name, ty) in rclone_remotes() {
         let at = mounted_at(&name, &out[..n_mp]);
         out.push(Unit {
@@ -297,7 +275,7 @@ mod tests {
     }
 }
 
-/// The repositories on each git host, fetched OFF the render thread.
+/// Everything that needs the network, fetched OFF the render thread.
 ///
 /// Two network calls — a gitea API request and `gh repo list` — and either can
 /// be slow or hang: gitea lives on the mesh and gh talks to the internet. A
@@ -309,11 +287,11 @@ mod tests {
 /// blocking wait: an empty list reads as "not yet", which is true, and the row
 /// count in the status line says so.
 #[derive(Clone, Default)]
-pub(crate) struct Repos {
+pub(crate) struct Extras {
     inner: Arc<Mutex<Vec<Unit>>>,
 }
 
-impl Repos {
+impl Extras {
     pub(crate) fn get(&self) -> Vec<Unit> {
         self.inner.lock().map(|v| v.clone()).unwrap_or_default()
     }
@@ -326,13 +304,74 @@ impl Repos {
         }
         let out = self.inner.clone();
         std::thread::spawn(move || {
-            let mut v = gitea_repos();
+            // Quotas first: they are the short list and the one people are
+            // looking for, so they should not queue behind forty-five repos.
+            let mut v = drive_quotas();
+            v.extend(gitea_repos());
             v.extend(github_repos());
             if let Ok(mut g) = out.lock() {
                 *g = v;
             }
         });
     }
+}
+
+/// Real usage for every Drive remote rclone can reach.
+///
+/// `rclone about` IS the API call — it asks Google for the account's quota
+/// and returns it. That is worth saying plainly because the obvious place to
+/// look was the two Google MCP servers, and neither can answer it: the
+/// workspace one has Drive methods but no quota call, and the personal one is
+/// Gmail/IMAP with no Drive API at all.
+///
+/// Only `drive` remotes are asked. An sftp remote would answer too, but that
+/// means a round trip to a peer for a number the fleet tab already measures
+/// properly on the machine that owns the disk.
+///
+/// A remote whose token has not been authorised yet simply errors, and that
+/// is the correct outcome: it stays in the list as declared-but-unusable,
+/// which is exactly what it is.
+fn drive_quotas() -> Vec<Unit> {
+    rclone_remotes()
+        .into_iter()
+        .filter(|(_, ty)| ty == "drive")
+        .map(|(name, _)| {
+            let out = Command::new("rclone")
+                .args(["about", &format!("{name}:"), "--json", "--timeout", "10s"])
+                .output();
+            let quota = out
+                .ok()
+                .filter(|o| o.status.success())
+                .and_then(|o| serde_json::from_slice::<Value>(&o.stdout).ok());
+            let (tier, addr) = match quota {
+                Some(q) => {
+                    let used = num(&q, "used");
+                    let total = num(&q, "total");
+                    (
+                        if total > 0.0 {
+                            format!("{:.0}% used", used / total * 100.0)
+                        } else {
+                            "authorised".into()
+                        },
+                        format!("{} of {}", fmt_bytes(used), fmt_bytes(total)),
+                    )
+                }
+                None => ("not authorised".into(), "rclone config reconnect".into()),
+            };
+            Unit { kind: "gdrive", name, provider: "google drive".into(), tier, addr, at: String::new() }
+        })
+        .collect()
+}
+
+fn fmt_bytes(b: f64) -> String {
+    const U: [&str; 5] = ["B", "K", "M", "G", "T"];
+    let mut v = b;
+    let mut i = 0;
+    while v >= 1024.0 && i < U.len() - 1 {
+        v /= 1024.0;
+        i += 1;
+    }
+    format!("{v:.1}{}", U[i])
 }
 
 /// Repos on the self-hosted gitea, over the mesh.
