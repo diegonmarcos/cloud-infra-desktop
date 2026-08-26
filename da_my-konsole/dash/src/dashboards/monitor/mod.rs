@@ -288,43 +288,64 @@ const TABS: &[Tab] = &[
 /// Bounded on purpose. -L 4 because past four levels a home directory is
 /// mostly node_modules and .git objects, and the output is capped because a
 /// tree with a million entries is not a view, it is a hang.
-fn file_tree(hidden: bool) -> [Vec<String>; 4] {
-    let home = std::env::var("HOME").unwrap_or_else(|_| "/".into());
-    // -d directories only, -f full paths, -i no indentation. One run, split by
-    // depth afterwards — four separate `tree -L n` runs would walk the same
-    // directories four times and produce four nested copies of each other.
-    let mut args: Vec<&str> = vec!["-d", "-f", "-i", "-L", "4", "--noreport"];
-    if hidden {
-        args.push("-a");
-    }
-    // The four directories that turn a home tree into a hundred thousand
-    // entries of nothing anybody opened this to see.
-    args.extend(["-I", ".git|node_modules|.cache|target"]);
-    args.push(&home);
-
-    let out = std::process::Command::new("tree").args(&args).output();
+fn file_tree(hidden: bool, target: Option<&str>) -> [Vec<String>; 4] {
+    // ONE script, run locally or over ssh. The tab used to shell out to `tree`
+    // on this machine unconditionally, so measuring a peer showed you THIS
+    // home directory under that peer's name — the one place in the panel where
+    // the numbers came from a different machine than the heading claimed.
+    //
+    // $HOME is printed first and resolves on whichever side runs it, so the
+    // depth-splitting below needs no idea where home is.
+    //
     // The OUTPUT is the signal, not the exit code: tree returns 2 whenever any
     // directory could not be opened, which in a home directory is routine and
-    // not a failure — it still printed everything else.
-    let text = match out {
-        Ok(o) if !o.stdout.is_empty() => String::from_utf8_lossy(&o.stdout).into_owned(),
-        _ => {
-            let mut f: Vec<String> = vec!["-maxdepth".into(), "4".into(), "-type".into(), "d".into()];
-            if !hidden {
-                f.extend(["-not".into(), "-path".into(), "*/.*".into()]);
-            }
-            std::process::Command::new("find")
-                .arg(&home)
-                .args(&f)
-                .output()
-                .ok()
-                .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
-                .unwrap_or_default()
-        }
+    // still prints everything else. `||` would have concatenated both.
+    let a = if hidden { "-a " } else { "" };
+    let script = format!(
+        "printf '%s\\n' \"$HOME\"; \
+         t=$(tree -d -f -i -L 4 --noreport {a}-I '.git|node_modules|.cache|target' \"$HOME\" 2>/dev/null); \
+         if [ -n \"$t\" ]; then printf '%s\\n' \"$t\"; \
+         else find \"$HOME\" -maxdepth 4 -type d 2>/dev/null; fi"
+    );
+    let out = match target {
+        // `sh -s` with the script on STDIN, not as an argument — the same
+        // thing mesh.rs does, and for a reason worth keeping: several peers
+        // here log in to FISH, which rejects `t=$(...)` outright. Handing the
+        // script to a named shell means the peer's login shell never gets a
+        // vote on the syntax.
+        //
+        // The guards are mesh.rs's too: never prompt, never hang on a peer
+        // that stopped answering, and accept a new host key once.
+        Some(alias) => (|| {
+            use std::io::Write;
+            let mut ch = std::process::Command::new("ssh")
+                .args([
+                    "-o", "BatchMode=yes",
+                    "-o", "ConnectTimeout=4",
+                    "-o", "StrictHostKeyChecking=accept-new",
+                    alias,
+                    "sh -s",
+                ])
+                .stdin(std::process::Stdio::piped())
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::null())
+                .spawn()?;
+            let _ = ch.stdin.take().map(|mut w| w.write_all(script.as_bytes()));
+            ch.wait_with_output()
+        })(),
+        None => std::process::Command::new("sh").arg("-c").arg(&script).output(),
     };
+    let text = out
+        .ok()
+        .map(|o| String::from_utf8_lossy(&o.stdout).into_owned())
+        .unwrap_or_default();
 
+    let mut lines = text.lines();
+    let Some(home) = lines.next().map(|h| h.trim_end_matches('/').to_string()) else {
+        return Default::default();
+    };
     let mut levels: [Vec<String>; 4] = Default::default();
-    for line in text.lines() {
+    for line in lines {
         // A symlinked directory prints as "path -> target"; the path is what
         // this view is about.
         let path = line.split(" -> ").next().unwrap_or(line).trim_end_matches('/');
@@ -340,6 +361,51 @@ fn file_tree(hidden: bool) -> [Vec<String>; 4] {
         }
     }
     levels
+}
+
+/// The files tree, fetched OFF the render thread and keyed by WHICH MACHINE.
+///
+/// Local `tree` was fast enough to run inline; an ssh round trip to a peer is
+/// not, and this panel exists to catch things that block. The key is
+/// target-plus-hidden, so switching machines or pressing `.` invalidates it —
+/// the old cache was keyed by nothing at all, which is why a peer's tab showed
+/// the last machine's directories.
+#[derive(Clone, Default)]
+struct TreeCache {
+    inner: std::sync::Arc<std::sync::Mutex<(String, Option<[Vec<String>; 4]>)>>,
+}
+
+impl TreeCache {
+    /// (tree, still loading). A tree for a DIFFERENT key counts as neither:
+    /// it belongs to a machine you are no longer looking at.
+    fn view(&self, key: &str) -> (Option<[Vec<String>; 4]>, bool) {
+        match self.inner.lock() {
+            Ok(g) if g.0 == key => (g.1.clone(), g.1.is_none()),
+            _ => (None, false),
+        }
+    }
+
+    /// Start a fetch unless this key is already loaded or in flight. The key
+    /// is claimed synchronously, so holding `.` cannot open a thread per press.
+    fn fetch(&self, key: String, target: Option<String>, hidden: bool) {
+        {
+            let Ok(mut g) = self.inner.lock() else { return };
+            if g.0 == key {
+                return;
+            }
+            *g = (key.clone(), None);
+        }
+        let out = self.inner.clone();
+        std::thread::spawn(move || {
+            let t = file_tree(hidden, target.as_deref());
+            if let Ok(mut g) = out.lock() {
+                // Only if nobody re-keyed while we were out on the network.
+                if g.0 == key {
+                    g.1 = Some(t);
+                }
+            }
+        });
+    }
 }
 
 /// Which slot in the strip a view sits in, by name.
@@ -604,7 +670,8 @@ pub struct Monitor {
     /// of thousands of inodes — running it on a 1s render loop would make this
     /// panel the most expensive thing on the machine. It is built when the tab
     /// is opened and when the dotfile toggle flips, and not otherwise.
-    files_cache: [Vec<String>; 4],
+    /// Keyed by machine + dotfile toggle; see TreeCache.
+    files_cache: TreeCache,
     /// The storage declaration, cached. It parses a 383KB JSON out of
     /// cloud-infra and reads /proc/mounts; neither belongs on a 1s render
     /// loop, and neither changes while you are looking at it.
@@ -696,7 +763,7 @@ impl Monitor {
             images: false,
             files: false,
             files_hidden: false,
-            files_cache: Default::default(),
+            files_cache: TreeCache::default(),
             storage_cache: vec![],
             repos: storage::Extras::default(),
             files_scroll: 0,
@@ -1969,7 +2036,7 @@ impl Monitor {
         }
         if self.files {
             self.files_scroll = 0;
-            self.files_cache = file_tree(self.files_hidden);
+            self.files_cache.fetch(self.files_key(), self.mesh.target(), self.files_hidden);
         }
         // Same rule as the file tree: read it on the way in, not every tick.
         if self.fleet && self.sub_name() == "storage" {
@@ -1988,6 +2055,12 @@ impl Monitor {
     /// The current mode's name, or "" for a tab that has none.
     fn sub_name(&self) -> &'static str {
         TABS[self.tab].subs.get(self.sub[self.tab]).map(|sb| sb.name).unwrap_or("")
+    }
+
+    /// What the files cache is keyed by: the machine being measured, and
+    /// whether dotfiles are shown. Both change what the tree IS.
+    fn files_key(&self) -> String {
+        format!("{}|{}", self.mesh.target().unwrap_or_default(), self.files_hidden)
     }
 
     /// "fleet · wg-public-ipv6", or just "history" for a tab with one mode.
@@ -2021,11 +2094,10 @@ impl Monitor {
         };
         // Exporting without having opened the files tab should still carry the
         // tree rather than an empty list.
-        let levels = if self.files_cache.iter().all(|v| v.is_empty()) {
-            file_tree(self.files_hidden)
-        } else {
-            self.files_cache.clone()
-        };
+        // Whatever is loaded for the machine currently being measured, and
+        // nothing otherwise — a peer's export must never carry this machine's
+        // directory names.
+        let levels = self.files_cache.view(&self.files_key()).0.unwrap_or_default();
         // L3 only. The four panes overlap by construction — every L4 path has
         // its L3 parent above it and its L1 grandparent above that — so
         // concatenating them wrote the same prefixes four times over. L3 is
@@ -3125,7 +3197,7 @@ impl Dashboard for Monitor {
                 KeyCode::Home => self.files_scroll = 0,
                 KeyCode::Char('.') => {
                     self.files_hidden = !self.files_hidden;
-                    self.files_cache = file_tree(self.files_hidden);
+                    self.files_cache.fetch(self.files_key(), self.mesh.target(), self.files_hidden);
                     self.files_scroll = 0;
                     self.msg = Some((
                         format!("dotfiles {}", if self.files_hidden { "shown" } else { "hidden" }),
@@ -4017,6 +4089,14 @@ impl Dashboard for Monitor {
         // The home directory, four levels deep. Cached, because tree(1) walks
         // tens of thousands of inodes and this panel redraws every second.
         if self.files {
+            // Re-key here too, not only on tab entry: the target can change
+            // while you are already standing on this tab, and that is exactly
+            // the case that used to leave a peer's tab showing this machine.
+            let key = self.files_key();
+            self.files_cache.fetch(key.clone(), self.mesh.target(), self.files_hidden);
+            let (tree, loading) = self.files_cache.view(&key);
+            let tree = tree.unwrap_or_default();
+            let whose = self.mesh.target().unwrap_or_else(|| "this machine".into());
             let fb = self.tabs_box(
                 &format!(
                     "four levels side by side · dotfiles {} · . toggles · ↑↓ pgup pgdn",
@@ -4030,7 +4110,7 @@ impl Dashboard for Monitor {
             // the other levels, which is what the columns are for.
             let panes = Layout::horizontal([Constraint::Ratio(1, 4); 4]).split(fin);
             for (n, area) in panes.iter().enumerate() {
-                let entries = &self.files_cache[n];
+                let entries = &tree[n];
                 let w = area.width as usize;
                 let mut l: Vec<Line> = vec![Line::from(Span::styled(
                     format!("L{}  {} dirs", n + 1, entries.len()),
@@ -4054,13 +4134,14 @@ impl Dashboard for Monitor {
             let status = Line::from(Span::styled(
                 match &self.msg {
                     Some((m, _)) => format!(" {m}"),
+                    None if loading => format!(" reading {whose}'s home over ssh…"),
                     None => format!(
-                        " {} directories · L1 {} · L2 {} · L3 {} · L4 {} · this machine's home, not the peer's",
-                        self.files_cache.iter().map(|v| v.len()).sum::<usize>(),
-                        self.files_cache[0].len(),
-                        self.files_cache[1].len(),
-                        self.files_cache[2].len(),
-                        self.files_cache[3].len(),
+                        " {} directories in {whose}'s home · L1 {} · L2 {} · L3 {} · L4 {}",
+                        tree.iter().map(|v| v.len()).sum::<usize>(),
+                        tree[0].len(),
+                        tree[1].len(),
+                        tree[2].len(),
+                        tree[3].len(),
                     ),
                 },
                 Style::default().fg(LABEL),
