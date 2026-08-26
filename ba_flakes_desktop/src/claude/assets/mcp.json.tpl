@@ -1,17 +1,6 @@
 {
   "mcpServers": {
-    "unix": {
-      "type": "stdio",
-      "command": "tsx",
-      "args": [
-        "/home/diego/git/cloud-mykonsole-dtk/products/mcp-unix-api/src/index.ts"
-      ],
-      "env": {
-        "NODE_PATH": "/home/diego/.node_modules/node_modules"
-      },
-      "alwaysLoad": false
-    },
-    "cloud-infra": {
+    "cloud-infra-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
       "headers": {
@@ -19,19 +8,19 @@
       },
       "alwaysLoad": false
     },
-    "cloud-cgc-mcp": {
+    "cloud-cgc-pub-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/cloud-cgc-mcp/mcp",
+      "url": "https://mcp.diegonmarcos.com/cloud-cgc-pub-mcp/mcp",
       "headers": {
         "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
       },
       "alwaysLoad": false
     },
-    "cloud-cgc-mcp-local": {
+    "cloud-cgc-pub-mcp-local": {
       "type": "stdio",
       "command": "/home/diego/.claude/mcp-local-launch.sh",
       "args": [
-        "/home/diego/git/cloud-infra/a_solutions/user-ai_cloud-cgc-mcp/src/code/index.ts"
+        "/home/diego/git/cloud-infra/a_solutions/user-ai_cloud-cgc-pub-mcp/src/code/index.ts"
       ],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
@@ -40,11 +29,19 @@
       },
       "alwaysLoad": false
     },
-    "diego-personal-data": {
+    "cloud-drive-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/cloud-drive-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      },
+      "alwaysLoad": false
+    },
+    "cloud-vault-mcp": {
       "type": "stdio",
       "command": "/home/diego/.claude/mcp-local-launch.sh",
       "args": [
-        "/home/diego/git/cloud-infra/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts"
+        "/home/diego/git/cloud-infra/a_solutions/infra-api_cloud-vault-mcp/src/index.ts"
       ],
       "env": {
         "NODE_PATH": "/home/diego/.node_modules/node_modules",
@@ -53,7 +50,7 @@
       },
       "alwaysLoad": false
     },
-    "cloud-services": {
+    "cloud-services-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp",
       "headers": {
@@ -61,7 +58,7 @@
       },
       "alwaysLoad": false
     },
-    "mail-mcp": {
+    "cloud-mail-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/mail-mcp/mcp",
       "headers": {
@@ -69,7 +66,15 @@
       },
       "alwaysLoad": false
     },
-    "google-workspace": {
+    "cloud-mattermost-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      },
+      "alwaysLoad": false
+    },
+    "google-workspace-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/g-workspace/mcp",
       "headers": {
@@ -77,7 +82,7 @@
       },
       "alwaysLoad": false
     },
-    "google-personal": {
+    "google-personal-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/g-personal/mcp",
       "headers": {
