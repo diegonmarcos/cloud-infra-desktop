@@ -425,6 +425,11 @@ const CTR_SORT: &[(&str, &str)] = &[
     ("NET I/O", "net"),
     ("PIDS", "pids"),
     ("ON DISK", "image_size"),
+    // STATUS is the uptime column — docker writes it as "Up 18 minutes" — and
+    // it was the one header here you could not rank by. Sorting it answers
+    // "what restarted recently", which is the first question after something
+    // breaks, and it groups everything not running together at the other end.
+    ("STATUS", "status"),
 ];
 
 /// What a fleet row can be ranked by, and where to read the value.
@@ -1605,8 +1610,30 @@ impl Monitor {
                 // whichever container has the biggest LIMIT.
                 if field == "mem" { ctr_num(&ctr_mem(&text(x, field)).0) } else { ctr_num(&text(x, field)) }
             };
+            // "Up 18 minutes" parsed as a duration. A container that is not
+            // up has no uptime to compare, so it sorts as zero and lands
+            // together with the rest of the stopped ones rather than being
+            // scattered through the running list by whatever its text says.
+            let up = |x: &Value| -> f64 {
+                let t = text(x, field);
+                match t.strip_prefix("Up ") {
+                    // docker writes "Up About an hour" and "Up About a
+                    // minute", where the count is a word rather than a digit
+                    // and age_secs reads it as zero. Both mean one of the
+                    // unit that follows.
+                    Some(rest) => {
+                        let rest = rest.replace("About an ", "1 ").replace("About a ", "1 ");
+                        // A container that IS up but whose duration will not
+                        // parse still outranks one that is not up at all.
+                        age_secs(&rest).max(0.000_1)
+                    }
+                    None => 0.0,
+                }
+            };
             let ord = if label == "CONTAINER" {
                 text(a, field).to_lowercase().cmp(&text(b, field).to_lowercase())
+            } else if label == "STATUS" {
+                up(a).partial_cmp(&up(b)).unwrap_or(std::cmp::Ordering::Equal)
             } else {
                 key(a).partial_cmp(&key(b)).unwrap_or(std::cmp::Ordering::Equal)
             };
