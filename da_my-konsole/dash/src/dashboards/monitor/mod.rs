@@ -387,6 +387,12 @@ const IMG_SORT: &[(&str, &str)] = &[
     ("SIZE", "size"),
     ("CREATED", "created"),
     ("IMAGE", "repo"),
+    // The last column, and the one worth ranking by: "what is this costing me
+    // on disk" is answered by the images NOTHING runs, and they are scattered
+    // through a list sorted any other way. No field of its own — an image does
+    // not know whether a container references it, so this is computed against
+    // the container list, exactly as the column itself is.
+    ("IN USE", ""),
 ];
 
 /// docker's MemUsage is "469.7MiB / 7.595GiB" — used on the left of the
@@ -1233,14 +1239,41 @@ impl Monitor {
     /// Run one command line: resolve it, then do the one thing it named.
     fn run_cmd(&mut self, line: &str) {
         self.overlay = Overlay::None;
-        match cmd::resolve(line, self.tab) {
+        let c = cmd::resolve(line, self.tab);
+        self.apply_cmd(c);
+    }
+
+    /// Do what a resolved command says.
+    ///
+    /// Shared by the command line and the main menu, so a menu entry and the
+    /// `:` name for it cannot drift into doing different things.
+    fn apply_cmd(&mut self, c: cmd::Cmd) {
+        match c {
             cmd::Cmd::Go(t, sub) => {
                 let sub = sub.unwrap_or(self.sub[t]);
                 self.goto(t, sub);
             }
+            cmd::Cmd::Open(o) => {
+                // Every list-shaped modal opens at its first row rather than
+                // wherever it was left, which is where the eye goes.
+                self.menu_sel = 0;
+                self.target_sel = 0;
+                self.box_sel = 0;
+                self.free_sel = 0;
+                self.overlay = o;
+            }
             cmd::Cmd::Quit => self.quit = true,
-            cmd::Cmd::Help => self.overlay = Overlay::Help,
             cmd::Cmd::Export(all) => self.export_now(all),
+            cmd::Cmd::Units => {
+                self.units = !self.units;
+                self.msg = Some((
+                    format!(
+                        "declared units {}",
+                        if self.units { "shown — stopped and idle services" } else { "hidden" }
+                    ),
+                    false,
+                ));
+            }
             cmd::Cmd::Err(e) => self.msg = Some((e, true)),
             cmd::Cmd::Nothing => {}
         }
@@ -1519,8 +1552,16 @@ impl Monitor {
     fn img_rows<'a>(&self, s: &'a Value) -> Vec<&'a Value> {
         let mut v: Vec<&Value> = arr(s, "images").iter().collect();
         let (label, field) = IMG_SORT[self.img_sort.min(IMG_SORT.len() - 1)];
+        // The same set the IN USE column is drawn from, so the ranking and the
+        // text in the cell can never disagree about which images are idle.
+        let used: std::collections::HashSet<String> =
+            arr(s, "containers").iter().map(|c| text(c, "image")).collect();
+        let idle = |x: &Value| !used.contains(&format!("{}:{}", text(x, "repo"), text(x, "tag")));
         v.sort_by(|a, b| {
             let ord = match label {
+                // Descending puts the idle ones on top, which is the direction
+                // anybody asking this question wants first.
+                "IN USE" => idle(a).cmp(&idle(b)),
                 "IMAGE" => text(a, field).to_lowercase().cmp(&text(b, field).to_lowercase()),
                 "CREATED" => age_secs(&text(a, field))
                     .partial_cmp(&age_secs(&text(b, field)))
@@ -2643,23 +2684,17 @@ impl Monitor {
         match k {
             KeyCode::Down => self.menu_sel = (self.menu_sel + 1) % MENU.len(),
             KeyCode::Up => self.menu_sel = (self.menu_sel + MENU.len() - 1) % MENU.len(),
-            KeyCode::Enter | KeyCode::Char(' ') => match self.menu_sel {
-                0 => {
-                    self.target_sel = 0;
-                    self.overlay = Overlay::Target;
-                }
-                1 => {
-                    self.box_sel = 0;
-                    self.overlay = Overlay::Boxes;
-                }
-                2 => self.overlay = Overlay::Help,
-                _ => {
-                    // The frame owns quitting, and it only quits on keys it
-                    // sees. Stop claiming, then hand it the key it acts on.
-                    self.overlay = Overlay::None;
-                    self.quit = true;
-                }
-            },
+            KeyCode::Enter | KeyCode::Char(' ') => {
+                // ONE mapping from menu entry to action, shared with the `:`
+                // line — see cmd::menu_cmd. The two used to be separate
+                // matches over the same four indices.
+                //
+                // Quit stops claiming first: the frame owns quitting and only
+                // quits on keys it actually sees.
+                let c = cmd::menu_cmd(self.menu_sel);
+                self.overlay = Overlay::None;
+                self.apply_cmd(c);
+            }
             KeyCode::Char(c) if c.is_ascii_digit() => {
                 let i = c.to_digit(10).unwrap_or(0) as usize;
                 if i >= 1 && i <= MENU.len() {
@@ -4465,7 +4500,10 @@ impl Dashboard for Monitor {
                         Constraint::Min(10),
                     ],
                 )
-                .header(Row::new(["IMAGE", "SIZE", "CREATED", "ID", ""].map(|h| {
+                // The last column was headed with an empty string, so it could
+                // never carry the ▼ marker and never said what it was. It is
+                // the IN USE column; naming it does both.
+                .header(Row::new(["IMAGE", "SIZE", "CREATED", "ID", "IN USE"].map(|h| {
                     if h == ilabel {
                         Cell::from(format!("{h}{}", if self.img_desc { "▼" } else { "▲" })).style(
                             Style::default()
