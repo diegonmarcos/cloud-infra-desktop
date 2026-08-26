@@ -3413,14 +3413,17 @@ impl Dashboard for Monitor {
         // The lower band only costs rows when something is in it; folding both
         // its boxes away (2/4) gives every one of those rows to the process
         // table rather than leaving a labelled gap.
-        // 13, not 10. The psi box held exactly eight lines of content in eight
-        // rows of inner space — full to the edge — so the three reclaim rows
-        // would have silently clipped the guard line off the bottom rather
-        // than appearing. It costs three rows of the process table, which is
-        // the right trade: this is the box you read when the machine is in
-        // trouble, and those three lines are the ones that say WHY.
+        // 16, counted rather than guessed: 1 header + 6 psi + 3 reclaim + 3
+        // health + 1 guard = 14 lines, plus two rows of border. Every previous
+        // value here was exactly full, so each new row silently clipped the
+        // guard line off the bottom instead of appearing.
+        //
+        // It costs the process table six rows against the original ten. That
+        // is the right trade: this box answers "why is this machine slow",
+        // which is the question the panel exists for, and the process table
+        // still gets everything left over.
         let low_h: u16 =
-            if self.show[B_PSI] || self.show[B_SLICES] || self.show[B_MESH] { 13 } else { 0 };
+            if self.show[B_PSI] || self.show[B_SLICES] || self.show[B_MESH] { 16 } else { 0 };
         let rows = Layout::vertical([
             Constraint::Length(1),     // header
             Constraint::Length(11),    // cpu
@@ -3523,7 +3526,22 @@ impl Dashboard for Monitor {
             title.push_str(&format!("  {}", trunc(short.trim(), 40)));
         }
         if let Some(m) = mhz {
-            title.push_str(&format!("  {:.2}GHz", m / 1000.0));
+            // AGAINST THE CEILING. A clock alone reads as fine — 0.60GHz means
+            // nothing until you know the part will do 4.40, and then it means
+            // the machine is running at a seventh of its speed. This one line
+            // is the difference between "cpu looks quiet" and "something is
+            // holding the clock down".
+            let max = num(&s, "health.max_mhz");
+            if max > 0.0 {
+                title.push_str(&format!(
+                    "  {:.2}/{:.2}GHz {:.0}%",
+                    m / 1000.0,
+                    max / 1000.0,
+                    num(&s, "health.scal_pct")
+                ));
+            } else {
+                title.push_str(&format!("  {:.2}GHz", m / 1000.0));
+            }
         }
         if let Some(t) = temp {
             title.push_str(&format!("  {t:.0}°C"));
@@ -3977,6 +3995,80 @@ impl Dashboard for Monitor {
                 2000.0,
             ));
             pl.push(pair("swap/s", ("in", rc("swap_in")), ("out", rc("swap_out")), 500.0));
+
+            // ── the rest of what atop shows and this did not ──────────────
+            // Six figures the panel collected or could reach and never drew.
+            // They belong here rather than scattered: every one answers "is
+            // something being held back", which is what this box is for.
+            let hh = |k: &str| num(&s, &format!("health.{k}"));
+            let cd = |k: &str| num(&s, &format!("cpu_detail.{k}"));
+            let md = |k: &str| num(&s, &format!("mem_detail.{k}"));
+            let cell = |label: &str, v: String, c: Color| -> Vec<Span<'static>> {
+                vec![
+                    Span::styled(format!("{label:<7}"), Style::default().fg(LABEL)),
+                    Span::styled(format!("{v:<9}"), Style::default().fg(c)),
+                ]
+            };
+            // steal is the one that matters on the fleet: a cloud peer starved
+            // by its hypervisor looks idle from inside, and nothing here said
+            // so. iowait and irq were collected all along and never shown.
+            let mut r1 = vec![Span::styled(
+                format!("{:<9}", "cpu"),
+                Style::default().fg(Color::Rgb(120, 200, 255)),
+            )];
+            r1.extend(cell("steal", format!("{:.1}%", cd("steal")), grad(cd("steal") / 10.0)));
+            r1.extend(cell("wait", format!("{:.1}%", cd("iowait")), grad(cd("iowait") / 20.0)));
+            r1.extend(cell("irq", format!("{:.1}%", cd("irq")), grad(cd("irq") / 20.0)));
+            r1.extend(cell("runq", format!("{:.0}", hh("procs_running")), grad(hh("procs_running") / 32.0)));
+            // procs_blocked is uninterruptible sleep — the D-state count, and
+            // the outward signature of an I/O hang.
+            r1.extend(cell("blkd", format!("{:.0}", hh("procs_blocked")), grad(hh("procs_blocked") / 8.0)));
+            pl.push(Line::from(r1));
+
+            let mut r2 = vec![Span::styled(
+                format!("{:<9}", "mem"),
+                Style::default().fg(Color::Rgb(120, 200, 255)),
+            )];
+            // Committed against the limit. Over 100% means the kernel has
+            // promised more than it can deliver — not fatal, but it is the
+            // number that decides whether the next big allocation is refused.
+            let lim = md("commit_limit");
+            let com = md("committed");
+            r2.extend(cell(
+                "commit",
+                if lim > 0.0 { format!("{:.0}%", com / lim * 100.0) } else { "-".into() },
+                grad(if lim > 0.0 { com / lim } else { 0.0 }),
+            ));
+            r2.extend(cell("dirty", fmt_g(md("dirty")), grad(md("dirty") / 2.0)));
+            r2.extend(cell(
+                "slab",
+                fmt_g(md("slab_reclaimable") + md("slab_unreclaimable")),
+                Color::Gray,
+            ));
+            // The one number nobody wants to be non-zero.
+            let oom = hh("oom_kill");
+            r2.extend(cell(
+                "oomkill",
+                format!("{oom:.0}"),
+                if oom > 0.0 { Color::Rgb(240, 100, 100) } else { Color::Gray },
+            ));
+            pl.push(Line::from(r2));
+
+            let mut r3 = vec![Span::styled(
+                format!("{:<9}", "io/net"),
+                Style::default().fg(Color::Rgb(120, 200, 255)),
+            )];
+            r3.extend(cell("busy", format!("{:.0}%", hh("disk_busy_pct")), grad(hh("disk_busy_pct") / 100.0)));
+            // Service time per io. A disk shows this climbing long before its
+            // throughput drops, which is why throughput alone never warns you.
+            r3.extend(cell("avio", format!("{:.2}ms", hh("disk_avio_ms")), grad(hh("disk_avio_ms") / 20.0)));
+            r3.extend(cell("iops", format!("{:.0}", hh("disk_iops")), Color::Gray));
+            // Retransmits are loss. On a mesh spanning three providers this is
+            // the best single number for whether the network is healthy.
+            let rt = hh("tcp_retrans_pct");
+            r3.extend(cell("retrans", format!("{rt:.2}%"), grad(rt / 2.0)));
+            r3.extend(cell("ctxsw/s", fmt_rate(hh("ctxt_per_s")), Color::Gray));
+            pl.push(Line::from(r3));
 
         let voters = arr(&self.guard, "voters");
         if voters.is_empty() {
