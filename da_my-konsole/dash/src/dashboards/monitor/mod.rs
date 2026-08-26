@@ -603,10 +603,10 @@ pub struct Monitor {
     /// cloud-infra and reads /proc/mounts; neither belongs on a 1s render
     /// loop, and neither changes while you are looking at it.
     storage_cache: Vec<storage::Unit>,
-    /// Repositories, filled by a background thread. Separate from the cache
-    /// above because that one is read synchronously and this one arrives when
-    /// two network calls decide to answer.
-    repos: storage::Repos,
+    /// Drive quotas and repository lists, filled by a background thread.
+    /// Separate from the cache above because that one is read synchronously
+    /// and this one arrives when the network decides to answer.
+    repos: storage::Extras,
     files_scroll: u16,
     /// Which column containers-c ranks by, and which way.
     ctr_sort: usize,
@@ -692,7 +692,7 @@ impl Monitor {
             files_hidden: false,
             files_cache: Default::default(),
             storage_cache: vec![],
-            repos: storage::Repos::default(),
+            repos: storage::Extras::default(),
             files_scroll: 0,
             ctr_sort: 0,
             ctr_desc: true,
