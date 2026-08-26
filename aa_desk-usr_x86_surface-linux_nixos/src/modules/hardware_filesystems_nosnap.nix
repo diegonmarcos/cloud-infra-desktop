@@ -103,4 +103,23 @@ in
   # the directory hidden underneath it.
   systemd.tmpfiles.rules =
     map (e: "d ${e.path} ${e.mode} diego users - -") nosnap;
+
+  # ...but the After=local-fs.target reasoning above does NOT hold for `nofail`
+  # mounts, and every mount here is nofail (2026-08-26).
+  #
+  # nofail drops a mount from local-fs.target's Requires, so tmpfiles is free to
+  # run BEFORE it. When it does, the rule writes ownership to the plain
+  # directory hidden UNDERNEATH the mount; the mounted subvolume root stays
+  # root:root 0755. The rule looks applied and does nothing.
+  #
+  # Observed here: every 0755 entry (git, .cache, .cargo, .gradle,
+  # .node_modules) was root:root while both 0700 entries were correct — the
+  # race decided it, not the rule. /home/diego/git root-owned means its owner
+  # cannot create, rename or delete a repo inside it, and per the note above a
+  # root-owned .cache is what broke `nix develop`, starship and plasmashell.
+  #
+  # RequiresMountsFor makes the dependency explicit instead of incidental. Same
+  # idiom configuration_network.nix already uses for /home/diego/git.
+  systemd.services.systemd-tmpfiles-setup.unitConfig.RequiresMountsFor =
+    map (e: e.path) nosnap;
 }
