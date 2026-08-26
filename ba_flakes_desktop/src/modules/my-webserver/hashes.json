@@ -1,9 +1,9 @@
 {
   "version": "latest",
   "aarch64-linux": {
-    "my-webserver": "sha256-iMfJCTeQ3y3sMYb5tyQKkfzGssSI5V7QHzjhxioFIrE="
+    "my-webserver": "sha256-EujUgXiS3pl4eCe1dtbglxD+ZsYT30l6leHjzxOB4eM="
   },
   "x86_64-linux": {
-    "my-webserver": "sha256-64kwuE0o/Wm+MvKbwVumDXRCJp9z+oZLqvXHkm6VoUg="
+    "my-webserver": "sha256-0SJFSGm59QrgtcRfz4lgbst9F4BJtkbEwJv/NWr+WSI="
   }
 }
