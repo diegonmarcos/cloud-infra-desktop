@@ -28,7 +28,7 @@
     "window_class": "Waydroid",
     "form_default": "tablet",
     "forms": {
-      "_doc": "Launch FORMS — the same Android, two viewport shapes, picked per launch: `build.sh up [form]` (e.g. `up mobile`), default display.form_default. NATIVE MODE ONLY: width/height are persist.waydroid.width/height, which Waydroid reads when the SESSION starts, so they size the real host window (verified live: 2304x1536 landscape -> 1080x2400 portrait). Stream/vnc mode still sizes its headless sway output from container.width/height, which is baked into the container's env at creation. Waydroid renders the panel at 1.25x these numbers (a 1080x2400 window reports a 1350x3000 physical display), and `density` is what actually decides whether Android draws phone or tablet layouts: smallestWidthDp = min(physical)/(density/160) against the sw600dp breakpoint. tablet 2880/(225/160)=1365dp -> tablet UI; mobile 1350/(420/160)=514dp -> phone UI. Shrinking the window WITHOUT raising density just gives a phone-shaped window still drawing tablet layouts, which is why this is a {width,height,density} triple and not a size. density is applied with `wm density` (WindowManager service) rather than `settings put` — the settings ContentProvider NPEs for uid 0, see entrypoint.sh. Switching form restarts the container: the resolution is fixed at session start and cannot be changed on a live session.",
+      "_doc": "Launch FORMS — the same Android, two viewport shapes, picked per launch: `build.sh up [form]` (e.g. `up mobile`), default display.form_default. NATIVE MODE ONLY: width/height are persist.waydroid.width/height, read by Waydroid when the SESSION starts, so they size the real host window (there is no live resize — `wm size` retargets Android's logical display but leaves the window at its old size). Stream/vnc still size their headless sway output from container.width/height, baked into the container env at creation. MUST FIT THE LOGICAL SCREEN: these are LOGICAL pixels, and this panel is 2880x1920 at Plasma scale 1.25 => a 2304x1536 logical desktop (kscreen-doctor -o). tablet is exactly that, i.e. full-screen. mobile was 1080x2400 and overflowed the screen by ~900px vertically — 648x1440 is 20:9 with ~96px of headroom for panel + decoration. Re-check against `kscreen-doctor -o` Geometry if the scale or panel ever changes. The compositor scale is also why Android's physical display reads 1.25x these numbers, which is what `density` has to be computed against: smallestWidthDp = min(width,height)*1.25/(density/160) versus the sw600dp breakpoint. tablet 2880/(225/160)=1365dp -> tablet UI; mobile 810/(315/160)=411dp -> phone UI, the same dp width as a Pixel-class phone. Density is also the only global UI-scale knob available here: it sizes icon labels and text together, and Android's own font_scale setting is unreachable (`settings put` NPEs for uid 0). Lower density = more dp across the same pixels = smaller everything; 420 -> 315 is the 25% text reduction asked for on 2026-08-26. Shrinking the window WITHOUT raising density just gives a phone-shaped window still drawing tablet layouts, which is why this is a {width,height,density} triple and not a size. density is applied with `wm density` (WindowManager service) rather than `settings put` — the settings ContentProvider NPEs for uid 0, see entrypoint.sh. Switching form restarts the container: the resolution is fixed at session start.",
       "tablet": {
         "width": 2304,
         "height": 1536,
@@ -36,9 +36,9 @@
         "label": "Tablet"
       },
       "mobile": {
-        "width": 1080,
-        "height": 2400,
-        "density": 420,
+        "width": 648,
+        "height": 1440,
+        "density": 315,
         "label": "Phone"
       }
     }
