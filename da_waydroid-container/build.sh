@@ -556,6 +556,18 @@ _form_apply() {
     done
     [ -n "$ok" ] || die "session did not come back within 180s after the form switch — check: docker logs $name"
   fi
+  # Density has to wait for boot_completed, not just for Session: RUNNING. Applied in the
+  # gap between the two, `wm density` returns 0 and changes nothing — the value is then
+  # overwritten as the rest of the boot restores Android's own settings, leaving the
+  # PREVIOUS override in place. Observed live: _form_apply logged "@ 300dpi" while
+  # `wm density` still read "Override density: 420" from the run before it.
+  local booted=""
+  for _ in $(seq 1 60); do
+    [ "$(docker exec "$name" waydroid shell -- getprop sys.boot_completed 2>/dev/null | tr -d '[:space:]')" = "1" ] \
+      && { booted=1; break; }
+    sleep 2
+  done
+  [ -n "$booted" ] || warn "Android did not report boot_completed within 120s — applying density anyway"
   # Non-fatal: a wrong density is a cosmetic layout miss, not a dead session.
   docker exec "$name" waydroid shell -- wm density "$d" >/dev/null 2>&1 \
     || warn "could not apply density $d for form '$form' — layouts may stay ${form}-wrong"
