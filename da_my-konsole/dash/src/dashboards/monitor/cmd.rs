@@ -273,7 +273,7 @@ mod tests {
             // and typing it must do what the menu does
             assert_eq!(
                 resolve(n, proc),
-                menu_cmd(MENU.iter().position(|(m, _)| m == n).unwrap()),
+                menu_cmd(MENU.iter().position(|(m, _)| *m == n).unwrap()),
                 "{n:?} resolves to something the menu does not do"
             );
         }
