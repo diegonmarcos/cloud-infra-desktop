@@ -3,7 +3,7 @@
 // Everything addressable is read out of TABS, so a tab added to that table is
 // reachable here the moment it exists — by name, by number, and in the picker
 // — with nothing else to keep in step.
-use super::{Sub, Tab, TABS};
+use super::{Overlay, Sub, Tab, MENU, TABS};
 
 /// What a `:` line resolved to.
 ///
@@ -15,18 +15,38 @@ pub(crate) enum Cmd {
     /// Tab, and the mode within it. `None` keeps whichever mode that tab was
     /// left on — `:fleet` returns you to the network you were watching.
     Go(usize, Option<usize>),
+    /// Put a modal up — measure, options, help, the free-memory menu.
+    Open(Overlay),
     Quit,
-    Help,
     Export(bool),
+    /// Append the declared units that are stopped or idle (the `v` toggle).
+    Units,
     Err(String),
     Nothing,
 }
 
-/// The verbs, as data. Same reason as every other table here: the picker, the
-/// help and the dispatch must not be able to disagree about what exists.
+/// What each MENU entry does, in ONE place.
+///
+/// The menu dispatched these by index in its own key handler and the command
+/// line would have needed its own copy — two mappings from the same four names
+/// to the same four actions, which is how a menu ends up opening something its
+/// label does not mention. Both call this instead.
+pub(crate) fn menu_cmd(i: usize) -> Cmd {
+    match i {
+        0 => Cmd::Open(Overlay::Target),
+        1 => Cmd::Open(Overlay::Boxes),
+        2 => Cmd::Open(Overlay::Help),
+        _ => Cmd::Quit,
+    }
+}
+
+/// The verbs that are NOT in the main menu. The menu's own four come from
+/// MENU itself, so the picker cannot offer an entry the menu does not have,
+/// and cannot miss one it does — which is exactly what happened: measure and
+/// options were reachable by key and by menu, and invisible to `:`.
 const VERBS: &[(&str, &str)] = &[
-    ("quit", "leave the dashboard"),
-    ("help", "every key this dashboard binds"),
+    ("free", "free memory — reap zombies, reclaim, find orphans"),
+    ("units", "add or drop the declared units that are stopped or idle"),
     ("export", "write this machine to ~/.watchdog"),
     ("export all", "the same, with every fleet peer folded in"),
 ];
@@ -64,6 +84,9 @@ pub(crate) fn candidates(cur: usize) -> Vec<Pick> {
                 });
             }
         }
+    }
+    for (n, d) in MENU {
+        v.push(Pick { name: (*n).into(), desc: (*d).into() });
     }
     for (n, d) in VERBS {
         v.push(Pick { name: (*n).into(), desc: (*d).into() });
@@ -147,9 +170,16 @@ pub(crate) fn resolve(line: &str, cur: usize) -> Cmd {
             Cmd::Err(format!("{} has {subs} sub-tab(s), not {n}", TABS[cur].name))
         };
     }
+    // The main menu's own entries, by their own names, read out of MENU.
+    if let Some(i) = MENU.iter().position(|(n, _)| *n == c) {
+        return menu_cmd(i);
+    }
     match c.as_str() {
         "q" | "quit" => return Cmd::Quit,
-        "h" | "help" => return Cmd::Help,
+        "h" | "help" => return Cmd::Open(Overlay::Help),
+        "m" | "menu" => return Cmd::Open(Overlay::Menu),
+        "free" => return Cmd::Open(Overlay::Free),
+        "units" | "v" => return Cmd::Units,
         "e" | "export" => return Cmd::Export(false),
         "ea" | "export all" => return Cmd::Export(true),
         _ => {}
@@ -229,6 +259,28 @@ mod tests {
         assert!(matches("qqqq", proc).is_empty());
         // An empty query offers everything, which is what an fzf prompt does.
         assert_eq!(matches("", proc).len(), candidates(proc).len());
+    }
+
+    // The main menu and the command line must offer the SAME four things.
+    // measure and options were reachable by key and by menu and invisible to
+    // `:`, which is the whole reason MENU is read here rather than copied.
+    #[test]
+    fn the_picker_offers_every_main_menu_entry() {
+        let proc = TABS.iter().position(|t| t.name == "proc").unwrap();
+        let names: Vec<String> = candidates(proc).into_iter().map(|p| p.name).collect();
+        for (n, _) in MENU {
+            assert!(names.iter().any(|x| x == n), "{n:?} is in the menu but not in the picker");
+            // and typing it must do what the menu does
+            assert_eq!(
+                resolve(n, proc),
+                menu_cmd(MENU.iter().position(|(m, _)| m == n).unwrap()),
+                "{n:?} resolves to something the menu does not do"
+            );
+        }
+        // The non-menu verbs are there too.
+        for n in ["free", "units", "export", "export all"] {
+            assert!(names.iter().any(|x| x == n), "{n:?} missing from the picker");
+        }
     }
 
     #[test]
