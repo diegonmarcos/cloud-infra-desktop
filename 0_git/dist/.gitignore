@@ -227,3 +227,16 @@ build.log
 /III_front-data/
 /IV_cloud-configs/
 /V_front-configs/
+
+## ── da_dtk: content that generic ignore rules would swallow ──────────
+## dtk arrived from the standalone cloud-mykonsole-dtk repo (2026-08-26)
+## where `build/` and `libs/` are REAL source, not build output:
+##   build/git-workflows + build/flake-engines are the dtk build engine,
+##   commands/connect/dashboard/libs is vendored dashboard code.
+## `build/` is ignored by the USER-GLOBAL ~/.config/git/ignore, and `libs/`
+## by this file, so a plain `git add da_dtk` silently drops 39 files with no
+## error. Un-ignoring the DIRECTORY is required — git cannot re-include a
+## file whose parent directory is excluded.
+!/da_dtk/build/
+!/da_dtk/.archive/a-Git/build/
+!/da_dtk/commands/connect/dashboard/libs/
