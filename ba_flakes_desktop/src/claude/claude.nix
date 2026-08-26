@@ -238,7 +238,7 @@ in
   # pointless: the store is immutable and the flake pins the version.
   # ── memory / prompt-history symlinks ───────────────────────────────────────
   # The durable state (MEMORY.md, memory-entries/, history.jsonl) lives in the
-  # my-ai_memory repo, NOT in ~/.claude. ~/.claude only holds links pointing in.
+  # cloud-data-my-ai-memory repo, NOT in ~/.claude. ~/.claude only holds links pointing in.
   #
   # Why: 2026-08-20 an absent cleanupPeriodDays let Claude Code's built-in
   # 30-day default silently delete ~2.5 months of transcripts. Nothing was
@@ -250,7 +250,7 @@ in
   # This NEVER deletes a real file: anything non-symlink in the way is moved
   # aside to .bak-<timestamp> and reported, so a desync is loud, not lossy.
   home.activation.claudeMemoryLinks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    MEM_REPO="''${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-my-ai_memory}"
+    MEM_REPO="''${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-data-my-ai-memory}"
     INSTANCE="surface"
     # Claude Code buckets projects by slugified $HOME (/home/diego -> -home-diego;
     # on termux -> -data-data-com-termux-files-home). Derive it rather than hardcode,
@@ -260,7 +260,7 @@ in
 
     if [ ! -d "$MEM_REPO/.git" ]; then
       echo "[claude-memory] WARNING: $MEM_REPO is not a checkout — links left as-is." >&2
-      echo "[claude-memory]   git clone git@github.com:diegonmarcos/my-ai_memory.git $MEM_REPO" >&2
+      echo "[claude-memory]   git clone git@github.com:diegonmarcos/cloud-data-my-ai-memory.git $MEM_REPO" >&2
     else
       link_in() {
         SRC="$1"; DEST="$2"
