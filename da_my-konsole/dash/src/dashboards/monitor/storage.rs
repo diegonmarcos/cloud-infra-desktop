@@ -93,8 +93,16 @@ fn mountpoints() -> Vec<Unit> {
     for (dir, provider) in [("fleet", "peer"), ("Storage", "remote")] {
         let base = format!("{home}/mounts/{dir}");
         let Ok(rd) = fs::read_dir(&base) else { continue };
+        // DIRECTORIES ONLY. A mountpoint is a directory; ~/mounts/Storage also
+        // holds .cc.log, .cloud-connect.log and .mount.log, which the first
+        // version happily listed as three storage units that were "not
+        // mounted" — true of a log file, and useless.
+        //
+        // is_dir() follows symlinks on purpose: several of these are links to
+        // the real directory, and a link to a mountpoint is a mountpoint.
         let mut names: Vec<String> = rd
             .filter_map(|e| e.ok())
+            .filter(|e| e.path().is_dir())
             .map(|e| e.file_name().to_string_lossy().into_owned())
             .collect();
         names.sort();
