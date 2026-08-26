@@ -3110,6 +3110,8 @@ impl Dashboard for Monitor {
                     self.detail_scroll = self.detail_scroll.saturating_add(1)
                 }
                 KeyCode::Up => self.detail_scroll = self.detail_scroll.saturating_sub(1),
+                KeyCode::PageDown => self.detail_scroll = self.detail_scroll.saturating_add(10),
+                KeyCode::PageUp => self.detail_scroll = self.detail_scroll.saturating_sub(10),
                 KeyCode::Home => self.detail_scroll = 0,
                 KeyCode::Char('h') | KeyCode::Char('?') | KeyCode::F(1) => self.overlay = Overlay::Help,
                 _ => {}
@@ -4570,12 +4572,87 @@ impl Dashboard for Monitor {
                     "  counters that went backwards are treated as a reboot and not counted across",
                     Style::default().fg(DIM),
                 )));
+
+                // ── per day ───────────────────────────────────────────────
+                // The block above is one rolling day. This is every day the
+                // file still holds, which is what makes a number mean
+                // anything: 40G downloaded is neither good nor bad until you
+                // can see that yesterday was 4G.
+                let days = arr(&s, "history.days");
+                if !days.is_empty() {
+                    hl.push(Line::from(""));
+                    hl.push(Line::from(Span::styled(
+                        format!("per day  ({} recorded, newest first)", days.len()),
+                        Style::default().fg(Color::Rgb(120, 200, 255)).add_modifier(Modifier::BOLD),
+                    )));
+                    hl.push(Line::from(Span::styled(
+                        "  DATE          COVERED     DOWN       UP     READ    WRITE     CPU%     MEM%    SWAP%",
+                        Style::default().fg(LABEL),
+                    )));
+                    for d in days.iter().take(31) {
+                        let g = |k: &str| num(d, k);
+                        hl.push(Line::from(vec![
+                            Span::styled(
+                                format!("  {:<12}", text(d, "date")),
+                                Style::default().fg(Color::White),
+                            ),
+                            Span::styled(
+                                // A partial day is the normal case for today
+                                // and for the oldest row, so say how much of
+                                // one each total actually covers.
+                                format!("{:>8}", fmt_uptime(g("seconds"))),
+                                Style::default().fg(DIM),
+                            ),
+                            Span::styled(
+                                format!("{:>9}", fmt_bytes_short(g("net_rx_bytes"))),
+                                Style::default().fg(Color::Rgb(120, 200, 255)),
+                            ),
+                            Span::styled(
+                                format!("{:>9}", fmt_bytes_short(g("net_tx_bytes"))),
+                                Style::default().fg(Color::Rgb(240, 169, 66)),
+                            ),
+                            Span::styled(
+                                format!("{:>9}", fmt_bytes_short(g("disk_read_bytes"))),
+                                Style::default().fg(Color::Rgb(120, 220, 140)),
+                            ),
+                            Span::styled(
+                                format!("{:>9}", fmt_bytes_short(g("disk_write_bytes"))),
+                                Style::default().fg(Color::Rgb(220, 140, 240)),
+                            ),
+                            Span::styled(
+                                format!("{:>9.1}", g("cpu_pct_avg")),
+                                Style::default().fg(grad(g("cpu_pct_avg") / 100.0)),
+                            ),
+                            Span::styled(
+                                format!("{:>9.1}", g("mem_pct_avg")),
+                                Style::default().fg(grad(g("mem_pct_avg") / 100.0)),
+                            ),
+                            Span::styled(
+                                format!("{:>9.1}", g("swap_pct_avg")),
+                                Style::default().fg(grad(g("swap_pct_avg") / 100.0)),
+                            ),
+                        ]));
+                    }
+                    if days.len() > 31 {
+                        hl.push(Line::from(Span::styled(
+                            format!("  … {} older days, all of them in the export", days.len() - 31),
+                            Style::default().fg(DIM),
+                        )));
+                    }
+                }
             }
-            f.render_widget(Paragraph::new(hl), hin);
+            // SCROLLS. The rolling-day block alone nearly fills this area, and
+            // a month of per-day rows underneath it certainly does. The keys
+            // were already wired to detail_scroll for this branch; the view
+            // simply never applied it, so the extra rows would have been drawn
+            // into a box that quietly cut them off.
+            let hmax = (hl.len() as u16).saturating_sub(hin.height).max(0);
+            self.detail_scroll = self.detail_scroll.min(hmax);
+            f.render_widget(Paragraph::new(hl).scroll((self.detail_scroll, 0)), hin);
             let status = Line::from(Span::styled(
                 match &self.msg {
                     Some((m, _)) => format!(" {m}"),
-                    None => " last 24 hours · h keys · esc menu · ^c quits".to_string(),
+                    None => " last 24 hours, then per day · ↑↓ scrolls · h keys · ^c quits".to_string(),
                 },
                 Style::default().fg(LABEL),
             ));
