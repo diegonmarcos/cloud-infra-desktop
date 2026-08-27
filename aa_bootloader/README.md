@@ -75,6 +75,6 @@ the freshly captured files under `snapshots/` (re-capture with
 
 ## See also
 
-- `~/git/cloud-unix/aa_nixos-surface_host/src/modules/nixos_yield.nix` — the NixOS-side disable
-- `~/git/cloud-unix/aa_nixos-surface_host/src/modules/test-bootloader-yield.sh` — the verifier
+- `~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/nixos_yield.nix` — the NixOS-side disable
+- `~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/test-bootloader-yield.sh` — the verifier
 - `SNAPSHOT-2026-05-01.md` — historical pre-redesign capture (frozen)

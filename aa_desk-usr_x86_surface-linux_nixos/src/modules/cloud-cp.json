@@ -1,8 +1,8 @@
 {
   "tray_icon": "network-vpn",
   "tray_tooltip": "Cloud & Infra",
-  "flake_system":  "/home/diego/git/cloud-unix/aa_desk-usr_x86_surface-linux_nixos",
-  "flake_desktop": "/home/diego/git/cloud-unix/ba_flakes_desktop",
+  "flake_system":  "/home/diego/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos",
+  "flake_desktop": "/home/diego/git/cloud-infra-desktop/ba_flakes_desktop",
   "flake_cloud":   "/home/diego/git/cloud-infra",
   "sections": [
     {

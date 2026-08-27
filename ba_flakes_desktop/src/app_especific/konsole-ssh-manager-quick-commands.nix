@@ -24,7 +24,7 @@ let
 
   # ── Non-VM SSH peers (mobile/edge) ──────────────────────────────────────
   # Termux: every mesh address + SSH port + user sourced from the termux flake
-  # build.json via the `unix-repo` flake input (pinned github fetch of the unix
+  # build.json via the `desktop-repo` flake input (pinned github fetch of the unix
   # monorepo). ONE array feeds both ends: sshd binds defaults.wg_ips (see
   # bb_flakes_termux/src/modules/cloud-ide-sshd/default.nix) and the aliases
   # below dial them, so a profile switch can never leave the client pointing at
@@ -34,7 +34,7 @@ let
   # Selecting a v6 WireGuard profile then broke `ssh phone` against a daemon
   # that was healthy and listening, because the alias could only ever dial
   # 10.0.0.9. Reading the same array is the whole fix.
-  termuxBuildJson = builtins.fromJSON (builtins.readFile "${inputs.unix-repo}/bb_flakes_termux/build.json");
+  termuxBuildJson = builtins.fromJSON (builtins.readFile "${inputs.desktop-repo}/bb_flakes_termux/build.json");
   termuxWgIp = termuxBuildJson.defaults.wg_ip or "10.0.0.9";
   termuxWgIps = termuxBuildJson.defaults.wg_ips or [ termuxWgIp ];
   termuxSshPort = termuxBuildJson.defaults.ssh_port or 8024;

@@ -17,7 +17,7 @@
 set -u
 
 # ONE output convention — see 1_cicd/src/scripts/cloud-data-paths.sh
-CDP="$HOME/git/cloud-unix/1_cicd/dist/scripts/cloud-data-paths.sh"
+CDP="$HOME/git/cloud-infra-desktop/1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then . "$CDP"; LOG="$(cd_log deepseek-cleanup)"; else LOG="$HOME/deepseek-cleanup.log"; fi
 REAL="$HOME/.nix-profile/bin/claude"
 TERMUX_PREFIX="/data/data/com.termux.nix/files/usr"

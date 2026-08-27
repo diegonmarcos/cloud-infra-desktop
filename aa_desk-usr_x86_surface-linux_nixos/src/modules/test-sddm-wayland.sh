@@ -42,7 +42,7 @@ else
 fi
 
 # T4 — fallback module no longer mkForce-disables wayland greeter
-FALLBACK=/home/diego/git/cloud-unix/aa_nixos-surface_host/src/modules/configuration_fallback.nix
+FALLBACK=/home/diego/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/configuration_fallback.nix
 if [ -r "$FALLBACK" ]; then
   if grep -E 'sddm\.wayland\.enable\s*=\s*lib\.mkForce\s+false' "$FALLBACK" >/dev/null; then
     fail "T4 source: configuration_fallback.nix still mkForce-disables sddm.wayland.enable"

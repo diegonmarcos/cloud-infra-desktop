@@ -1,5 +1,5 @@
 # Goose AI CLI config — managed by home-manager
-# Source: ~/git/cloud-unix/ba_flakes_desktop/src/modules/dotfiles/goose/
+# Source: ~/git/cloud-infra-desktop/ba_flakes_desktop/src/modules/dotfiles/goose/
 
 # Default provider and model (Ollama on oci-apps, always on)
 GOOSE_PROVIDER: ollama

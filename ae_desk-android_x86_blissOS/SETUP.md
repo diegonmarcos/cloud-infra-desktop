@@ -30,7 +30,7 @@ Debian/Kali whose `/vmlinuz` is a symlink rEFInd can't follow). Reversible: dele
 
 ## Install (one-time, interactive — needs root + p5 mounted)
 ```
-cd ~/git/cloud-unix/ae_desk-android_x86_blissOS/install
+cd ~/git/cloud-infra-desktop/ae_desk-android_x86_blissOS/install
 # 1. Choose a BlissOS x86_64 release and put its .iso URL in ../blissos.json (release.url)
 #    (BlissRoms/x86 releases; vanilla by default). Then pin it:
 ./build.sh lock                 # prefetch + record release.sha256 (reproducible)
@@ -51,7 +51,7 @@ System → Developer options → enable **ADB / wireless debugging**, note its `
 here `127.0.0.1:5555` if you boot BlissOS in a VM with a forwarded port; use the LAN ip:port for
 bare-metal). Then from the desktop:
 ```
-cd ~/git/cloud-unix/ae_desk-android_x86_blissOS/install
+cd ~/git/cloud-infra-desktop/ae_desk-android_x86_blissOS/install
 ./build.sh fetch-apks           # (if not already) hash-verified download into dist/apks/
 ./build.sh provision            # adb connect + adb install -r -g every APK (stores + FOSS + aa_cloud-*)
 ```

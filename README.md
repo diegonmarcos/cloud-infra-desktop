@@ -90,13 +90,13 @@ Nix Home Manager for Android/Termux. Mobile development environment with Claude 
 
 ```bash
 # Rebuild NixOS system
-~/git/cloud-unix/aa_nixos-surface_host/build.sh       # Interactive TUI
+~/git/cloud-infra-desktop/aa_nixos-surface_host/build.sh       # Interactive TUI
 
 # Rebuild Home Manager (desktop)
-~/git/cloud-unix/ba_flakes_desktop/build.sh switch surface
+~/git/cloud-infra-desktop/ba_flakes_desktop/build.sh switch surface
 
 # Rebuild Home Manager (Termux/mobile)
-~/git/cloud-unix/bb_flakes_termux/build.sh switch
+~/git/cloud-infra-desktop/bb_flakes_termux/build.sh switch
 ```
 
 ### A.6 Filesystem Layout

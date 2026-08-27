@@ -35,7 +35,7 @@
   "_aliases_doc": "shared:true also lands in bash + zsh (flake.nix sharedAliases). Everything here is a fish alias.",
   "aliases": [
     { "name": "up",      "cmd": "flakes.switch",              "group": "flakes", "desc": "compat shortcut for flakes.switch" },
-    { "name": "conf",    "cmd": "nano ~/git/cloud-unix/bb_flakes_termux/src/flake.nix", "group": "flakes", "desc": "edit flake.nix", "shared": true },
+    { "name": "conf",    "cmd": "nano ~/git/cloud-infra-desktop/bb_flakes_termux/src/flake.nix", "group": "flakes", "desc": "edit flake.nix", "shared": true },
     { "name": "dtk",     "cmd": "bash ~/git/cloud-mykonsole-dtk/dtk.sh",    "group": "cloud",  "desc": "Diegos Toolkit (cloud ops, dashboards, webhooks)", "shared": true },
 
     { "name": "ls",      "cmd": "eza --color=auto --icons",   "group": "cli", "desc": "list (eza)" },

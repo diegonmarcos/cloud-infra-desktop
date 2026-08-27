@@ -4,7 +4,7 @@
 # Hashes live in ./my-ai-hashes.json (bumped by ship-my-ai-app.yml GHA).
 let
   hashes  = builtins.fromJSON (builtins.readFile ./my-ai-hashes.json);
-  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/my-ai-latest";
+  baseUrl = "https://github.com/diegonmarcos/cloud-u-linux/releases/download/my-ai-latest";
 in
 stdenv.mkDerivation {
   pname   = "my-ai";

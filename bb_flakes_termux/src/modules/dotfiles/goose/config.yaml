@@ -1,5 +1,5 @@
 # Goose AI CLI config — managed by home-manager
-# Source: ~/git/cloud-unix/bb_flakes_termux/src/modules/dotfiles/goose/
+# Source: ~/git/cloud-infra-desktop/bb_flakes_termux/src/modules/dotfiles/goose/
 
 # Default provider and model
 GOOSE_PROVIDER: openrouter

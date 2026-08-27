@@ -15,7 +15,7 @@ ARG APT_DATA="seclists wordlists exploitdb"
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-unix" \
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra-desktop" \
       org.opencontainers.image.description="Kali data sets (wordlists, seclists, exploitdb) for bind-mount into kali-os." \
       org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.title="kali-data"

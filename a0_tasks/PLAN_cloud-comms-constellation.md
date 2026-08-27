@@ -55,7 +55,7 @@ provider/service in the forks AND on the hub surface SuperApp consumes.
 
 Data flow: forks own their sync engines and local DBs (FairEmail Room/SQLite, Mattermost WatermelonDB, Element X Rust SDK store). Hub never copies data — it proxies queries through to fork providers and merges results. SuperApp talks ONLY to the hub surface.
 
-## 3. Repo layout (in `~/git/cloud-unix/`)
+## 3. Repo layout (in `~/git/cloud-infra-desktop/`)
 
 ```
 ea_cloud-comms/                      ← NEW top-level project (sibling of aa_cloud-superapp)
@@ -81,7 +81,7 @@ ea_cloud-comms/                      ← NEW top-level project (sibling of aa_cl
 
 **Declarative fork rule (non-negotiable)**: a fork is *never* a long-lived divergent clone. It is `pinned upstream tag + committed patch series`, materialized by the engine at build time into a gitignored working clone (`ea_chat-mattermost/`, `ea_chat-element/`; FairEmail reuses existing `ea_mail-fairmail/` — engine must check out the pin, not trust the tracker's HEAD). Same input → same APK. Upstream bump = edit `pinned_tag` in `forks/<x>/build.json`, re-apply patches, fix rejects, commit.
 
-**Gitignore change required** (`~/git/cloud-unix/0_git/src/gitignore`, source of `.gitignore`): `ea_cloud-comms/` matches the `ea_*-*/` tracker pattern — add `!ea_cloud-comms/` + `!ea_cloud-comms/**` exceptions, exactly following the documented `aa_cloud-superapp` precedent at lines 71–76. Do this in **Phase 0, first commit**, or all work is silently untracked.
+**Gitignore change required** (`~/git/cloud-infra-desktop/0_git/src/gitignore`, source of `.gitignore`): `ea_cloud-comms/` matches the `ea_*-*/` tracker pattern — add `!ea_cloud-comms/` + `!ea_cloud-comms/**` exceptions, exactly following the documented `aa_cloud-superapp` precedent at lines 71–76. Do this in **Phase 0, first commit**, or all work is silently untracked.
 
 **Signing**: one upload/signing key for all comms APKs + SuperApp (signature permission requires it). Key material lives in `~/git/cloud-vault/A0_keys/providers/system/` (vault carve-out); CI consumption via sops `src/secrets.yaml` in `ea_cloud-comms/`. NOTE: SuperApp's current signing config must be checked — if it ships with a different key today, plan a coordinated re-sign (uninstall/reinstall on device) at Phase 3.
 

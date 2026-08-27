@@ -1,0 +1,108 @@
+name: update-flake-hashes
+# Pin the SRI hashes of the my-webserver / my-ai release binaries that this
+# repo's flakes fetch by URL.
+#
+# 2026-08-27: those two apps moved to diegonmarcos/cloud-u-linux in the d*
+# split, so their ship-* workflows now run there and can no longer write these
+# files -- GITHUB_TOKEN is scoped to a single repo and cannot push cross-repo.
+# Rather than mint a cross-repo PAT, the dependency is inverted: cloud-u-linux
+# publishes, and this workflow polls and pins.
+#
+# Polling is also strictly less racy than the in-workflow job it replaces. The
+# release tags are rolling and clobbered on every upload, so the old job could
+# commit the hash of a binary a sibling run had already overwritten. This one
+# hashes whatever is live at the moment it runs, so the pin always describes an
+# asset that actually exists.
+#
+# The cost is latency: a fresh cloud-u-linux release is unpinned until the next
+# tick. Dispatch this manually for an immediate refresh.
+on:
+  schedule:
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: update-flake-hashes
+  cancel-in-progress: false
+
+env:
+  SOURCE_REPO: diegonmarcos/cloud-u-linux
+
+jobs:
+  update:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Download released binaries
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        working-directory: /tmp
+        run: |
+          gh release download my-webserver-latest --repo "$SOURCE_REPO" \
+            --pattern "my-webserver-aarch64" \
+            --pattern "my-webserver-x86_64" \
+            --clobber
+          gh release download my-ai-latest --repo "$SOURCE_REPO" \
+            --pattern "my-ai-aarch64" --pattern "my-ai-dash-aarch64" \
+            --clobber
+
+      - uses: cachix/install-nix-action@v27
+
+      - name: Compute SRI hashes and update the pinned hash files
+        run: |
+          ws_aarch64=$(nix hash file --sri /tmp/my-webserver-aarch64)
+          ws_x86_64=$(nix hash file --sri /tmp/my-webserver-x86_64)
+          ai_aarch64=$(nix hash file --sri /tmp/my-ai-aarch64)
+          ai_dash_aarch64=$(nix hash file --sri /tmp/my-ai-dash-aarch64)
+
+          cat > ba_flakes_desktop/src/modules/my-webserver/hashes.json <<JSON
+          {
+            "version": "latest",
+            "aarch64-linux": {
+              "my-webserver": "$ws_aarch64"
+            },
+            "x86_64-linux": {
+              "my-webserver": "$ws_x86_64"
+            }
+          }
+          JSON
+
+          cat > bb_flakes_termux/src/modules/my-webserver/hashes.json <<JSON
+          {
+            "my-webserver": "$ws_aarch64"
+          }
+          JSON
+
+          cat > bb_flakes_termux/src/pkgs/my-ai-hashes.json <<JSON
+          {
+            "my-ai": "$ai_aarch64",
+            "my-ai-dash": "$ai_dash_aarch64"
+          }
+          JSON
+
+      - name: Commit updated hashes
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add ba_flakes_desktop/src/modules/my-webserver/hashes.json \
+                  bb_flakes_termux/src/modules/my-webserver/hashes.json \
+                  bb_flakes_termux/src/pkgs/my-ai-hashes.json
+          git diff --cached --quiet && exit 0
+          git commit -m "chore: pin my-webserver/my-ai hashes from cloud-u-linux [skip ci]"
+          # main moves under long-running jobs; rebase and retry. This step only
+          # ever touches the three hash files, so there is nothing to conflict with.
+          for attempt in 1 2 3 4 5; do
+            if git push; then
+              exit 0
+            fi
+            echo "push rejected (attempt $attempt) -- rebasing onto origin/main"
+            git pull --rebase origin main
+          done
+          echo "::error::could not push updated hashes after 5 attempts"
+          exit 1

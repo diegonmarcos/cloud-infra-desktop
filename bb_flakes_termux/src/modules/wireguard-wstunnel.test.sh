@@ -2,7 +2,7 @@
 # ============================================================================
 # wireguard-wstunnel.nix — termux module integrity tester
 # ----------------------------------------------------------------------------
-# Sibling of ~/git/cloud-unix/ba_flakes_desktop/src/modules/wireguard-wstunnel.test.sh
+# Sibling of ~/git/cloud-infra-desktop/ba_flakes_desktop/src/modules/wireguard-wstunnel.test.sh
 #
 # Validates: nix syntax, cross-link to cloud sibling, helper script shape,
 # secrets contract, no-hardcoded-data discipline, termux-specific

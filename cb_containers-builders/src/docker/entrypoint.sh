@@ -259,7 +259,7 @@ echo "[setup] Syncing all repos via git nuke..."
 # every CI run died at "cd: can't cd to /root/git/cloud" while the Dockerfile
 # had already been updated (WORKDIR + submodule init both say cloud-infra).
 # Keep all three in agreement.
-for repo in cloud-infra cloud-data cloud-unix front tools; do
+for repo in cloud-infra cloud-data cloud-infra-desktop front tools; do
   dir="$GIT_ROOT/$repo"
   [ -d "$dir/.git" ] || continue
   _synced=0

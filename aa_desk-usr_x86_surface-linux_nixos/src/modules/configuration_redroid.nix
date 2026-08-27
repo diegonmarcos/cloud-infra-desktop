@@ -3,7 +3,7 @@
 # Redroid (redroid/redroid Docker image) is a headless Android container reached over
 # ADB and viewed with scrcpy. The desktop-side app set / launcher layout / theme and the
 # `docker run` itself are owned, ON DEMAND, by the data-driven engine at
-# ~/git/cloud-unix/da_redroid/build.sh (up|down|provision|scrcpy). This module provides ONLY the
+# ~/git/cloud-infra-desktop/da_redroid/build.sh (up|down|provision|scrcpy). This module provides ONLY the
 # two things that must exist at the SYSTEM level for that container to work:
 #
 #   1. binder — Android IPC. Redroid needs binder devices (binder,hwbinder,vndbinder).

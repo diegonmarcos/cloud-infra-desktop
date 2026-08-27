@@ -22,7 +22,7 @@
     };
 
     # NOTE: there used to be a `my-ai` flake input here (github:diegonmarcos/
-    # cloud-unix?dir=da_my-ai) that claude/claude.nix consumed as a
+    # cloud-u-linux?dir=da_my-ai) that claude/claude.nix consumed as a
     # `claudeAssets` OUTPUT for the shared Claude config (agents/,
     # cloud-marketplace/, settings base+overlay). REMOVED 2026-08-21: a
     # pinned flake input only updates on `nix flake update my-ai` + a switch,
@@ -156,7 +156,7 @@
         contents = [ self.nixOnDroidConfigurations.default.activationPackage ];
         config.Labels = {
           "org.opencontainers.image.description" = "Termux (nix-on-droid) activation closure as layered store paths (incremental GHCR cache).";
-          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
+          "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-infra-desktop";
         };
       };
     };

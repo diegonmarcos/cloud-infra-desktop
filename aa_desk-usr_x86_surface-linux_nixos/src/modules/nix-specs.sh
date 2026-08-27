@@ -17,7 +17,7 @@ CONFIG_JSON="${NIX_SPECS_CONFIG_JSON:-/etc/cloud-data/nix-specs.json}"
 
 if [ ! -r "$CONFIG_JSON" ] || ! jq -e . "$CONFIG_JSON" >/dev/null 2>&1; then
   echo "[SPECS] WARNING: $CONFIG_JSON missing or unreadable, using built-in defaults" >&2
-  SPECS_SRC="/home/diego/git/cloud-unix/aa_nixos-surface_host"
+  SPECS_SRC="/home/diego/git/cloud-infra-desktop/aa_nixos-surface_host"
   SPECS_TARGET="/nix/specs"
 else
   SPECS_SRC="$(jq -r '.source_dir' "$CONFIG_JSON")"

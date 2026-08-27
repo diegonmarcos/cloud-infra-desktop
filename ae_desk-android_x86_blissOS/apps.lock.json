@@ -1,5 +1,5 @@
 {
-  "_doc": "App-seed manifest for the BlissOS install (referenced by blissos.json apps.lock). Each entry is pinned by url + SRI sha256; install/build.sh fetch-apks nix-prefetches+verifies them, provision adb-installs them. Seeded verbatim from the da_waydroid-apps FOSS set: alternative stores (org.fdroid.fdroid, com.aurora.store, dev.imranr.obtainium), the FOSS app suite, and the three aa_cloud-* APKs from cloud-android releases (x86_64 variants for superapp/cloudnav, hub for ide; the comms hub was retired and split into chat/dialer/mail). ponytail: hand-maintained pin; refresh URLs/versions by editing entries (a full f-droid version-resolver lock step lives in z_archive/da_waydroid-apps if ever needed).",
+  "_doc": "App-seed manifest for the BlissOS install (referenced by blissos.json apps.lock). Each entry is pinned by url + SRI sha256; install/build.sh fetch-apks nix-prefetches+verifies them, provision adb-installs them. Seeded verbatim from the da_waydroid-apps FOSS set: alternative stores (org.fdroid.fdroid, com.aurora.store, dev.imranr.obtainium), the FOSS app suite, and the three aa_cloud-* APKs from cloud-u-android releases (x86_64 variants for superapp/cloudnav, hub for ide; the comms hub was retired and split into chat/dialer/mail). ponytail: hand-maintained pin; refresh URLs/versions by editing entries (a full f-droid version-resolver lock step lives in z_archive/da_waydroid-apps if ever needed).",
   "generated_for": "ae_desk-android_x86_blissOS",
   "apps": [
     {
@@ -382,19 +382,19 @@
     {
       "package": "com.diegonmarcos.superapp",
       "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-SuperApp-x86_64.apk",
+      "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-SuperApp-x86_64.apk",
       "sha256": "sha256-p3UuDpxqTBID1j8e77VaPNBs54P+l0xUjV/yPBayOYw="
     },
     {
       "package": "com.diegonmarcos.cloudnav",
       "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Nav-x86_64.apk",
+      "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Nav-x86_64.apk",
       "sha256": "sha256-lnJBC9jeZRJu0yZVzrhpKmbe89dLldmV8I4Pjcnfh2g="
     },
     {
       "package": "com.diegonmarcos.ide",
       "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-IDE-Hub.apk",
+      "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-IDE-Hub.apk",
       "sha256": "sha256-TurZGBPd3AsEebyxsO4TfrAtXxSGGCvzodPqlwpOHZU="
     }
   ]

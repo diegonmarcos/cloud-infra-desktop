@@ -2,7 +2,7 @@
 #
 # NOTE: This flake has NO bootloader configuration. The bootloader (GRUB,
 # /boot/grub/grub.cfg, grubx64.efi, NVRAM, /boot/kernels/ placement) is
-# managed entirely by aa_bootloader at /home/diego/git/cloud-unix/aa_bootloader.
+# managed entirely by aa_bootloader at /home/diego/git/cloud-infra-desktop/aa_bootloader.
 # Run `aa_bootloader/build.sh deploy --target grub` after any nixos-rebuild.
 #
 # What stays here (OS-level boot prep, not bootloader):

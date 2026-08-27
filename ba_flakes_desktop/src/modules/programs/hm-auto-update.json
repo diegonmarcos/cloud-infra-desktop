@@ -5,7 +5,7 @@
   "activation_label": "com.diegonmarcos.activation-path",
   "poll_interval_seconds": 300,
   "on_boot_delay_seconds": 90,
-  "repo_build_sh": "$HOME/git/cloud-unix/ba_flakes_desktop/build.sh",
+  "repo_build_sh": "$HOME/git/cloud-infra-desktop/ba_flakes_desktop/build.sh",
   "safety": {
     "_comment": "2026-07-10: the auto-updater must NEVER trigger a heavy switch when the desktop is already memory-full — that is exactly what froze the box on the 13:41 bootstrap (avail RAM ~900MB, the pull tipped user-1000.slice into reclaim-thrash). min_free_mb: if MemAvailable is below this, DEFER the switch (do NOT record the digest, so the next poll retries) until the box has headroom. switch_memory_max / switch_swap_max bound the switch's OWN transient scope so its footprint can't pile onto the desktop and, if it balloons, oomd/OOM kills the switch — not the compositor. 2026-07-24: switch_memory_max raised 2G→4G — the 2G cap cgroup-OOM-killed a LEGITIMATE `nix-store --import` of the home-manager-files NAR (peak anon-rss 2.07G, journal `hm-switch-isolated.service: Failed with result 'oom-kill'`), so every incremental switch failed at the import step. workload.slice has memory.swap.max=0 (swap can't spill the anon pages), so the fix is headroom in RAM, not swap. 4G fits the import ~2x over and still leaves 4G on the 8G box → desktop stays protected and a true runaway (>4G) is still killed.",
     "min_free_mb": 2500,

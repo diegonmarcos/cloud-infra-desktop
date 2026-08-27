@@ -135,7 +135,7 @@ EOF
 
     log "Ready. Enter with:"
     log "  sudo chroot $target /bin/bash --login"
-    log "Then: cd /home/diego/git/cloud-unix/aa_nixos-surface_host/src && nixos-rebuild boot --flake .#surface"
+    log "Then: cd /home/diego/git/cloud-infra-desktop/aa_nixos-surface_host/src && nixos-rebuild boot --flake .#surface"
 }
 
 setup_kali() {

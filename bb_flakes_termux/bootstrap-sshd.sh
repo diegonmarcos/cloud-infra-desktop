@@ -10,10 +10,10 @@
 # foreground-detached on port 8022.
 #
 # Run via:
-#   nix-shell -p openssh jq --run "bash $HOME/git/cloud-unix/bb_flakes_termux/bootstrap-sshd.sh"
+#   nix-shell -p openssh jq --run "bash $HOME/git/cloud-infra-desktop/bb_flakes_termux/bootstrap-sshd.sh"
 #
 # After SSH-ing in, run the real engine to make this permanent:
-#   ~/git/cloud-unix/bb_flakes_termux/build.sh
+#   ~/git/cloud-infra-desktop/bb_flakes_termux/build.sh
 # ============================================================================
 set -eu
 
