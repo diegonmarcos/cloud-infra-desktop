@@ -25,7 +25,23 @@
     "_doc": "Display architecture mode. 'native' (DEFAULT, the seamless UX): the HOST desktop's Wayland socket is bind-mounted into the container and Waydroid's hwcomposer connects to KDE DIRECTLY — Android appears as a native KDE window with ONE cursor, native touch/trackpad, native audio (host pulse socket), zero video-encode latency. This is exactly how bare-metal Waydroid-on-KDE works (docs.waydro.id core concepts: hwcomposer is a Wayland CLIENT of the user's compositor; the socket is bind-mounted into the Android container) — the Docker layer still owns the whole lifecycle, so the ghost-process class of bug cannot recur (docker stop kills everything). 'stream': the previous fully-headless stack (nested sway compositor + Sunshine VAAPI stream + Moonlight client) — remote-desktop UX with its inherent double-cursor/latency tradeoffs; kept for headless/remote use. Selected per-launch: `build.sh up` (native) / `build.sh up stream` / `build.sh up vnc`.",
     "mode": "native",
     "host_wayland_display": "wayland-0",
-    "window_class": "Waydroid"
+    "window_class": "Waydroid",
+    "form_default": "tablet",
+    "forms": {
+      "_doc": "Launch FORMS — the same Android, two viewport shapes, picked per launch: `build.sh up [form]` (e.g. `up mobile`), default display.form_default. NATIVE MODE ONLY: width/height are persist.waydroid.width/height, read by Waydroid when the SESSION starts, so they size the real host window (there is no live resize — `wm size` retargets Android's logical display but leaves the window at its old size). Stream/vnc still size their headless sway output from container.width/height, baked into the container env at creation. MUST FIT THE LOGICAL SCREEN: these are LOGICAL pixels, and this panel is 2880x1920 at Plasma scale 1.25 => a 2304x1536 logical desktop (kscreen-doctor -o). tablet is exactly that, i.e. full-screen. mobile was 1080x2400 and overflowed the screen by ~900px vertically — 648x1440 is 20:9 with ~96px of headroom for panel + decoration. Re-check against `kscreen-doctor -o` Geometry if the scale or panel ever changes. The compositor scale is also why Android's physical display reads 1.25x these numbers, which is what `density` has to be computed against: smallestWidthDp = min(width,height)*1.25/(density/160) versus the sw600dp breakpoint. tablet 2880/(225/160)=1365dp -> tablet UI; mobile 810/(315/160)=411dp -> phone UI, the same dp width as a Pixel-class phone. Density is also the only global UI-scale knob available here: it sizes icon labels and text together, and Android's own font_scale setting is unreachable (`settings put` NPEs for uid 0). Lower density = more dp across the same pixels = smaller everything; 420 -> 315 is the 25% text reduction asked for on 2026-08-26. Shrinking the window WITHOUT raising density just gives a phone-shaped window still drawing tablet layouts, which is why this is a {width,height,density} triple and not a size. density is applied with `wm density` (WindowManager service) rather than `settings put` — the settings ContentProvider NPEs for uid 0, see entrypoint.sh. Switching form restarts the container: the resolution is fixed at session start.",
+      "tablet": {
+        "width": 2304,
+        "height": 1536,
+        "density": 225,
+        "label": "Tablet"
+      },
+      "mobile": {
+        "width": 648,
+        "height": 1440,
+        "density": 315,
+        "label": "Phone"
+      }
+    }
   },
   "_doc_window_class": "The Waydroid native window's Wayland app-id / resourceClass on the host compositor (verified live via kdotool on KDE Plasma 6: class=Waydroid). Used two ways: KDE taskbar-pin matching (StartupWMClass in the HM desktop entry) and the native-mode GUI-bound lifecycle — build.sh polls `kdotool search --class <this>` and stops the container when the window closes (Wayland-native; X11 xdotool cannot see Wayland toplevels).",
   "stream": {
@@ -35,7 +51,11 @@
     "web_port": 47990,
     "app_name": "Desktop",
     "fps": 60,
-    "client_flags": ["--display-mode", "windowed", "--absolute-mouse"],
+    "client_flags": [
+      "--display-mode",
+      "windowed",
+      "--absolute-mouse"
+    ],
     "_doc_client_flags": "Moonlight is a GAME-streaming client: its defaults are exclusive fullscreen + relative (captured) mouse — the pointer gets trapped inside the window and the desktop underneath becomes unreachable (confirmed live, 2026-07-08). This is a desktop-app window, so (exact flag names read from moonlight-qt's commandlineparser.cpp): --display-mode windowed = a normal parallel KDE window (taskbar/desktop switching keep working); --absolute-mouse = remote-desktop pointer mode (moves freely in/out of the window, no capture, trackpad taps register as clicks). Touchscreen stays in its DEFAULT trackpad-emulation mode: --no-touchscreen-trackpad (native touch passthrough) was tried and is a known-broken path on Wayland — Sunshine registers the passthrough device as a drawing tablet (Sunshine#1828) and touch stopped working entirely (confirmed live). The double-cursor artifact of absolute-mouse mode is fixed SERVER-side (sway seat hide_cursor — moonlight-qt#1268/Sunshine#1940 document that hiding the host cursor is the accepted fix). Moonlight shortcuts: Ctrl+Alt+Shift+Q quit, Ctrl+Alt+Shift+M capture toggle.",
     "_doc_ports": "Sunshine's port family is derived from its base port (default 47989): HTTPS 47984, Web UI 47990, RTSP 48010, video/control UDP 47998-48000. Moonlight connects to the container's own bridge IP directly (same docker-userland-proxy-mangling avoidance as vnc_addr), so NO -p publishing is needed for streaming."
   },
@@ -57,227 +77,1240 @@
   },
   "apps": {
     "_doc": "Declarative app set. Every entry: package (Android applicationId), label, group (free-form tag, used only for docs/status — layout membership is explicit in `launcher` below, never derived from group), source ({type: fdroid|github, url? for github}), optional appops (special app-ops beyond the -g runtime-permission grant, applied via `cmd appops set <pkg> <op> allow`), optional full_perms (true = this is one of Diego's OWN apps — gets the full extra appops bundle in provisioning.full_perms_appops, not just its own declared appops list). Source of truth for src/apps/apps.lock.json (pinned versionCode/sha256, regenerate via the archived lock logic if this list changes).",
-    "full_perms_appops": ["REQUEST_INSTALL_PACKAGES", "SYSTEM_ALERT_WINDOW", "WRITE_SETTINGS", "MANAGE_EXTERNAL_STORAGE"],
+    "full_perms_appops": [
+      "REQUEST_INSTALL_PACKAGES",
+      "SYSTEM_ALERT_WINDOW",
+      "WRITE_SETTINGS",
+      "MANAGE_EXTERNAL_STORAGE"
+    ],
     "_doc_full_perms": "The extra app-ops bundle granted to every app with full_perms:true (Diego's own constellation apps: SuperApp/CloudNav/Comms/IDE) — these are the app-ops Android gates behind explicit user action outside the normal runtime-permission dialog (install-other-APKs, draw-over-other-apps, modify-system-settings, all-files access). Combined with grant_all_permissions (-g, all declared dangerous runtime perms), this is genuinely 'full perms' for these apps; third-party apps only get their own declared `appops` list (usually none) plus -g.",
     "list": [
-      { "package": "com.diegonmarcos.superapp", "label": "Cloud-SuperApp", "group": "core", "full_perms": true,
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-SuperApp-x86_64.apk" } },
-      { "package": "com.diegonmarcos.cloudnav", "label": "Cloud-Nav", "group": "core", "full_perms": true,
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Nav-x86_64.apk" } },
-      { "package": "com.diegonmarcos.comms", "label": "Cloud-Comms", "group": "core", "full_perms": true,
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Comms-Hub.apk" } },
-      { "package": "com.diegonmarcos.ide", "label": "Cloud-IDE", "group": "core", "full_perms": true,
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-IDE-Hub.apk" } },
-      { "package": "com.foxdebug.acode", "label": "Acode", "group": "ide", "source": { "type": "fdroid" } },
-      { "package": "com.amaze.filemanager", "label": "Amaze", "group": "ide", "source": { "type": "fdroid" } },
-      { "package": "eu.faircode.email", "label": "FairMail", "group": "comms", "source": { "type": "fdroid" } },
-      { "package": "com.mattermost.rnbeta", "label": "Mattermost", "group": "comms", "source": { "type": "fdroid" } },
-      { "package": "im.vector.app", "label": "Element", "group": "comms", "source": { "type": "fdroid" } },
-      { "package": "com.termux.nix", "label": "Nix-on-Droid", "group": "ide", "source": { "type": "fdroid" } },
-      { "package": "org.fossify.phone", "label": "Fossify Phone", "group": "comms", "source": { "type": "fdroid" } },
-      { "package": "org.fossify.contacts", "label": "Fossify Contacts", "group": "comms", "source": { "type": "fdroid" } },
-      { "package": "org.fossify.messages", "label": "Fossify Messages", "group": "comms", "source": { "type": "fdroid" } },
-      { "package": "app.organicmaps", "label": "Organic Maps", "group": "nav", "source": { "type": "fdroid" } },
-      { "package": "net.osmand.plus", "label": "OsmAnd~", "group": "nav", "source": { "type": "fdroid" } },
-      { "package": "org.fdroid.fdroid", "label": "F-Droid", "group": "store", "source": { "type": "fdroid" } },
-      { "package": "com.aurora.store", "label": "Aurora Store", "group": "store", "source": { "type": "fdroid" } },
-      { "package": "com.brave.browser", "label": "Brave", "group": "web",
-        "source": { "type": "github", "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk" } },
-      { "package": "io.element.android.x", "label": "Cloud-Matrix (Element X)", "group": "comms",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-matrix-x86_64.apk" } },
-      { "package": "com.fsck.k9", "label": "K-9 Mail", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "rs.ltt.android", "label": "Ltt.rs", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "io.heckel.ntfy", "label": "ntfy", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.ghostsq.commander", "label": "Ghost Commander", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.kde.kdeconnect_tp", "label": "KDE Connect", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.termux", "label": "Termux", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.termux.api", "label": "Termux:API", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.viscouspot.gitsync", "label": "Git Sync", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.adeeteya.markdown_editor", "label": "Markdown Editor", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "me.zhanghai.android.files", "label": "Material Files", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "eu.faircode.netguard", "label": "NetGuard", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "ch.protonvpn.android", "label": "Proton VPN", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "me.biplobsd.rsm", "label": "Resmush", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.rama.mako", "label": "Mako", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.beemdevelopment.aegis", "label": "aegis", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.kgurgul.cpuinfo", "label": "cpuinfo", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.dp.logcatapp", "label": "logcatapp", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.connectbot", "label": "connectbot", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "net.gsantner.markor", "label": "markor", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "it.niedermann.owncloud.notes", "label": "notes", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.tasks", "label": "tasks", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "ws.xsoh.etar", "label": "etar", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.fossify.gallery", "label": "gallery", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.documentfoundation.libreoffice", "label": "libreoffice", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.solovyev.android.calculator", "label": "calculator", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.schabi.newpipe", "label": "newpipe", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.videolan.vlc", "label": "vlc", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.jellyfin.mobile", "label": "mobile", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.ichi2.anki", "label": "anki", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.wikipedia", "label": "wikipedia", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "de.danoeh.antennapod", "label": "antennapod", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.y20k.transistor", "label": "transistor", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "code.name.monkey.retromusic", "label": "retromusic", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.shatteredpixel.shatteredpixeldungeon", "label": "shatteredpixeldungeon", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.secuso.privacyfriendly2048", "label": "privacyfriendly2048", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.joinmastodon.android", "label": "android", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.github.libretube", "label": "libretube", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "org.mozilla.fennec_fdroid", "label": "fennec_fdroid", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "nodomain.freeyourgadget.gadgetbridge", "label": "gadgetbridge", "group": "phone", "source": { "type": "fdroid" } },
-      { "package": "com.diegonmarcos.cloudbrowser", "label": "Cloud-Browser", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Browser-x86_64.apk" } },
-      { "package": "com.diegonmarcos.cloudcalendar", "label": "Cloud-Calendar", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Calendar-x86_64.apk" } },
-      { "package": "com.diegonmarcos.cloudcontacts", "label": "Cloud-Contacts", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Contacts-x86_64.apk" } },
-      { "package": "com.diegonmarcos.mediacenter", "label": "Cloud-Media-Center", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-media-center.apk" } },
-      { "package": "com.diegonmarcos.cloudnews", "label": "Cloud-News", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-News-x86_64.apk" } },
-      { "package": "com.diegonmarcos.cloudvault", "label": "Cloud-Vault", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Vault-x86_64.apk" } },
-      { "package": "com.diegonmarcos.cloudwallet", "label": "Cloud-Wallet", "group": "fleet",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Wallet-x86_64.apk" } },
-      { "package": "com.diegonmarcos.cloudkeyboard", "label": "Cloud-Keyboard", "group": "keyboard",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Keyboard.apk" } },
-      { "package": "com.diegonmarcos.cloudkeyboardlibs", "label": "Cloud-Keyboard-Libs", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Keyboard-Libs.apk" } },
-      { "package": "com.diegonmarcos.comms.chat", "label": "Cloud-Chat", "group": "comms",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-chat.apk" } },
-      { "package": "com.diegonmarcos.comms.dialer", "label": "Cloud-Dialer", "group": "comms",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-dialer.apk" } },
-      { "package": "com.diegonmarcos.comms.mail", "label": "Cloud-Mail", "group": "comms",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/cloud-comms-mail.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.appstore", "label": "Cloud-Lib-Appstore", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Appstore.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.battery", "label": "Cloud-Lib-Battery", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Battery.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.browser", "label": "Cloud-Lib-Browser", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Browser.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.chat", "label": "Cloud-Lib-Chat", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Chat.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.core", "label": "Cloud-Lib-Core", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Core.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.datamanager", "label": "Cloud-Lib-Datamanager", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Datamanager.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.devtools", "label": "Cloud-Lib-Devtools", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Devtools.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.feed", "label": "Cloud-Lib-Feed", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Feed.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.fin", "label": "Cloud-Lib-Fin", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Fin.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.firewall", "label": "Cloud-Lib-Firewall", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Firewall.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.health", "label": "Cloud-Lib-Health", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Health.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.kdeconnect", "label": "Cloud-Lib-Kde-Connect", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Kde-Connect.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.launcherapptabs", "label": "Cloud-Lib-Launcher-Apptabs", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Launcher-Apptabs.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.launcheronehand", "label": "Cloud-Lib-Launcher-Onehand", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Launcher-Onehand.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.launcherzoomies", "label": "Cloud-Lib-Launcher-Zoomies", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Launcher-Zoomies.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.mail", "label": "Cloud-Lib-Mail", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Mail.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.media", "label": "Cloud-Lib-Media", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Media.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.net", "label": "Cloud-Lib-Net", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Net.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.netwg", "label": "Cloud-Lib-Net-Wg", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Net-Wg.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.ops", "label": "Cloud-Lib-Ops", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Ops.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.shizukuadbdebugtools", "label": "Cloud-Lib-Shizuku-Adb-Debug-Tools", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Shizuku-Adb-Debug-Tools.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.translate", "label": "Cloud-Lib-Translate", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Translate.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.translatemlkit", "label": "Cloud-Lib-Translate-Mlkit", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Translate-Mlkit.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.updater", "label": "Cloud-Lib-Updater", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Updater.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.voice", "label": "Cloud-Lib-Voice", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Voice.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.voicevosk", "label": "Cloud-Lib-Voice-Vosk", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Voice-Vosk.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.cal", "label": "Cloud-Lib-Cal", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Cal.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.contacts", "label": "Cloud-Lib-Contacts", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Contacts.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.maps", "label": "Cloud-Lib-Maps", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Maps.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.news", "label": "Cloud-Lib-News", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-News.apk" } },
-      { "package": "com.diegonmarcos.cloudlib.wallet", "label": "Cloud-Lib-Wallet", "group": "lib",
-        "source": { "type": "github", "url": "https://github.com/diegonmarcos/cloud-unix/releases/download/latest/Cloud-Lib-Wallet.apk" } }
+      {
+        "package": "com.diegonmarcos.superapp",
+        "label": "Cloud-SuperApp",
+        "group": "core",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-SuperApp-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudnav",
+        "label": "Cloud-Nav",
+        "group": "core",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Nav-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.ide",
+        "label": "Cloud-IDE",
+        "group": "core",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-IDE-Hub.apk"
+        }
+      },
+      {
+        "package": "com.foxdebug.acode",
+        "label": "Acode",
+        "group": "ide",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.amaze.filemanager",
+        "label": "Amaze",
+        "group": "ide",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "eu.faircode.email",
+        "label": "FairMail",
+        "group": "comms",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.mattermost.rnbeta",
+        "label": "Mattermost",
+        "group": "comms",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "im.vector.app",
+        "label": "Element",
+        "group": "comms",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.termux.nix",
+        "label": "Nix-on-Droid",
+        "group": "ide",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.fossify.phone",
+        "label": "Fossify Phone",
+        "group": "comms",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.fossify.contacts",
+        "label": "Fossify Contacts",
+        "group": "comms",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.fossify.messages",
+        "label": "Fossify Messages",
+        "group": "comms",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "app.organicmaps",
+        "label": "Organic Maps",
+        "group": "nav",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "net.osmand.plus",
+        "label": "OsmAnd~",
+        "group": "nav",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.fdroid.fdroid",
+        "label": "F-Droid",
+        "group": "store",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.aurora.store",
+        "label": "Aurora Store",
+        "group": "store",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.brave.browser",
+        "label": "Brave",
+        "group": "web",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/brave/brave-browser/releases/download/v1.91.172/BraveMonox64.apk"
+        }
+      },
+      {
+        "package": "io.element.android.x",
+        "label": "Cloud-Matrix (Element X)",
+        "group": "comms",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/cloud-comms-matrix-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.fsck.k9",
+        "label": "K-9 Mail",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "rs.ltt.android",
+        "label": "Ltt.rs",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "io.heckel.ntfy",
+        "label": "ntfy",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.ghostsq.commander",
+        "label": "Ghost Commander",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.kde.kdeconnect_tp",
+        "label": "KDE Connect",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.termux",
+        "label": "Termux",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.termux.api",
+        "label": "Termux:API",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.viscouspot.gitsync",
+        "label": "Git Sync",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.adeeteya.markdown_editor",
+        "label": "Markdown Editor",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "me.zhanghai.android.files",
+        "label": "Material Files",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "eu.faircode.netguard",
+        "label": "NetGuard",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "ch.protonvpn.android",
+        "label": "Proton VPN",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "me.biplobsd.rsm",
+        "label": "Resmush",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.rama.mako",
+        "label": "Mako",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.beemdevelopment.aegis",
+        "label": "aegis",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.kgurgul.cpuinfo",
+        "label": "cpuinfo",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.dp.logcatapp",
+        "label": "logcatapp",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.connectbot",
+        "label": "connectbot",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "net.gsantner.markor",
+        "label": "markor",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "it.niedermann.owncloud.notes",
+        "label": "notes",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.tasks",
+        "label": "tasks",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "ws.xsoh.etar",
+        "label": "etar",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.fossify.gallery",
+        "label": "gallery",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.documentfoundation.libreoffice",
+        "label": "libreoffice",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.solovyev.android.calculator",
+        "label": "calculator",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.schabi.newpipe",
+        "label": "newpipe",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.videolan.vlc",
+        "label": "vlc",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.jellyfin.mobile",
+        "label": "mobile",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.ichi2.anki",
+        "label": "anki",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.wikipedia",
+        "label": "wikipedia",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "de.danoeh.antennapod",
+        "label": "antennapod",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.y20k.transistor",
+        "label": "transistor",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "code.name.monkey.retromusic",
+        "label": "retromusic",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.shatteredpixel.shatteredpixeldungeon",
+        "label": "shatteredpixeldungeon",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.secuso.privacyfriendly2048",
+        "label": "privacyfriendly2048",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.joinmastodon.android",
+        "label": "android",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.github.libretube",
+        "label": "libretube",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "org.mozilla.fennec_fdroid",
+        "label": "fennec_fdroid",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "nodomain.freeyourgadget.gadgetbridge",
+        "label": "gadgetbridge",
+        "group": "phone",
+        "source": {
+          "type": "fdroid"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudbrowser",
+        "label": "Cloud-Browser",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Browser-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudcalendar",
+        "label": "Cloud-Calendar",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Calendar-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudcontacts",
+        "label": "Cloud-Contacts",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Contacts-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.mediacenter",
+        "label": "Cloud-Media-Center",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/cloud-media-center.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudnews",
+        "label": "Cloud-News",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-News-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudvault",
+        "label": "Cloud-Vault",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Vault-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudwallet",
+        "label": "Cloud-Wallet",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Wallet-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudkeyboard",
+        "label": "Cloud-Keyboard",
+        "group": "keyboard",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Keyboard.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudkeyboardlibs",
+        "label": "Cloud-Keyboard-Libs",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Keyboard-Libs.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.comms.chat",
+        "label": "Cloud-Chat",
+        "group": "comms",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/cloud-comms-chat.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.comms.dialer",
+        "label": "Cloud-Dialer",
+        "group": "comms",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/cloud-comms-dialer.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.comms.mail",
+        "label": "Cloud-Mail",
+        "group": "comms",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/cloud-comms-mail.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.appstore",
+        "label": "Cloud-Lib-Appstore",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Appstore.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.battery",
+        "label": "Cloud-Lib-Battery",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Battery.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.browser",
+        "label": "Cloud-Lib-Browser",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Browser.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.chat",
+        "label": "Cloud-Lib-Chat",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Chat.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.core",
+        "label": "Cloud-Lib-Core",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Core.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.datamanager",
+        "label": "Cloud-Lib-Datamanager",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Datamanager.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.devtools",
+        "label": "Cloud-Lib-Devtools",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Devtools.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.feed",
+        "label": "Cloud-Lib-Feed",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Feed.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.fin",
+        "label": "Cloud-Lib-Fin",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Fin.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.firewall",
+        "label": "Cloud-Lib-Firewall",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Firewall.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.health",
+        "label": "Cloud-Lib-Health",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Health.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.kdeconnect",
+        "label": "Cloud-Lib-Kde-Connect",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Kde-Connect.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.launcherapptabs",
+        "label": "Cloud-Lib-Launcher-Apptabs",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Launcher-Apptabs.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.launcheronehand",
+        "label": "Cloud-Lib-Launcher-Onehand",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Launcher-Onehand.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.launcherzoomies",
+        "label": "Cloud-Lib-Launcher-Zoomies",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Launcher-Zoomies.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.mail",
+        "label": "Cloud-Lib-Mail",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Mail.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.media",
+        "label": "Cloud-Lib-Media",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Media.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.net",
+        "label": "Cloud-Lib-Net",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Net.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.netwg",
+        "label": "Cloud-Lib-Net-Wg",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Net-Wg.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.ops",
+        "label": "Cloud-Lib-Ops",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Ops.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.shizukuadbdebugtools",
+        "label": "Cloud-Lib-Shizuku-Adb-Debug-Tools",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Shizuku-Adb-Debug-Tools.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.translate",
+        "label": "Cloud-Lib-Translate",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Translate.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.translatemlkit",
+        "label": "Cloud-Lib-Translate-Mlkit",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Translate-Mlkit.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.updater",
+        "label": "Cloud-Lib-Updater",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Updater.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.voice",
+        "label": "Cloud-Lib-Voice",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Voice.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.voicevosk",
+        "label": "Cloud-Lib-Voice-Vosk",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Voice-Vosk.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.cal",
+        "label": "Cloud-Lib-Cal",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Cal.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.contacts",
+        "label": "Cloud-Lib-Contacts",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Contacts.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.maps",
+        "label": "Cloud-Lib-Maps",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Maps.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.news",
+        "label": "Cloud-Lib-News",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-News.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.wallet",
+        "label": "Cloud-Lib-Wallet",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-android/releases/download/latest/Cloud-Lib-Wallet.apk"
+        }
+      }
     ]
   },
   "launcher": {
     "_doc": "Data-driven Launcher3 layout (home screen + hotseat/nav bar). Rendered into the Launcher3 favorites DB by src/apps/gen-layout-sql.js. `folders` are reusable groups (members = package ids). `hotseat` = bottom nav bar, left→right. `workspace.cells` = home screen grid placements (screen 0 default, a cell can override `screen` for a second page). Re-arrange by editing here + re-provisioning — no code changes.",
     "grid_columns": 6,
     "folders": {
-      "cloud_ide": { "title": "Cloud IDE", "members": ["com.diegonmarcos.ide", "com.foxdebug.acode", "com.amaze.filemanager"] },
-      "cloud_comms": { "title": "Cloud Comms", "members": ["com.diegonmarcos.comms", "im.vector.app", "com.mattermost.rnbeta", "eu.faircode.email", "org.fossify.phone", "org.fossify.contacts", "org.fossify.messages"] },
-      "cloud_nav": { "title": "Cloud Nav", "members": ["com.diegonmarcos.cloudnav", "app.organicmaps", "net.osmand.plus"] },
-      "stores": { "title": "Stores", "members": ["org.fdroid.fdroid", "com.aurora.store"] },
-      "phone_comm": { "title": ".b0_Communication", "members": ["im.vector.app", "io.element.android.x", "com.fsck.k9", "rs.ltt.android", "com.mattermost.rnbeta", "io.heckel.ntfy"] },
-      "phone_systools": { "title": "_SysTools", "members": ["org.fdroid.fdroid", "com.ghostsq.commander", "org.kde.kdeconnect_tp", "com.termux.nix", "com.termux", "com.termux.api"] },
-      "phone_security": { "title": "_Security", "members": ["eu.faircode.netguard", "ch.protonvpn.android", "com.beemdevelopment.aegis"] },
-      "phone_sysinfo": { "title": "_Sys_Info", "members": ["me.biplobsd.rsm", "com.kgurgul.cpuinfo", "com.dp.logcatapp"] },
-      "phone_ide": { "title": ".a4_IDE|Code", "members": ["com.viscouspot.gitsync", "org.connectbot"] },
-      "phone_notes": { "title": ".a2_Pages|Notes", "members": ["com.adeeteya.markdown_editor", "net.gsantner.markor", "it.niedermann.owncloud.notes"] },
-      "phone_todo": { "title": ".a3_Todo|Calendar", "members": ["org.tasks", "ws.xsoh.etar"] },
-      "phone_dbphotos": { "title": ".a1_DataBase|Photos", "members": ["org.fossify.gallery", "org.documentfoundation.libreoffice"] },
-      "phone_math": { "title": ".a4_Math&Time", "members": ["org.solovyev.android.calculator"] },
-      "phone_media": { "title": ".b1_Media", "members": ["org.schabi.newpipe", "org.videolan.vlc", "org.jellyfin.mobile"] },
-      "phone_learning": { "title": ".b2_Learning", "members": ["com.ichi2.anki", "org.wikipedia"] },
-      "phone_audio": { "title": ">Audio", "members": ["de.danoeh.antennapod", "org.y20k.transistor", "code.name.monkey.retromusic"] },
-      "phone_games": { "title": ">Games", "members": ["com.shatteredpixel.shatteredpixeldungeon", "org.secuso.privacyfriendly2048"] },
-      "phone_socfeed": { "title": ">Social.Feed", "members": ["org.joinmastodon.android", "com.github.libretube"] },
-      "phone_utility": { "title": "-Utilities", "members": ["me.zhanghai.android.files", "org.mozilla.fennec_fdroid"] },
-      "phone_health": { "title": "-Health", "members": ["nodomain.freeyourgadget.gadgetbridge"] },
-      "phone_misc": { "title": "No Categorie", "members": ["com.rama.mako", "org.fossify.phone"] }
+      "cloud_ide": {
+        "title": "Cloud IDE",
+        "members": [
+          "com.diegonmarcos.ide",
+          "com.foxdebug.acode",
+          "com.amaze.filemanager"
+        ]
+      },
+      "cloud_comms": {
+        "title": "Cloud Comms",
+        "members": [
+          "com.diegonmarcos.comms",
+          "im.vector.app",
+          "com.mattermost.rnbeta",
+          "eu.faircode.email",
+          "org.fossify.phone",
+          "org.fossify.contacts",
+          "org.fossify.messages"
+        ]
+      },
+      "cloud_nav": {
+        "title": "Cloud Nav",
+        "members": [
+          "com.diegonmarcos.cloudnav",
+          "app.organicmaps",
+          "net.osmand.plus"
+        ]
+      },
+      "stores": {
+        "title": "Stores",
+        "members": [
+          "org.fdroid.fdroid",
+          "com.aurora.store"
+        ]
+      },
+      "phone_comm": {
+        "title": ".b0_Communication",
+        "members": [
+          "im.vector.app",
+          "io.element.android.x",
+          "com.fsck.k9",
+          "rs.ltt.android",
+          "com.mattermost.rnbeta",
+          "io.heckel.ntfy"
+        ]
+      },
+      "phone_systools": {
+        "title": "_SysTools",
+        "members": [
+          "org.fdroid.fdroid",
+          "com.ghostsq.commander",
+          "org.kde.kdeconnect_tp",
+          "com.termux.nix",
+          "com.termux",
+          "com.termux.api"
+        ]
+      },
+      "phone_security": {
+        "title": "_Security",
+        "members": [
+          "eu.faircode.netguard",
+          "ch.protonvpn.android",
+          "com.beemdevelopment.aegis"
+        ]
+      },
+      "phone_sysinfo": {
+        "title": "_Sys_Info",
+        "members": [
+          "me.biplobsd.rsm",
+          "com.kgurgul.cpuinfo",
+          "com.dp.logcatapp"
+        ]
+      },
+      "phone_ide": {
+        "title": ".a4_IDE|Code",
+        "members": [
+          "com.viscouspot.gitsync",
+          "org.connectbot"
+        ]
+      },
+      "phone_notes": {
+        "title": ".a2_Pages|Notes",
+        "members": [
+          "com.adeeteya.markdown_editor",
+          "net.gsantner.markor",
+          "it.niedermann.owncloud.notes"
+        ]
+      },
+      "phone_todo": {
+        "title": ".a3_Todo|Calendar",
+        "members": [
+          "org.tasks",
+          "ws.xsoh.etar"
+        ]
+      },
+      "phone_dbphotos": {
+        "title": ".a1_DataBase|Photos",
+        "members": [
+          "org.fossify.gallery",
+          "org.documentfoundation.libreoffice"
+        ]
+      },
+      "phone_math": {
+        "title": ".a4_Math&Time",
+        "members": [
+          "org.solovyev.android.calculator"
+        ]
+      },
+      "phone_media": {
+        "title": ".b1_Media",
+        "members": [
+          "org.schabi.newpipe",
+          "org.videolan.vlc",
+          "org.jellyfin.mobile"
+        ]
+      },
+      "phone_learning": {
+        "title": ".b2_Learning",
+        "members": [
+          "com.ichi2.anki",
+          "org.wikipedia"
+        ]
+      },
+      "phone_audio": {
+        "title": ">Audio",
+        "members": [
+          "de.danoeh.antennapod",
+          "org.y20k.transistor",
+          "code.name.monkey.retromusic"
+        ]
+      },
+      "phone_games": {
+        "title": ">Games",
+        "members": [
+          "com.shatteredpixel.shatteredpixeldungeon",
+          "org.secuso.privacyfriendly2048"
+        ]
+      },
+      "phone_socfeed": {
+        "title": ">Social.Feed",
+        "members": [
+          "org.joinmastodon.android",
+          "com.github.libretube"
+        ]
+      },
+      "phone_utility": {
+        "title": "-Utilities",
+        "members": [
+          "me.zhanghai.android.files",
+          "org.mozilla.fennec_fdroid"
+        ]
+      },
+      "phone_health": {
+        "title": "-Health",
+        "members": [
+          "nodomain.freeyourgadget.gadgetbridge"
+        ]
+      },
+      "phone_misc": {
+        "title": "No Categorie",
+        "members": [
+          "com.rama.mako",
+          "org.fossify.phone"
+        ]
+      }
     },
-    "hotseat": ["com.diegonmarcos.superapp"],
+    "hotseat": [
+      "com.diegonmarcos.superapp"
+    ],
     "workspace": {
       "screen": 0,
       "cells": [
-        { "ref": "com.diegonmarcos.superapp", "cellX": 0, "cellY": 0 },
-        { "ref": "com.diegonmarcos.ide", "cellX": 0, "cellY": 1 },
-        { "ref": "folder:cloud_ide", "cellX": 1, "cellY": 1 },
-        { "ref": "com.foxdebug.acode", "cellX": 2, "cellY": 1 },
-        { "ref": "com.amaze.filemanager", "cellX": 3, "cellY": 1 },
-        { "ref": "com.diegonmarcos.comms", "cellX": 0, "cellY": 2 },
-        { "ref": "folder:cloud_comms", "cellX": 1, "cellY": 2 },
-        { "ref": "im.vector.app", "cellX": 2, "cellY": 2 },
-        { "ref": "com.mattermost.rnbeta", "cellX": 3, "cellY": 2 },
-        { "ref": "eu.faircode.email", "cellX": 4, "cellY": 2 },
-        { "ref": "org.fossify.messages", "cellX": 5, "cellY": 2 },
-        { "ref": "com.diegonmarcos.cloudnav", "cellX": 0, "cellY": 3 },
-        { "ref": "folder:cloud_nav", "cellX": 1, "cellY": 3 },
-        { "ref": "app.organicmaps", "cellX": 2, "cellY": 3 },
-        { "ref": "net.osmand.plus", "cellX": 3, "cellY": 3 },
-        { "ref": "folder:stores", "cellX": 0, "cellY": 4 },
-        { "ref": "org.fdroid.fdroid", "cellX": 1, "cellY": 4 },
-        { "ref": "com.aurora.store", "cellX": 2, "cellY": 4 },
-        { "ref": "com.brave.browser", "cellX": 3, "cellY": 4 },
-        { "ref": "folder:phone_comm", "screen": 1, "cellX": 0, "cellY": 0 },
-        { "ref": "folder:phone_systools", "screen": 1, "cellX": 1, "cellY": 0 },
-        { "ref": "folder:phone_security", "screen": 1, "cellX": 2, "cellY": 0 },
-        { "ref": "folder:phone_sysinfo", "screen": 1, "cellX": 3, "cellY": 0 },
-        { "ref": "folder:phone_ide", "screen": 1, "cellX": 4, "cellY": 0 },
-        { "ref": "folder:phone_notes", "screen": 1, "cellX": 5, "cellY": 0 },
-        { "ref": "folder:phone_todo", "screen": 1, "cellX": 0, "cellY": 1 },
-        { "ref": "folder:phone_dbphotos", "screen": 1, "cellX": 1, "cellY": 1 },
-        { "ref": "folder:phone_math", "screen": 1, "cellX": 2, "cellY": 1 },
-        { "ref": "folder:phone_media", "screen": 1, "cellX": 3, "cellY": 1 },
-        { "ref": "folder:phone_learning", "screen": 1, "cellX": 4, "cellY": 1 },
-        { "ref": "folder:phone_audio", "screen": 1, "cellX": 5, "cellY": 1 },
-        { "ref": "folder:phone_games", "screen": 1, "cellX": 0, "cellY": 2 },
-        { "ref": "folder:phone_socfeed", "screen": 1, "cellX": 1, "cellY": 2 },
-        { "ref": "folder:phone_utility", "screen": 1, "cellX": 2, "cellY": 2 },
-        { "ref": "folder:phone_health", "screen": 1, "cellX": 3, "cellY": 2 },
-        { "ref": "folder:phone_misc", "screen": 1, "cellX": 4, "cellY": 2 }
+        {
+          "ref": "com.diegonmarcos.superapp",
+          "cellX": 0,
+          "cellY": 0
+        },
+        {
+          "ref": "com.diegonmarcos.ide",
+          "cellX": 0,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:cloud_ide",
+          "cellX": 1,
+          "cellY": 1
+        },
+        {
+          "ref": "com.foxdebug.acode",
+          "cellX": 2,
+          "cellY": 1
+        },
+        {
+          "ref": "com.amaze.filemanager",
+          "cellX": 3,
+          "cellY": 1
+        },
+        {
+          "ref": "com.diegonmarcos.comms",
+          "cellX": 0,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:cloud_comms",
+          "cellX": 1,
+          "cellY": 2
+        },
+        {
+          "ref": "im.vector.app",
+          "cellX": 2,
+          "cellY": 2
+        },
+        {
+          "ref": "com.mattermost.rnbeta",
+          "cellX": 3,
+          "cellY": 2
+        },
+        {
+          "ref": "eu.faircode.email",
+          "cellX": 4,
+          "cellY": 2
+        },
+        {
+          "ref": "org.fossify.messages",
+          "cellX": 5,
+          "cellY": 2
+        },
+        {
+          "ref": "com.diegonmarcos.cloudnav",
+          "cellX": 0,
+          "cellY": 3
+        },
+        {
+          "ref": "folder:cloud_nav",
+          "cellX": 1,
+          "cellY": 3
+        },
+        {
+          "ref": "app.organicmaps",
+          "cellX": 2,
+          "cellY": 3
+        },
+        {
+          "ref": "net.osmand.plus",
+          "cellX": 3,
+          "cellY": 3
+        },
+        {
+          "ref": "folder:stores",
+          "cellX": 0,
+          "cellY": 4
+        },
+        {
+          "ref": "org.fdroid.fdroid",
+          "cellX": 1,
+          "cellY": 4
+        },
+        {
+          "ref": "com.aurora.store",
+          "cellX": 2,
+          "cellY": 4
+        },
+        {
+          "ref": "com.brave.browser",
+          "cellX": 3,
+          "cellY": 4
+        },
+        {
+          "ref": "folder:phone_comm",
+          "screen": 1,
+          "cellX": 0,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_systools",
+          "screen": 1,
+          "cellX": 1,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_security",
+          "screen": 1,
+          "cellX": 2,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_sysinfo",
+          "screen": 1,
+          "cellX": 3,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_ide",
+          "screen": 1,
+          "cellX": 4,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_notes",
+          "screen": 1,
+          "cellX": 5,
+          "cellY": 0
+        },
+        {
+          "ref": "folder:phone_todo",
+          "screen": 1,
+          "cellX": 0,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_dbphotos",
+          "screen": 1,
+          "cellX": 1,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_math",
+          "screen": 1,
+          "cellX": 2,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_media",
+          "screen": 1,
+          "cellX": 3,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_learning",
+          "screen": 1,
+          "cellX": 4,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_audio",
+          "screen": 1,
+          "cellX": 5,
+          "cellY": 1
+        },
+        {
+          "ref": "folder:phone_games",
+          "screen": 1,
+          "cellX": 0,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_socfeed",
+          "screen": 1,
+          "cellX": 1,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_utility",
+          "screen": 1,
+          "cellX": 2,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_health",
+          "screen": 1,
+          "cellX": 3,
+          "cellY": 2
+        },
+        {
+          "ref": "folder:phone_misc",
+          "screen": 1,
+          "cellX": 4,
+          "cellY": 2
+        }
       ]
     }
   },
@@ -285,7 +1318,13 @@
     "_doc": "dark_mode toggles Android night UI (cmd uimode night). AOSP 13's `cmd wallpaper` has NO set-image subcommand (only dim controls), so a generated image can't be pushed from the host — instead wallpaper.dim (1.0 = fully black) is set via `cmd wallpaper set-dim-amount`, reliably yielding a solid-black background. auto_rotate sets system accelerometer_rotation=1. icon_theme applies Android 13's Material You engine (settings_secure theme_customization_overlay_packages) so icons/accents match the style captured live from a manually-configured session on 2026-08-22: color_source home_wallpaper derives the palette from the wallpaper itself, theme_style SPRITZ is the neutral/near-monochrome style (AOSP defaults to the colorful TONAL_SPOT) that produces the dark-icon look, color_both applies it to both light and dark UI so icons stay themed regardless of day/night state.",
     "dark_mode": true,
     "auto_rotate": true,
-    "wallpaper": { "dim": 1 },
-    "icon_theme": { "color_source": "home_wallpaper", "theme_style": "SPRITZ", "color_both": true }
+    "wallpaper": {
+      "dim": 1
+    },
+    "icon_theme": {
+      "color_source": "home_wallpaper",
+      "theme_style": "SPRITZ",
+      "color_both": true
+    }
   }
 }
