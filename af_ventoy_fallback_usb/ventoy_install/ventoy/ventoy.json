@@ -1,0 +1,57 @@
+{
+  "control": [
+    { "VTOY_DEFAULT_MENU_MODE": "1" },
+    { "VTOY_LINUX_REMOUNT": "1" },
+    { "VTOY_FILT_DOT_UNDERSCORE_FILE": "1" },
+    { "VTOY_DEFAULT_SEARCH_ROOT": "/" },
+    { "VTOY_MENU_TIMEOUT": "10" }
+  ],
+  "theme": {
+    "display_mode": "GUI",
+    "gfxmode": "1920x1280",
+    "ventoy_left": "5%",
+    "ventoy_top": "20%",
+    "ventoy_color": "#ffffff"
+  },
+  "menu_class": [
+    { "key": "debian", "class": "debian" },
+    { "key": "nixos", "class": "nixos" }
+  ],
+  "menu_alias": [
+    {
+      "image": "/debian-surface-live.iso",
+      "alias": "Debian Surface Recovery"
+    },
+    {
+      "image": "/my-konsole.iso",
+      "alias": "my-konsole"
+    }
+  ],
+  "menu_tip": [
+    {
+      "image": "/debian-surface-live.iso",
+      "tip": "Debian 12 + linux-surface (~823MB) - Openbox GUI, Claude Code"
+    },
+    {
+      "image": "/my-konsole.iso",
+      "tip": "NixOS 24.11 + linux-surface (~700MB) - Openbox GUI, Claude Code"
+    }
+  ],
+  "image_list_extra": [
+    {
+      "image": "/debian-surface-live.iso",
+      "tip": "@@Press F2 for boot options (toram loads to RAM)@@"
+    },
+    {
+      "image": "/my-konsole.iso",
+      "tip": "@@Press F2 for boot options (copytoram loads to RAM)@@"
+    }
+  ],
+  "conf_replace": [
+    {
+      "image": "/debian-surface-live.iso",
+      "org": "boot=live",
+      "new": "boot=live toram"
+    }
+  ]
+}
