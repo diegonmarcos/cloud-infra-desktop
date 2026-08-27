@@ -240,11 +240,11 @@
     "unix-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1787847879,
-        "narHash": "sha256-tGd5wRrSuhdux4lNcPpgEugvZgV5mEv+HJbOdIv6rlA=",
+        "lastModified": 1787849861,
+        "narHash": "sha256-4t8bWXoDQWMRvNQX8DGi9qXEEFPvyKv8mEcPgPp5Ozc=",
         "owner": "diegonmarcos",
         "repo": "cloud-unix",
-        "rev": "c27c36fdcae2491b05d845117a75743854963e45",
+        "rev": "6055379fc65a1c7dd887fabcafa1cafce3de7746",
         "type": "github"
       },
       "original": {
