@@ -253,3 +253,17 @@ I_cloud/
 # stays ignored.
 !dtk/.vscode/
 !dtk/.vscode/**
+
+# The d* unix apps moved out to cloud-u-linux (2026-08-27). Their working
+# copies are still on disk here — build state, target/, vendor/ — but nothing
+# under them is tracked in this repo any more, and every file is tracked in
+# cloud-u-linux. Left un-ignored, a single `git add -A` re-commits the whole
+# split-out tree back into the repo it was just carved out of, silently
+# undoing part 2 of the migration. Ignore rather than delete: the local
+# checkouts are still built against, so removing them is the user's call.
+da__my-konsole/
+da_dtk/
+da_my-ai/
+db_autofill-rbw-rofi/
+db_fido2-vault-broker/
+db_my-browser-qute/
