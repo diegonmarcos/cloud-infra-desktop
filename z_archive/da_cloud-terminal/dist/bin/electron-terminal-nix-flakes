@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+export ET_PROFILE="nix-flakes"
+export ET_PROFILES_DIR="/home/diego/git/unix/da_electron-terminal/src/data"
+export ET_ICON="/home/diego/git/unix/da_electron-terminal/src/assets/nix-flakes.png"
+export ET_PANEL="/home/diego/git/unix/da_electron-terminal/lib/panel.html"
+export ET_BASH="${ET_BASH:-/bin/bash}"
+export ET_SWITCH_GUI="${ET_SWITCH_GUI:-/home/diego/git/unix/da_electron-terminal/src/scripts/switch-gui.sh}"
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+exec "/nix/store/drgbqwaxzvyzn0sksvzvhpr6k9y564r2-electron-37.10.2/bin/electron" "/home/diego/git/unix/da_electron-terminal/src/scripts/dist/main.js" "$@"

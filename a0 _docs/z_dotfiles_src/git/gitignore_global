@@ -1,0 +1,111 @@
+# Global gitignore - Dual Profile Architecture
+# Installed to ~/.gitignore_global
+
+# ============================================
+# OS GENERATED
+# ============================================
+# macOS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+
+# Linux
+*~
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# ============================================
+# EDITORS & IDEs
+# ============================================
+# VS Code
+.vscode/
+*.code-workspace
+
+# JetBrains
+.idea/
+*.iml
+*.iws
+*.ipr
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+.#*
+
+# Sublime Text
+*.sublime-workspace
+*.sublime-project
+
+# ============================================
+# BUILD & DEPENDENCIES
+# ============================================
+node_modules/
+bower_components/
+vendor/
+dist/
+build/
+*.egg-info/
+__pycache__/
+*.pyc
+*.pyo
+.eggs/
+*.egg
+.cache/
+.parcel-cache/
+
+# ============================================
+# ENVIRONMENT & SECRETS
+# ============================================
+.env
+.env.local
+.env.*.local
+.envrc
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+
+# ============================================
+# LOGS & DATABASES
+# ============================================
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.sqlite
+*.sqlite3
+*.db
+
+# ============================================
+# TESTING & COVERAGE
+# ============================================
+coverage/
+.nyc_output/
+.coverage
+htmlcov/
+.pytest_cache/
+.tox/
+
+# ============================================
+# MISC
+# ============================================
+*.tmp
+*.temp
+*.bak
+*.backup
+*.orig
+.sass-cache/
