@@ -201,7 +201,14 @@ in
     # (projectOnboardingSeenCount=12 for /home/diego), which is what made it look
     # like a dismissal bug rather than a config-wipe bug. Any key the CLI owns
     # and we do not declare belongs in this list, or every rebuild deletes it.
-    RUNTIME_KEYS='["effortLevel","autoMode","model","tui"]'
+    #
+    # 2026-08-27: effortLevel LEFT this list. It is now declared in
+    # settings.base.json ("max"), so the SoT is the default and a switch
+    # re-asserts it. /effort still works — it just lasts until the next switch,
+    # which is what "default" means. A key cannot be both declared and
+    # runtime-owned: the runtime copy is merged on top, so it would always win
+    # and the declaration would be decoration.
+    RUNTIME_KEYS='["autoMode","model","tui"]'
     KEEP=""
     if [ -f "$DST" ] && [ ! -L "$DST" ]; then
       KEEP=$("$JQ" -c --argjson k "$RUNTIME_KEYS" \

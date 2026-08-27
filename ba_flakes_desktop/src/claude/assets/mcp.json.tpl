@@ -16,6 +16,11 @@
       },
       "alwaysLoad": false
     },
+    "cloud-cgc-pvt-mcp": {
+      "type": "http",
+      "url": "http://10.0.0.6:3107/mcp",
+      "alwaysLoad": false
+    },
     "cloud-cgc-pub-mcp-local": {
       "type": "stdio",
       "command": "/home/diego/.claude/mcp-local-launch.sh",
