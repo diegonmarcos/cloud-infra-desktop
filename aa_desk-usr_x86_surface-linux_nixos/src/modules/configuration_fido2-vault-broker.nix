@@ -1,7 +1,7 @@
 # Host-side enable + config for the fido2-vault-broker NixOS module.
 #
 # The module itself lives in the daemon repo at
-# `~/git/cloud-unix/da_fido2-vault-broker/src/nix/module.nix`, imported by PLAIN
+# `~/git/cloud-unix/db_fido2-vault-broker/src/nix/module.nix`, imported by PLAIN
 # PATH in the host flake.nix modules list (NOT a flake input — nix 2.24
 # cannot lock relative-path flake inputs; see the NOTE in flake.nix).
 # Because the path import skips the subflake's package-defaulting wrapper,
@@ -29,6 +29,6 @@
     # Built with pkgsUnstable: the broker's Cargo.lock pins base64ct 1.8.3
     # (edition 2024), which stable 24.11's cargo < 1.85 cannot parse —
     # 2026-06-12 switch failure. Unstable's rustPlatform handles it.
-    package = pkgsUnstable.callPackage ../../../da_fido2-vault-broker/src/nix/package.nix { };
+    package = pkgsUnstable.callPackage ../../../db_fido2-vault-broker/src/nix/package.nix { };
   };
 }

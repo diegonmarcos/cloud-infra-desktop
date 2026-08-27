@@ -33,8 +33,8 @@
     # or re-fetch relative-path flake inputs inside a git flake (every
     # `nix flake update`/eval died on it, 2026-06-11/12). Its NixOS module
     # + package are composed by PLAIN PATH IMPORT instead:
-    # module:  ../../da_fido2-vault-broker/src/nix/module.nix  (modules list)
-    # package: ../../da_fido2-vault-broker/src/nix/package.nix (set in
+    # module:  ../../db_fido2-vault-broker/src/nix/module.nix  (modules list)
+    # package: ../../db_fido2-vault-broker/src/nix/package.nix (set in
     #          ./modules/configuration_fido2-vault-broker.nix via callPackage)
     # Revisit as a proper input when nix >= 2.26 (native relative-path flakes).
 
@@ -83,7 +83,7 @@
         # composed by plain path import (see inputs NOTE above).
         # Brings: boot.kernelModules += "uhid", /dev/uhid udev rule, `uhid` +
         # `tss` group membership for diego, security.tpm2 for /dev/tpmrm0.
-        ../../da_fido2-vault-broker/src/nix/module.nix
+        ../../db_fido2-vault-broker/src/nix/module.nix
         ./modules/configuration_fido2-vault-broker.nix
 
         # Waydroid sensors HAL UNWIRED 2026-07-01 — waydroid disabled entirely.
