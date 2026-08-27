@@ -69,13 +69,19 @@ evaluate() {
 }
 
 # ── wait for plasmashell ──────────────────────────────────────────────────
-i=0
-while [ "$i" -lt 60 ]; do
-  evaluate "print('up')" 2>/dev/null | grep -q up && break
-  i=$((i + 1))
-  sleep 1
-done
-[ "$i" -lt 60 ] || { log "plasmashell never answered on D-Bus — giving up"; exit 0; }
+# A function because the tray step restarts plasmashell and has to wait for the
+# replacement in exactly the same way.
+wait_for_plasmashell() {
+  i=0
+  while [ "$i" -lt 60 ]; do
+    evaluate "print('up')" 2>/dev/null | grep -q up && return 0
+    i=$((i + 1))
+    sleep 1
+  done
+  return 1
+}
+
+wait_for_plasmashell || { log "plasmashell never answered on D-Bus — giving up"; exit 0; }
 
 # Tray containment ids, ascending = creation order = the order the systemtray
 # widgets appear in panels.json. Read twice: once for the gate below, once
@@ -128,6 +134,7 @@ live_geom=$(evaluate 'print(panels().map(function (p) { return p.location + "=" 
 # nine, missing exactly waydroid-container-mobile.desktop, with every run
 # logging "nothing to do". Widget indices line up with the declaration because
 # the layout term above has already established that the plugin sequence does.
+# shellcheck disable=SC2016  # jq program: $p/$w are jq vars, must NOT be shell-expanded
 CFG_ADDR='[.panels | to_entries[] as $p | $p.value.widgets | to_entries[] as $w
   | (($w.value.config // {}) | to_entries[]) as $g | $g.value | to_entries[]
   | { p: $p.key, w: $w.key, g: $g.key, k: .key, v: .value }]'
@@ -243,10 +250,15 @@ fi
 # safe to run whether or not the layout was just rebuilt (after a rebuild it is
 # a no-op re-assert). It exists as its own step precisely because it must NOT
 # require the destroy/recreate that the layout gate is there to avoid.
-if [ "$live_geom" != "$want_geom" ]; then
-  log "geometry differs — setting in place"
-  log "  live: $live_geom"
-  log "  want: $want_geom"
+# It is a FUNCTION because the tray step below restarts plasmashell, and a
+# restart discards every panel property plasma has not yet flushed to
+# plasmashellrc — that flush is on a deferred timer, so "set it, then restart"
+# loses the setting. 2026-08-27 21:48 is the worked example: a switch wrote the
+# tray lists, restarted plasmashell, recorded the state hash, and the panels
+# came back at plasma default 30px floating instead of the declared 70/40.
+# cur_hash matched old_hash from then on, so every later run said "nothing to
+# do" over a visibly wrong desktop.
+apply_geometry() {
   n=0
   while [ "$n" -lt "$want" ]; do
     js=$(jq -r --argjson n "$n" '.panels[$n] |
@@ -255,7 +267,14 @@ if [ "$live_geom" != "$want_geom" ]; then
     n=$((n + 1))
   done
   got=$(evaluate 'print(panels().map(function (p) { return p.location + "=" + p.height + "," + p.floating + "," + p.alignment; }).join("|"));' 2>/dev/null | tr -d '\r')
-  if [ "$got" != "$want_geom" ]; then
+  [ "$got" = "$want_geom" ]
+}
+
+if [ "$live_geom" != "$want_geom" ]; then
+  log "geometry differs — setting in place"
+  log "  live: $live_geom"
+  log "  want: $want_geom"
+  if ! apply_geometry; then
     log "ERROR: geometry did not take — leaving state unset so this retries"
     log "  got: $got"
     exit 1
@@ -377,8 +396,19 @@ else
   # at login the hash already matches and we never get here at all.
   if [ "${PANELS_ALLOW_RESTART:-0}" = "1" ] && command -v systemctl >/dev/null 2>&1; then
     log "restarting plasmashell so the tray lists take effect"
-    systemctl --user restart plasma-plasmashell.service || \
+    if systemctl --user restart plasma-plasmashell.service; then
+      # The replacement shell restores itself from plasmashellrc, which is why
+      # geometry is re-asserted here rather than trusted to survive.
+      if wait_for_plasmashell && apply_geometry; then
+        log "geometry re-asserted after restart: $got"
+      else
+        log "ERROR: geometry lost to the restart — leaving state unset so this retries"
+        log "  got: ${got:-<no answer>}"
+        exit 1
+      fi
+    else
       log "plasmashell restart failed — tray lists apply at next login"
+    fi
   else
     log "tray lists apply at next plasmashell start"
   fi

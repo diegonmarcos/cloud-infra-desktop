@@ -123,7 +123,7 @@
                 "applications:org.kde.kate.desktop",
                 "applications:obsidian.desktop",
                 "applications:brave-browser.desktop",
-                "applications:org.qutebrowser.qutebrowser.desktop",
+                "applications:org.mybrowser.qute.desktop",
                 "applications:systemsettings.desktop",
                 "applications:waydroid-container.desktop",
                 "applications:waydroid-container-mobile.desktop"
