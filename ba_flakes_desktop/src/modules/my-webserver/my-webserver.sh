@@ -20,6 +20,57 @@ PORT="${2:-8000}"
 DIR="${3:-$HOME}"
 PID_FILE="$HOME/.cache/my-webserver.pid"
 
+usage() {
+  cat <<EOF
+my-webserver — local file server (Markdown, JSON/YAML tables, Eruda DevTools)
+
+USAGE
+  my-webserver [COMMAND] [PORT] [DIR]
+
+COMMANDS
+  start           start if not already running; prints the PID   (default)
+  stop            kill the running instance and clear the PID file
+  status          report running state, PID, and URL
+  restart         stop then start
+  -h, --help      show this help
+
+ARGUMENTS
+  PORT            TCP port to bind          (default: 8000)
+  DIR             directory to serve as /   (default: \$HOME)
+
+  Both are positional and only read when a COMMAND is given first:
+    my-webserver start 8001 ~/git
+
+BINDING
+  Listens on 127.0.0.1 only — not reachable from the network. Putting a
+  reverse proxy in front of it publishes DIR to whoever can reach the proxy.
+
+ROUTES
+  /<path>              file, or <path>/index.html, else an SPA directory browse
+  /__api__/ls?path=..  directory listing as JSON
+
+  There is no route table: URL paths map straight onto the filesystem under
+  DIR, so a directory or symlink IS the alias.
+    ln -s ~/git/cloud-unix/da_watchdog/reports ~/watchdog   ->  :8000/watchdog/
+
+WRITE API
+  /__api__/write and /__api__/git are disabled here and fail closed. They are
+  used on termux. Enabling needs all three of HTTPD_WRITE=1,
+  HTTPD_WRITE_ROOTS, and HTTPD_WRITE_TOKEN_FILE — see bb_flakes_termux.
+
+FILES
+  \$HOME/.cache/my-webserver.pid   PID of the instance this wrapper started
+
+ENVIRONMENT
+  HTTPD_WEB_SERVER_BIN   path to the SEA binary (set by Nix; required)
+
+NOTES
+  A systemd user service already runs \`my-webserver 8000 \$HOME\` at login,
+  so DIR defaults to serving your whole home directory — dotfiles included.
+  Serve a narrower DIR for anything you would not want read.
+EOF
+}
+
 is_running() {
   [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE" 2>/dev/null)" 2>/dev/null
 }
@@ -61,9 +112,10 @@ do_status() {
 }
 
 case "${1:-start}" in
-  start)   do_start ;;
-  stop)    do_stop ;;
-  status)  do_status ;;
-  restart) do_stop; do_start ;;
-  *)       echo "Usage: my-webserver {start|stop|status|restart} [port] [dir]"; exit 1 ;;
+  start)      do_start ;;
+  stop)       do_stop ;;
+  status)     do_status ;;
+  restart)    do_stop; do_start ;;
+  -h|--help)  usage ;;
+  *)          usage >&2; exit 1 ;;
 esac
