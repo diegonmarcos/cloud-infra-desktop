@@ -105,8 +105,8 @@ sudo mount -o subvol=@shared    /dev/mapper/pool /mnt/pool-shared
 ### Get into NixOS to fix it
 ```bash
 ./install.sh mount-pool
-# Then chroot in (mirrors @home-diego/git/cloud-unix/rescue-chroot-nixos.sh):
-sudo /mnt/pool/@home-diego/git/cloud-unix/rescue-chroot-nixos.sh
+# Then chroot in (mirrors @home-diego/git/cloud-infra-desktop/rescue-chroot-nixos.sh):
+sudo /mnt/pool/@home-diego/git/cloud-infra-desktop/rescue-chroot-nixos.sh
 ```
 
 ### Verify everything is installed
@@ -129,8 +129,8 @@ sudo /mnt/pool/@home-diego/git/cloud-unix/rescue-chroot-nixos.sh
 | `/etc/profile.d/zz-quickref.sh` | bash login → cats `/etc/quickref`. |
 | `/etc/fish/conf.d/quickref.fish` | fish `fish_greeting` → cats `/etc/quickref`. |
 | `~/README.md` | This file. |
-| `~/git/cloud-unix/rescue-os-debian/` | The install scripts (copied here during bootstrap so they work without the pool unlocked). |
-| `~/git/cloud-unix/...` (full tree) | Available once you `./install.sh mount-pool`. |
+| `~/git/cloud-infra-desktop/rescue-os-debian/` | The install scripts (copied here during bootstrap so they work without the pool unlocked). |
+| `~/git/cloud-infra-desktop/...` (full tree) | Available once you `./install.sh mount-pool`. |
 
 ---
 

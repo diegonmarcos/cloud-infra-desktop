@@ -9,8 +9,8 @@
   },
 
   "consumers": [
-    "~/git/cloud-unix/aa_nixos-surface_host/src/modules/configuration_display.nix (SDDM login Background)",
-    "~/git/cloud-unix/ba_flakes_desktop/src/modules/desktop/plasma.nix (workspace.wallpaper + lockScreenWallpaper activation)"
+    "~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/configuration_display.nix (SDDM login Background)",
+    "~/git/cloud-infra-desktop/ba_flakes_desktop/src/modules/desktop/plasma.nix (workspace.wallpaper + lockScreenWallpaper activation)"
   ],
 
   "testers": {
@@ -40,8 +40,8 @@
   "deployment": {
     "_comment": "After editing this JSON, both flakes need a rebuild for SDDM and home-manager to pick up the new value.",
     "reload_commands": [
-      "cd ~/git/cloud-unix/aa_nixos-surface_host && ./build.sh switch",
-      "cd ~/git/cloud-unix/ba_flakes_desktop && ./build.sh switch"
+      "cd ~/git/cloud-infra-desktop/aa_nixos-surface_host && ./build.sh switch",
+      "cd ~/git/cloud-infra-desktop/ba_flakes_desktop && ./build.sh switch"
     ]
   }
 }

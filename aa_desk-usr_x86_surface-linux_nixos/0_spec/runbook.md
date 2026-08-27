@@ -64,7 +64,7 @@
 ### Update System
 
 ```bash
-cd /home/diego/mnt_git/cloud-unix/a_nixos_host
+cd /home/diego/mnt_git/cloud-infra-desktop/a_nixos_host
 
 # Update flake inputs
 nix flake update
@@ -226,13 +226,13 @@ waydroid session stop
 
 ```bash
 # Mount all (script)
-~/mnt_git/cloud-unix/b_mnt/mount.sh start
+~/mnt_git/cloud-infra-desktop/b_mnt/mount.sh start
 
 # Unmount all
-~/mnt_git/cloud-unix/b_mnt/mount.sh stop
+~/mnt_git/cloud-infra-desktop/b_mnt/mount.sh stop
 
 # Check status
-~/mnt_git/cloud-unix/b_mnt/mount.sh status
+~/mnt_git/cloud-infra-desktop/b_mnt/mount.sh status
 
 # Manual rclone mount
 rclone mount gdrive_dnm: ~/mnt_cloud/gdrive_personal --vfs-cache-mode writes --daemon
@@ -493,13 +493,13 @@ btrfs subvolume snapshot /mnt/root-nixos /mnt/@system/nix
 
 | File | Path |
 |------|------|
-| **Flake** | `/home/diego/mnt_git/cloud-unix/a_nixos_host/flake.nix` |
-| **Configuration** | `/home/diego/mnt_git/cloud-unix/a_nixos_host/configuration.nix` |
-| **Hardware Config** | `/home/diego/mnt_git/cloud-unix/a_nixos_host/hardware-configuration.nix` |
-| **Architecture Spec** | `/home/diego/mnt_git/cloud-unix/0_spec/ARCHITECTURE.md` |
-| **Disk Layout Spec** | `/home/diego/mnt_git/cloud-unix/0_spec/DISK_LAYOUT.md` |
-| **Roadmap** | `/home/diego/mnt_git/cloud-unix/0_spec/ROADMAP.md` |
-| **Kali Setup** | `/home/diego/mnt_git/cloud-unix/a_kali_security/SETUP.md` |
+| **Flake** | `/home/diego/mnt_git/cloud-infra-desktop/a_nixos_host/flake.nix` |
+| **Configuration** | `/home/diego/mnt_git/cloud-infra-desktop/a_nixos_host/configuration.nix` |
+| **Hardware Config** | `/home/diego/mnt_git/cloud-infra-desktop/a_nixos_host/hardware-configuration.nix` |
+| **Architecture Spec** | `/home/diego/mnt_git/cloud-infra-desktop/0_spec/ARCHITECTURE.md` |
+| **Disk Layout Spec** | `/home/diego/mnt_git/cloud-infra-desktop/0_spec/DISK_LAYOUT.md` |
+| **Roadmap** | `/home/diego/mnt_git/cloud-infra-desktop/0_spec/ROADMAP.md` |
+| **Kali Setup** | `/home/diego/mnt_git/cloud-infra-desktop/a_kali_security/SETUP.md` |
 | **Vault File** | `/home/user/vault.tomb` |
 | **Vault Key** | `/media/VTOYEFI/.vault/vault.key` (USB) |
 | **LUKS Key** | `/media/VTOYEFI/.luks/surface.key` (USB) |

@@ -24,7 +24,7 @@ EMU="@sdk@/bin/emulator"
 sel="$(kdialog --title "Android Emulator" --menu "Choose a profile to boot:" @menuArgs@)" || exit 0
 avd="superapp-$sel"
 if [ ! -d "$ANDROID_AVD_HOME/$avd.avd" ]; then
-  kdialog --error "AVD '$avd' not found. Run:\n  cd ~/git/cloud-unix/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
+  kdialog --error "AVD '$avd' not found. Run:\n  cd ~/git/cloud-infra-desktop/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
   exit 1
 fi
 

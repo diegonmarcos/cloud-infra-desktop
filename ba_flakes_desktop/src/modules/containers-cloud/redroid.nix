@@ -1,7 +1,7 @@
 # containers-cloud/redroid.nix — desktop launcher for the Redroid Android container.
 #
 # Redroid replaces Waydroid. The container, app set, launcher layout and theme are all
-# owned by the data-driven engine at ~/git/cloud-unix/da_redroid/build.sh (nothing hardcoded
+# owned by the data-driven engine at ~/git/cloud-infra-desktop/da_redroid/build.sh (nothing hardcoded
 # here). This HM module only provides the user-facing launcher: a `.local/bin/redroid`
 # wrapper + a KDE `.desktop` entry that brings the container up ON DEMAND and mirrors it
 # with scrcpy. NO systemd user service, NO autostart, NO watchdog-respawn — that was the
@@ -9,7 +9,7 @@
 # module configuration_redroid.nix.
 { config, pkgs, lib, ... }:
 let
-  engine = "$HOME/git/cloud-unix/da_redroid/build.sh";
+  engine = "$HOME/git/cloud-infra-desktop/da_redroid/build.sh";
 in {
   # `redroid` — bring the container up and mirror it (GUI-bound: closing the scrcpy
   # window stops the container). `redroid down` stops it. Thin wrapper over the engine

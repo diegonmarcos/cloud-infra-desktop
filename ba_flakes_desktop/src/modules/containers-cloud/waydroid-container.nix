@@ -13,7 +13,7 @@
 # (`waydroid up stream` / `waydroid up vnc`).
 #
 # Everything (container, boot, native/stream wiring, teardown) is owned by the
-# data-driven engine at ~/git/cloud-unix/da_waydroid-container/build.sh. The image is built
+# data-driven engine at ~/git/cloud-infra-desktop/da_waydroid-container/build.sh. The image is built
 # in GHA → GHCR (ship-waydroid-container). Baked INTO that image is a self-contained
 # launcher (build.json embedded) that `build.sh install` docker-cp's out to
 # ~/.local/bin/waydroid — so the launch command is a real binary in the user's bin,
@@ -23,7 +23,7 @@
 # desktop-session Waydroid's ghost-process class of bug.
 { config, pkgs, lib, ... }:
 let
-  engine = "$HOME/git/cloud-unix/da_waydroid-container/build.sh";
+  engine = "$HOME/git/cloud-infra-desktop/da_waydroid-container/build.sh";
   binary = "$HOME/.local/bin/waydroid";
   desktopId = "waydroid-container";
 in {

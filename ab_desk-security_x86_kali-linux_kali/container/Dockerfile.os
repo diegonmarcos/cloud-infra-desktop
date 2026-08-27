@@ -28,11 +28,11 @@ ENV DEBIAN_FRONTEND=noninteractive \
     LANG=${LANG_} \
     LC_ALL=${LANG_}
 
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-unix" \
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra-desktop" \
       org.opencontainers.image.description="Kali Linux — full toolkit + GUI. Bind-mount kali-data for wordlists/exploitdb/seclists." \
       org.opencontainers.image.licenses="GPL-3.0-or-later" \
       org.opencontainers.image.title="kali-os" \
-      org.opencontainers.image.documentation="https://github.com/diegonmarcos/cloud-unix/tree/main/ab_fallback_os/ab_kali_security/container"
+      org.opencontainers.image.documentation="https://github.com/diegonmarcos/cloud-infra-desktop/tree/main/ab_fallback_os/ab_kali_security/container"
 
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 

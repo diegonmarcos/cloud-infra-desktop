@@ -210,10 +210,10 @@ grep -q 'WAKELOCK_STAMP\|wake_lock_held' "$SCRIPT" \
 # The APK and the flake are two separately-deployed halves of one mechanism,
 # and every failure between them is silent: the phone simply never comes up.
 # These assertions are the only thing holding the halves together.
-# The APK moved to the cloud-android repo (2026-08-27) — it is an Android
+# The APK moved to the cloud-u-android repo (2026-08-27) — it is an Android
 # product, not a flake. Override CLOUD_ANDROID to test against a checkout
 # elsewhere; the [ -f ] guard below reports honestly when it is absent.
-APK="${CLOUD_ANDROID:-$HOME/git/cloud-android}/a_solutions/ae-tool_termux-boot"
+APK="${CLOUD_ANDROID:-$HOME/git/cloud-u-android}/a_solutions/ae-tool_termux-boot"
 
 # RunCommandService refuses every foreign package unless this is set, and
 # Cloud Unix Termux Boot is necessarily foreign (it cannot share the uid without the

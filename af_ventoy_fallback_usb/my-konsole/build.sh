@@ -26,7 +26,7 @@ log_err()  { printf "${RED}[ERROR]${NC} %s\n" "$1"; exit 1; }
 
 build_iso() {
     log_err "local ISO builds are disabled — the ISO is built on GitHub Actions only.
-  Trigger:  gh workflow run ship-my-konsole-iso.yml --repo diegonmarcos/cloud-unix
+  Trigger:  gh workflow run ship-my-konsole-iso.yml --repo diegonmarcos/cloud-infra-desktop
   Watch:    gh run watch \$(gh run list -w ship-my-konsole-iso.yml -L1 --json databaseId -q '.[0].databaseId')
   Consume:  ./build.sh install-partition   (downloads the my-konsole-iso-latest release)"
 }
@@ -208,7 +208,7 @@ install_partition() {
         log_ok "VERIFY: no rEFInd-incompatible ext4 features on $DEV (mountable by ext4_x64.efi)"
     fi
 
-    log_ok "p8 populated. Now wire boot menus:  cd ~/git/cloud-unix/aa_bootloader && ./build.sh deploy-refind deploy-grub"
+    log_ok "p8 populated. Now wire boot menus:  cd ~/git/cloud-infra-desktop/aa_bootloader && ./build.sh deploy-refind deploy-grub"
 }
 
 clean() {

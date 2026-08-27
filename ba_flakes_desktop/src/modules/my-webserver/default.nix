@@ -15,7 +15,7 @@ let
   archMap = { "x86_64-linux" = "x86_64"; "aarch64-linux" = "aarch64"; };
   arch    = archMap.${pkgs.stdenv.hostPlatform.system}
               or (throw "my-webserver: unsupported platform ${pkgs.stdenv.hostPlatform.system}");
-  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/my-webserver-latest";
+  baseUrl = "https://github.com/diegonmarcos/cloud-u-linux/releases/download/my-webserver-latest";
   sys     = hashes.${pkgs.stdenv.hostPlatform.system};
 
   # The fetched binary is the official nodejs.org release (see

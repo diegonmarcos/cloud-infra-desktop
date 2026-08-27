@@ -7,7 +7,7 @@ could not be pushed from the session that wrote them.
 ## Why they live here
 
 This monorepo's automation runs with git credentials scoped to
-`diegonmarcos/cloud-unix`. Reading `cloud` works (it is public), but pushing is
+`diegonmarcos/cloud-infra-desktop`. Reading `cloud` works (it is public), but pushing is
 refused by the proxy:
 
     access denied by the git proxy: diegonmarcos/cloud-infra is not in this
@@ -55,7 +55,7 @@ against a pristine clone of current `main`.
 
 - **The `gh` token on the host bounds everything.** Widening the tool
   surface does not widen the credential — if that token lacks `workflow`
-  scope or cannot see `diegonmarcos/cloud-unix`, the new `repo` parameters
+  scope or cannot see `diegonmarcos/cloud-infra-desktop`, the new `repo` parameters
   return "not found" rather than acting.
 - **Destructive tools require `confirm=true`** (pr_merge, pr_close,
   issue_close, release_delete, secret_delete, any non-GET `api`). These sit

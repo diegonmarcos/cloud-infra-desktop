@@ -21,11 +21,11 @@ Install Kali Linux on Surface Pro with linux-surface kernel for keyboard/touchsc
 
 ```bash
 # From the running host
-cd ~/git/cloud-unix/ab_fallback_os/ab_kali_security/os_debootstrap
+cd ~/git/cloud-infra-desktop/ab_fallback_os/ab_kali_security/os_debootstrap
 sudo ./install-kali.sh
 
 # After completion — re-render rEFInd menu via the bootloader engine
-cd ~/git/cloud-unix/aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind
+cd ~/git/cloud-infra-desktop/aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind
 sudo reboot
 ```
 
@@ -171,12 +171,12 @@ sudo systemctl restart iptsd
 
 From any other running Linux (preferred: `tools/chroot-into kali`):
 ```bash
-sudo ~/git/cloud-unix/tools/chroot-into/chroot-into.sh kali
+sudo ~/git/cloud-infra-desktop/tools/chroot-into/chroot-into.sh kali
 # inside chroot:
 update-initramfs -u -k all
 exit
 # back on host — re-render rEFInd menu
-cd ~/git/cloud-unix/aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind
+cd ~/git/cloud-infra-desktop/aa_bootloader && YES=1 ./build.sh generate && YES=1 ./build.sh deploy --target refind
 ```
 
 ## Post-Install: Kali Tools

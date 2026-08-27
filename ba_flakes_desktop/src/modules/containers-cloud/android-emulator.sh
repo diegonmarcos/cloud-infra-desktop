@@ -29,7 +29,7 @@ set -euo pipefail
 CONFIG_JSON="${ANDROID_EMULATOR_CONFIG_JSON:-$HOME/.config/cloud-data/android-emulator.json}"
 
 if [ ! -r "$CONFIG_JSON" ] || ! jq -e . "$CONFIG_JSON" >/dev/null 2>&1; then
-  kdialog --error "Missing/unreadable $CONFIG_JSON.\nRun:\n  cd ~/git/cloud-unix/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
+  kdialog --error "Missing/unreadable $CONFIG_JSON.\nRun:\n  cd ~/git/cloud-infra-desktop/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
   exit 1
 fi
 
@@ -55,7 +55,7 @@ mapfile -t MENU_ARGS < <(jq -r '.profiles[] | .id, (.label + " (" + .hw["hw.ramS
 sel="$(kdialog --title "Android Emulator" --menu "Choose a profile to boot:" "${MENU_ARGS[@]}")" || exit 0
 avd="superapp-$sel"
 if [ ! -d "$ANDROID_AVD_HOME/$avd.avd" ]; then
-  kdialog --error "AVD '$avd' not found. Run:\n  cd ~/git/cloud-unix/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
+  kdialog --error "AVD '$avd' not found. Run:\n  cd ~/git/cloud-infra-desktop/ba_flakes_desktop && ./build.sh switch surface" 2>/dev/null || true
   exit 1
 fi
 
@@ -102,7 +102,7 @@ jq -c '.provisioning.apps[]' "$CONFIG_JSON" | while IFS= read -r app; do
     if [ -f "$APK" ]; then
       echo "[provision] installing $pkg ($abi)…"; "$ADB" install -r "$APK" || true
     else
-      kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/cloud-android/aa_cloud-superapp && SUPERAPP_VARIANT=$abi ./build.sh build" 2>/dev/null || true
+      kdialog --error "APK not found:\n$APK\n\nBuild it once:\n  cd ~/git/cloud-u-android/aa_cloud-superapp && SUPERAPP_VARIANT=$abi ./build.sh build" 2>/dev/null || true
     fi
   fi
 done

@@ -89,7 +89,7 @@
     "uses_cached_kernel": true
   },
   "partition": {
-    "_note": "Dedicated on-disk rescue slot (Surface Pro 8 nvme). `build.sh install-partition` rsyncs the whole live-ISO fs onto it and relabels it to volume_label so the ISO's baked GRUB finds nix-store.squashfs by isoImage.volumeID. rEFInd + GRUB chainload its /EFI/boot/bootx64.efi via the stable partition UUID (see ~/git/cloud-unix/aa_bootloader/src/boot.json grub.menu.mykonsole). Reversible: wipefs p8 + drop the boot.json entries.",
+    "_note": "Dedicated on-disk rescue slot (Surface Pro 8 nvme). `build.sh install-partition` rsyncs the whole live-ISO fs onto it and relabels it to volume_label so the ISO's baked GRUB finds nix-store.squashfs by isoImage.volumeID. rEFInd + GRUB chainload its /EFI/boot/bootx64.efi via the stable partition UUID (see ~/git/cloud-infra-desktop/aa_bootloader/src/boot.json grub.menu.mykonsole). Reversible: wipefs p8 + drop the boot.json entries.",
     "device": "/dev/nvme0n1p8",
     "uuid": "27ffc22b-f89e-492d-aeda-2341e8eba898",
     "volume_label": "MY_KONSOLE",
@@ -102,6 +102,6 @@
     },
     "iso_release": "my-konsole-iso-latest",
     "iso_manifest": "my-konsole-iso.sha256",
-    "iso_repo": "diegonmarcos/cloud-unix"
+    "iso_repo": "diegonmarcos/cloud-infra-desktop"
   }
 }

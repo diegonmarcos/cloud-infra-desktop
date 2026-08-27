@@ -39,13 +39,20 @@
     #
     # All three are `flake = false` — they're plain data trees, not flakes.
 
-    # Sibling subdirs of the diegonmarcos/cloud-unix monorepo. `?dir=` only steers
-    # flake.nix discovery; with `flake = false` it's a no-op, so importing
-    # modules reach into the fetched tree via `"${inputs.unix-repo}/subdir/file"`.
-    # Both qute-broker and termux-flake share the same fetch — same repo,
-    # different paths inside it — and the lockfile dedupes the github fetch.
-    unix-repo = {
-      url = "github:diegonmarcos/cloud-unix";
+    # Sibling subdirs of the diegonmarcos/cloud-infra-desktop monorepo — this
+    # very repo, fetched from GitHub because a relative `path:` flake input is
+    # not an option. Importing modules reach into the fetched tree via
+    # `"${inputs.desktop-repo}/subdir/file"`.
+    desktop-repo = {
+      url = "github:diegonmarcos/cloud-infra-desktop";
+      flake = false;
+    };
+
+    # 2026-08-27: the d* unix apps split out of this repo into cloud-u-linux, so
+    # what used to be one `unix-repo` fetch is now two. db_my-browser-qute's
+    # home-manager module (modules/browsers/qute.nix) is the only consumer.
+    ulinux-repo = {
+      url = "github:diegonmarcos/cloud-u-linux";
       flake = false;
     };
 
@@ -57,12 +64,12 @@
 
     # my-ai Rust CLI: pre-built binary from GH Release, hashes auto-updated by GHA.
     my-ai-src = {
-      url = "github:diegonmarcos/cloud-unix?dir=da_my-ai";
+      url = "github:diegonmarcos/cloud-u-linux?dir=da_my-ai";
       inputs.nixpkgs.follows = "nixpkgs-unstable";
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, unix-repo, cloud-repo, my-ai-src, ... }@inputs:
+  outputs = { self, nixpkgs, nixpkgs-unstable, home-manager, nur, sops-nix, plasma-manager, desktop-repo, ulinux-repo, cloud-repo, my-ai-src, ... }@inputs:
     let
       system = "x86_64-linux";
 
@@ -368,7 +375,7 @@
           contents = [ self.homeConfigurations."diego@surface-plasma".activationPackage ];
           config.Labels = {
             "org.opencontainers.image.description" = "Desktop home-manager activation closure as layered store paths (incremental GHCR cache).";
-            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
+            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-infra-desktop";
             # The activation store path baked into this image. A KB-sized
             # `skopeo inspect` reads this label so `build.sh switch` knows
             # WHICH store path to activate WITHOUT downloading the 6 GB nar
@@ -389,7 +396,7 @@
           contents = [ devProfile ];
           config.Labels = {
             "org.opencontainers.image.description" = "Dev-store profile (devProfile) as layered store paths (incremental GHCR cache).";
-            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
+            "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-infra-desktop";
             # devProfile store path baked in — same skopeo-inspect metadata
             # pattern as hm-cache-image (consumed by dev-store incremental pull).
             "com.diegonmarcos.activation-path" = "${devProfile}";
@@ -484,7 +491,7 @@
             # All repos (self-contained image) — fetched by Nix, baked into layer
             (let
               repos = {
-                unix       = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-unix.git";       ref = "main"; shallow = true; };
+                unix       = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-infra-desktop.git";       ref = "main"; shallow = true; };
                 cloud      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-infra.git";      ref = "main"; shallow = true; };
                 cloud-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-data.git"; ref = "main"; shallow = true; };
                 front      = builtins.fetchGit { url = "https://github.com/diegonmarcos/diegonmarcos.github.io.git"; ref = "main"; shallow = true; };
@@ -513,7 +520,7 @@
             Labels = {
               "org.opencontainers.image.title" = "user-dev-x86-nixos-nix-hm";
               "org.opencontainers.image.description" = "Pure Nix container — Home-Manager cli profile (dockerTools.buildLayeredImage)";
-              "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-unix";
+              "org.opencontainers.image.source" = "https://github.com/diegonmarcos/cloud-infra-desktop";
               "diego.image.variant" = "nixos-hm";
               "diego.image.flake.path" = "ba_flakes_desktop/src/";
               "diego.image.flake.config" = "diego@cli";

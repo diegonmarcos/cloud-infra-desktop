@@ -21,7 +21,7 @@ ENGINE="@engine@"
 # — it is visible immediately instead of two days later.
 if [ -x "$ENGINE" ]; then RUN="$ENGINE"
 elif [ -x "$BINARY" ]; then RUN="$BINARY"
-else echo "waydroid launcher not installed and engine not found — run: waydroid-container install (or clone ~/git/cloud-unix)"; exit 1; fi
+else echo "waydroid launcher not installed and engine not found — run: waydroid-container install (or clone ~/git/cloud-infra-desktop)"; exit 1; fi
 case "${1:-up}" in
   up|"")  shift 2>/dev/null || true; exec "$RUN" up "$@" ;;
   *)      exec "$RUN" "$@" ;;

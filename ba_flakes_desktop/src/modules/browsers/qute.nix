@@ -12,8 +12,8 @@
 # (it no longer goes through home-manager's `programs.qutebrowser`, which
 # hard-codes ~/.config/qutebrowser).
 #
-# We import the daemon's home-manager module via the `unix-repo` flake input
-# (declared in flake.nix, pinned to a github commit of diegonmarcos/cloud-unix).
+# We import the daemon's home-manager module via the `ulinux-repo` flake input
+# (declared in flake.nix, pinned to a github commit of diegonmarcos/cloud-infra-desktop).
 # Using a flake input — not a relative `..` traversal — keeps the import
 # portable across all flake ref styles and avoids escaping the flake source
 # dir at eval time.
@@ -24,7 +24,7 @@
 { inputs, ... }:
 
 {
-  imports = [ "${inputs.unix-repo}/db_my-browser-qute/src/nix/home-module.nix" ];
+  imports = [ "${inputs.ulinux-repo}/db_my-browser-qute/src/nix/home-module.nix" ];
 
   programs.my-browser = {
     enable = true;

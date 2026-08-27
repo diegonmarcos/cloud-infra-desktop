@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 ENGINE="@engine@"
-[ -x "$ENGINE" ] || { echo "redroid engine not found at $ENGINE (clone ~/git/cloud-unix)"; exit 1; }
+[ -x "$ENGINE" ] || { echo "redroid engine not found at $ENGINE (clone ~/git/cloud-infra-desktop)"; exit 1; }
 # The image is BAKED (apps + layout + theme already inside it), so runtime is just
 # pull+run+mirror — NO provision/install step. First `up` pulls the GHCR image.
 # `up` is GUI-bound in the engine: it boots the backend, attaches scrcpy in

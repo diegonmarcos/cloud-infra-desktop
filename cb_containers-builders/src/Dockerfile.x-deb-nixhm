@@ -100,7 +100,7 @@ RUN chmod +x /opt/cloud-builder/*.sh
 RUN mkdir -p /root/git \
     && git config --global --add safe.directory "*" \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git /root/git/cloud-infra \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-unix.git /root/git/cloud-unix \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra-desktop.git /root/git/cloud-infra-desktop \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-mykonsole-dtk.git /root/git/cloud-mykonsole-dtk \

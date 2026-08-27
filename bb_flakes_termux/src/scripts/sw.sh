@@ -1,12 +1,12 @@
 # sw — git sync LOCAL (bidirectional: rebase local-wins + push) on
-# ~/git/cloud-unix, then rebuild the Nix config. Same two steps as the fish
+# ~/git/cloud-infra-desktop, then rebuild the Nix config. Same two steps as the fish
 # function `flakes.switch`, which calls this binary.
 # Exists because `switch` is a fish RESERVED WORD (the switch/case builtin —
 # fish will never execute a command by that name from the prompt) and `up`
 # spent months shadowed by a stale `alias up` in config.local.fish. sw is a
 # real binary on PATH via writeShellScriptBin — no fish function or alias
 # machinery involved, nothing to shadow it.
-REPO="$HOME/git/cloud-unix"
+REPO="$HOME/git/cloud-infra-desktop"
 
 if [ -x "$REPO/1_cicd/dist/scripts/cloud-git-sync.sh" ]; then
   # 6-step engine: stash → fetch → rebase → PUSH → pop → submodules.

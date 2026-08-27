@@ -913,7 +913,7 @@ cmd_ci_build() {
     fi
 
     # Relock the floating self-inputs to HEAD *in CI* before building. The
-    # committed narHash for `github:diegonmarcos/cloud-unix` is computed on the dev
+    # committed narHash for `github:diegonmarcos/cloud-infra-desktop` is computed on the dev
     # laptop via nix's git backend, but the runner fetches the codeload tarball
     # — and because the repo carries submodules, the two backends produce
     # DIFFERENT NAR hashes for the same rev → hard "NAR hash mismatch in input".

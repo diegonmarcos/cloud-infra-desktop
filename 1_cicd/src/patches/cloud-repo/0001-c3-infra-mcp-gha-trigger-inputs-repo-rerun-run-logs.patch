@@ -325,7 +325,7 @@ index d24cbb3..74824cc 100644
 +      workflow: z.string().optional().describe("Workflow name (partial match), file name, or 'all'. Omit to list available."),
 +      inputs: z.record(z.string()).optional().describe("workflow_dispatch inputs, e.g. { build_fork: \"true\" }. Only valid when triggering ONE workflow."),
 +      ref: z.string().optional().describe("Git ref to run on (default: main)."),
-+      repo: z.string().optional().describe("owner/repo (default: the cloud repo). Use diegonmarcos/cloud-unix for the app/APK ship workflows."),
++      repo: z.string().optional().describe("owner/repo (default: the cloud repo). Use diegonmarcos/cloud-infra-desktop for the app/APK ship workflows."),
      },
 -    ({ workflow }) => safeRun(async () => {
 +    ({ workflow, inputs, ref, repo }) => safeRun(async () => {

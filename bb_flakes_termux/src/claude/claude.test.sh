@@ -4,7 +4,7 @@
 # ----------------------------------------------------------------------------
 # The bug this guards: bb_flakes_termux used to consume da_my-ai's Claude
 # settings through a PINNED flake input (`my-ai = { url =
-# "github:diegonmarcos/cloud-unix?dir=da_my-ai"; }`). The lock sat stale
+# "github:diegonmarcos/cloud-u-linux?dir=da_my-ai"; }`). The lock sat stale
 # 2026-08-18 to 2026-08-20 while `cleanupPeriodDays: 36500` landed in
 # settings.base.json — the phone silently deployed pre-fix settings for two
 # days, on Claude Code's built-in 30-day transcript retention, the exact

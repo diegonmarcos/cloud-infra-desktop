@@ -15,7 +15,7 @@ Portable, declarative user environment that works on any Linux distribution (Deb
 ### Installation
 
 ```bash
-cd /home/diego/git/cloud-unix/ba_flakes_desktop
+cd /home/diego/git/cloud-infra-desktop/ba_flakes_desktop
 ./build.sh switch surface
 ```
 
@@ -184,7 +184,7 @@ nix-collect-garbage
 
 ### With Existing NixOS
 
-This setup is independent of `/home/diego/mnt_git/cloud-unix/a_nixos_host/`. Both can coexist:
+This setup is independent of `/home/diego/mnt_git/cloud-infra-desktop/a_nixos_host/`. Both can coexist:
 - NixOS manages system packages
 - Home Manager manages user packages
 

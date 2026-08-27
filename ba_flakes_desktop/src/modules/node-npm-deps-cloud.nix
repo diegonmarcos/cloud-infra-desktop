@@ -17,7 +17,7 @@ in {
     # Priority chain: synced copy in repo → cloud repo dist → legacy fallback
     CLOUD_BUILD=""
     for _p in \
-        "$HOME/git/cloud-unix/ba_flakes_desktop/build-flakes_desktop.json" \
+        "$HOME/git/cloud-infra-desktop/ba_flakes_desktop/build-flakes_desktop.json" \
         "$HOME/git/cloud-infra/1_cloud-configs/dist/build-flakes_desktop.json"; do
       if [ -f "$_p" ]; then CLOUD_BUILD="$_p"; break; fi
     done

@@ -76,7 +76,7 @@ bwrap \
 ## 5. Declarative architecture (engine pattern)
 
 ```
-~/git/cloud-unix/bc_flakes_dev-store/
+~/git/cloud-infra-desktop/bc_flakes_dev-store/
   build.sh                 # universal engine (build / copy-to-p5 / gcroot / gc / test)
   build.json               # { p5_root, store_uri, profile_name, deploy target }
   src/

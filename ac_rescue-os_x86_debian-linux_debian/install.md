@@ -10,7 +10,7 @@
 ## Quick Start (from a running Kali)
 
 ```bash
-cd ~/git/cloud-unix/rescue-os-debian
+cd ~/git/cloud-infra-desktop/rescue-os-debian
 
 # Sanity-check the JSON spec:
 jq . install.json | head
@@ -22,7 +22,7 @@ sudo ./bootstrap/install-debian.sh
 # Login: diego / 1234567890
 
 # After first boot, inside Debian:
-cd ~/git/cloud-unix/rescue-os-debian
+cd ~/git/cloud-infra-desktop/rescue-os-debian
 ./install.sh scan          # confirm packages
 ./install.sh install       # fix anything missed
 ./install.sh browser       # Firefox for Claude OAuth
@@ -53,7 +53,7 @@ cd ~/git/cloud-unix/rescue-os-debian
    - Writes `/etc/quickref` and configures bash + fish to display it on every login
 10. Generates `/etc/fstab` (root + every other partition as `noauto`) and `/etc/crypttab` (LUKS pool).
 11. Copies `TOOLS.md` → `/home/diego/README.md` (the master tools doc).
-12. Copies the entire install dir → `/home/diego/git/cloud-unix/rescue-os-debian/` so the user can re-run `./install.sh` without unlocking the pool first.
+12. Copies the entire install dir → `/home/diego/git/cloud-infra-desktop/rescue-os-debian/` so the user can re-run `./install.sh` without unlocking the pool first.
 13. Copies kernel + initrd to `/mnt/efi/EFI/debian/{vmlinuz,initrd.img}`.
 14. Appends a `menuentry "Debian Rescue OS"` to `/mnt/efi/EFI/refind/refind.conf` (idempotent — skipped if already present).
 15. Cleanup mounts.
@@ -88,7 +88,7 @@ Reboot. rEFInd shows "Debian Rescue OS". Pick it. Log in as `diego` / `123456789
 
 ### Phase 3 — Verification
 ```bash
-cd ~/git/cloud-unix/rescue-os-debian
+cd ~/git/cloud-infra-desktop/rescue-os-debian
 ./install.sh scan
 ```
 Review `install_check.md`. If anything is missing, run `./install.sh install`.
@@ -146,7 +146,7 @@ sudo chroot /mnt/p6 /bin/bash
 Or wipe + reinstall:
 
 ```bash
-sudo ~/git/cloud-unix/rescue-os-debian/bootstrap/install-debian.sh
+sudo ~/git/cloud-infra-desktop/rescue-os-debian/bootstrap/install-debian.sh
 ```
 
 ---

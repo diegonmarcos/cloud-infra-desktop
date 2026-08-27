@@ -69,13 +69,13 @@ let
   '';
 
   # ── env vars ────────────────────────────────────────────────────────
-  # ONE copy, read out of the fetched unix-repo (same convention as qute.nix and
+  # ONE copy, read out of the fetched desktop-repo (same convention as qute.nix and
   # konsole-ssh-manager). The file lists NAMES only — values are read live at
   # greeting time — so it is genuinely machine-independent and must not be
   # duplicated here; bb_flakes_termux is a `path:` flake and cannot reach outside
   # its own src/, which is why the file physically lives on that side.
   envs = builtins.fromJSON (builtins.readFile
-    "${inputs.unix-repo}/bb_flakes_termux/src/modules/data/fish-envvars.json");
+    "${inputs.desktop-repo}/bb_flakes_termux/src/modules/data/fish-envvars.json");
 
   padE = s:
     let n = 32 - builtins.stringLength s;

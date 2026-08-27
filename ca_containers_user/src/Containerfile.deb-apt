@@ -14,7 +14,7 @@ FROM debian:bookworm-slim
 # ── OCI Labels ──────────────────────────────────────────────────────
 LABEL org.opencontainers.image.title="user-dev-x86-deb-apt"
 LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + apt packages (no Nix)"
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-unix"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra-desktop"
 LABEL org.opencontainers.image.vendor="Diego Nepomuceno Marcos"
 LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
 LABEL diego.image.variant="deb-apt"
@@ -112,7 +112,7 @@ WORKDIR /home/diego
 # layer keeps the contents even if a later layer removes the directory.
 # Clone private repos at RUNTIME with an injected deploy key instead.
 RUN mkdir -p /home/diego/git && cd /home/diego/git \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-unix.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra-desktop.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \

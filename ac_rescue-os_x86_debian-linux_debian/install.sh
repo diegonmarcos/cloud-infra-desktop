@@ -1,6 +1,6 @@
 #!/bin/bash
 # Debian Rescue OS - Post-Boot Configurator
-# Run after first boot of the Debian rescue OS (from ~/git/cloud-unix/...).
+# Run after first boot of the Debian rescue OS (from ~/git/cloud-infra-desktop/...).
 # Verifies installation, fills in any missed packages, and provides
 # convenience launchers for browser / claude / mount helpers.
 #

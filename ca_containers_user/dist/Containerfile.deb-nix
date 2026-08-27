@@ -50,7 +50,7 @@ RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
 # the pattern cb_containers-builders/src/docker/Dockerfile already documents
 # and follows. Do not add a private repo to this list.
 RUN mkdir -p /home/diego/git && cd /home/diego/git \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-unix.git \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra-desktop.git \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git \
@@ -58,7 +58,7 @@ RUN mkdir -p /home/diego/git && cd /home/diego/git \
 
 # Home-manager switch (diego@cli = exact desktop match)
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
-    && cd /home/diego/git/cloud-unix/ba_flakes_desktop/src \
+    && cd /home/diego/git/cloud-infra-desktop/ba_flakes_desktop/src \
     && nix run home-manager/release-24.11 -- switch --flake .#diego@cli --impure 2>&1 \
     && echo "HOME-MANAGER: SUCCESS" \
     || echo "HOME-MANAGER: FAILED — fallback below"
@@ -113,9 +113,9 @@ FROM debian:bookworm-slim
 # ── OCI Standard Labels ──────────────────────────────────────────
 LABEL org.opencontainers.image.title="user-dev-x86-deb-nix-hm"
 LABEL org.opencontainers.image.description="Diego's portable dev environment — Debian + Nix Home-Manager (diego@cli profile)"
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-unix"
-LABEL org.opencontainers.image.url="https://github.com/diegonmarcos/cloud-unix/tree/main/ca_containers_user/src"
-LABEL org.opencontainers.image.documentation="https://github.com/diegonmarcos/cloud-unix/blob/main/README.md"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra-desktop"
+LABEL org.opencontainers.image.url="https://github.com/diegonmarcos/cloud-infra-desktop/tree/main/ca_containers_user/src"
+LABEL org.opencontainers.image.documentation="https://github.com/diegonmarcos/cloud-infra-desktop/blob/main/README.md"
 LABEL org.opencontainers.image.vendor="Diego Nepomuceno Marcos"
 LABEL org.opencontainers.image.authors="Diego Nepomuceno Marcos <me@diegonmarcos.com>"
 LABEL org.opencontainers.image.licenses="MIT"
@@ -128,7 +128,7 @@ LABEL diego.image.type="dev-environment"
 LABEL diego.image.variant="deb-nix"
 LABEL diego.image.profiles="cli,gui,tty"
 LABEL diego.image.runner="~/git/cloud-mykonsole-dtk/dtk.sh containers deb-nix {cli|gui|tty}"
-LABEL diego.image.flake.repo="github.com/diegonmarcos/cloud-unix"
+LABEL diego.image.flake.repo="github.com/diegonmarcos/cloud-infra-desktop"
 LABEL diego.image.flake.path="ba_flakes_desktop/src/"
 LABEL diego.image.flake.config="diego@cli"
 LABEL diego.image.flake.toolsets="shell-core dev-languages build-debug containers-cloud security-network data-science"

@@ -16,6 +16,22 @@
         "type": "github"
       }
     },
+    "desktop-repo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1787865103,
+        "narHash": "sha256-y8rSt6ZnUmva9nAu1AbnYgXkEhFwWYt5vi73yVMm/6U=",
+        "owner": "diegonmarcos",
+        "repo": "cloud-infra-desktop",
+        "rev": "4ea06134c6a550345be28221d3ed5b5ed0929ce9",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diegonmarcos",
+        "repo": "cloud-infra-desktop",
+        "type": "github"
+      }
+    },
     "flake-parts": {
       "inputs": {
         "nixpkgs-lib": [
@@ -85,17 +101,17 @@
       },
       "locked": {
         "dir": "da_my-ai",
-        "lastModified": 1787072932,
-        "narHash": "sha256-mPijJbe5mau3XUVc+VM4KfHrILftNbGbQMyXOzNP8OQ=",
+        "lastModified": 1787866324,
+        "narHash": "sha256-QECszfGNhA5Lp95vUiOnw9HN1+Utsf6rT9ZH1jpjxJ0=",
         "owner": "diegonmarcos",
-        "repo": "cloud-unix",
-        "rev": "32b6559364c78ba4961b3c16144c98e29a9e2d83",
+        "repo": "cloud-u-linux",
+        "rev": "77e8237ab057ad033050e8a131b50b6fa0c64e45",
         "type": "github"
       },
       "original": {
         "dir": "da_my-ai",
         "owner": "diegonmarcos",
-        "repo": "cloud-unix",
+        "repo": "cloud-u-linux",
         "type": "github"
       }
     },
@@ -192,6 +208,7 @@
     "root": {
       "inputs": {
         "cloud-repo": "cloud-repo",
+        "desktop-repo": "desktop-repo",
         "home-manager": "home-manager",
         "my-ai-src": "my-ai-src",
         "nixpkgs": "nixpkgs",
@@ -199,7 +216,7 @@
         "nur": "nur",
         "plasma-manager": "plasma-manager",
         "sops-nix": "sops-nix",
-        "unix-repo": "unix-repo"
+        "ulinux-repo": "ulinux-repo"
       }
     },
     "sops-nix": {
@@ -237,19 +254,19 @@
         "type": "github"
       }
     },
-    "unix-repo": {
+    "ulinux-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1787862905,
-        "narHash": "sha256-RVpG/GY2e48Um9ATg3/Uq/1l36ZPBjy02uiiNvUUEHY=",
+        "lastModified": 1787866324,
+        "narHash": "sha256-QECszfGNhA5Lp95vUiOnw9HN1+Utsf6rT9ZH1jpjxJ0=",
         "owner": "diegonmarcos",
-        "repo": "cloud-unix",
-        "rev": "edd42f257e360ca73a1d5fca0293a8677af3fc50",
+        "repo": "cloud-u-linux",
+        "rev": "77e8237ab057ad033050e8a131b50b6fa0c64e45",
         "type": "github"
       },
       "original": {
         "owner": "diegonmarcos",
-        "repo": "cloud-unix",
+        "repo": "cloud-u-linux",
         "type": "github"
       }
     }

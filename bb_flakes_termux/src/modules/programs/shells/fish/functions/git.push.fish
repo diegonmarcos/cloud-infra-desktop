@@ -14,7 +14,7 @@ end
 
 set -l engine $root/1_workflows/dist/scripts/cloud-git-sync.sh
 if not test -x $engine
-    set engine $HOME/git/cloud-unix/1_workflows/dist/scripts/cloud-git-sync.sh
+    set engine $HOME/git/cloud-infra-desktop/1_workflows/dist/scripts/cloud-git-sync.sh
 end
 
 if not test -x $engine

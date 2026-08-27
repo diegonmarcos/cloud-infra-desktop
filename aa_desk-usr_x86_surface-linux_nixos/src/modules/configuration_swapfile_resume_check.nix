@@ -28,7 +28,7 @@
 # - The cmdline, /sys, and the swapfile's actual first physical extent MUST
 #   agree. Any drift → mask systemd-hibernate.service this boot. No more silent
 #   self-heal. Force user to redeploy boot.json + switch + reboot.
-# - The bootloader-engine SoT is `~/git/cloud-unix/aa_bootloader/src/boot.json`
+# - The bootloader-engine SoT is `~/git/cloud-infra-desktop/aa_bootloader/src/boot.json`
 #   (`swap_hibernate.resume_offset`). Re-run `build.sh deploy --target nixos`
 #   to repopulate from a fresh `filefrag -v -b4096 <swapfile>`.
 { config, pkgs, lib, ... }:

@@ -7,7 +7,7 @@
 # markers. Pass = no markers found.
 #
 # Run after a home-manager switch:
-#   bash ~/git/cloud-unix/ba_flakes_desktop/src/modules/test-browsers-gpu.sh
+#   bash ~/git/cloud-infra-desktop/ba_flakes_desktop/src/modules/test-browsers-gpu.sh
 #
 set -euo pipefail
 

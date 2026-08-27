@@ -99,7 +99,7 @@ for _c in \
     "${CLOUD_GIT_SYNC:-}" \
     "$_hook_dir/../scripts/cloud-git-sync.sh" \
     "$(git rev-parse --show-toplevel 2>/dev/null)/1_workflows/dist/scripts/cloud-git-sync.sh" \
-    "$HOME/git/cloud-unix/1_workflows/dist/scripts/cloud-git-sync.sh"; do
+    "$HOME/git/cloud-infra-desktop/1_workflows/dist/scripts/cloud-git-sync.sh"; do
   [ -n "$_c" ] && [ -x "$_c" ] && SYNC="$_c" && break
 done
 

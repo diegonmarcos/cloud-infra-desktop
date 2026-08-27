@@ -30,7 +30,7 @@
 
 let
   hashes  = builtins.fromJSON (builtins.readFile ./hashes.json);
-  baseUrl = "https://github.com/diegonmarcos/cloud-unix/releases/download/my-webserver-latest";
+  baseUrl = "https://github.com/diegonmarcos/cloud-u-linux/releases/download/my-webserver-latest";
 
   # A raw pkgs.fetchurl result is NOT executable on nix-on-droid: the fetched
   # binary is the official nodejs.org release (see
