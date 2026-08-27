@@ -1,0 +1,59 @@
+{
+  "meta": {
+    "name": "Debian Surface Live",
+    "version": "2.0",
+    "target": "Surface Pro 8",
+    "debian": "bookworm (12)",
+    "kernel": "6.18.2-surface-1",
+    "iso_size": "~676MB",
+    "ram_usage": "~3.2GB (toram mode)"
+  },
+  "credentials": {
+    "diego": { "password": "1234567890", "shell": "/usr/bin/fish", "groups": ["sudo", "video", "input", "audio"], "sudo": "NOPASSWD" },
+    "root": { "password": "1234567890" }
+  },
+  "boot": {
+    "auto_login": true,
+    "default_shell": "fish",
+    "grub_options": ["toram", "normal", "debug"]
+  },
+  "repos": {
+    "debian": "http://deb.debian.org/debian bookworm main contrib non-free non-free-firmware",
+    "linux-surface": "https://pkg.surfacelinux.com/debian release main"
+  },
+  "packages": {
+    "kernel": ["linux-image-surface", "linux-headers-surface", "iptsd", "libwacom-surface", "firmware-misc-nonfree"],
+    "base": ["systemd-sysv", "dbus", "locales", "console-setup", "live-boot", "live-boot-initramfs-tools"],
+    "shells": ["bash", "zsh", "fish"],
+    "network": ["network-manager", "wpasupplicant", "iwd", "openssh-client", "curl", "wget", "git"],
+    "gui": ["xorg", "openbox", "sakura", "pcmanfm", "mesa-utils", "fonts-dejavu"],
+    "cli_tools": ["vim", "nano", "htop", "btop", "ripgrep", "jq", "fzf", "tmux", "neofetch"],
+    "dev": ["nodejs", "npm"],
+    "browsers": ["lynx"]
+  },
+  "npm_global": ["@anthropic-ai/claude-code"],
+  "services": {
+    "enabled": ["NetworkManager", "iptsd"]
+  },
+  "openbox": {
+    "menu": [
+      { "label": "Terminal", "command": "sakura" },
+      { "label": "Files", "command": "pcmanfm" },
+      { "separator": true },
+      { "label": "WiFi (nmtui)", "command": "sakura -e nmtui" },
+      { "label": "Claude Code", "command": "sakura -e claude" },
+      { "label": "System Monitor", "command": "sakura -e btop" },
+      { "separator": true },
+      { "label": "Reboot", "command": "systemctl reboot" },
+      { "label": "Shutdown", "command": "systemctl poweroff" }
+    ],
+    "shortcuts": {
+      "Super+Return": "sakura",
+      "Super+E": "pcmanfm",
+      "Super+Q": "Close window",
+      "Alt+F4": "Close window",
+      "Alt+Tab": "Switch windows"
+    },
+    "autostart": ["xsetroot -solid '#2e3440'"]
+  }
+}
