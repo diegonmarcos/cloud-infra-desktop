@@ -20,7 +20,7 @@
 # a raw console) — see configuration_my-konsole-tty.nix + the rescue ISO.
 
 let
-  repoDir = "${config.home.homeDirectory}/git/cloud-unix/da__my-konsole";
+  repoDir = "${config.home.homeDirectory}/git/cloud-u-linux/da__my-konsole";
 in
 {
   home.packages = with pkgs; [ zstd curl jq ];

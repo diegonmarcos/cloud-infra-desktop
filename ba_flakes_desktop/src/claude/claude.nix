@@ -59,7 +59,7 @@ let
   # recreate the two-sources problem this removed.
   #
   # The ONE SoT, read at activation. Overridable for a non-standard checkout.
-  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-unix/da_my-ai/src/data/claude";
+  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/src/data/claude";
 in
 {
   # Agent fleet (explore/build/review/ops, pinned model:sonnet). dotfiles/claude/agents
@@ -184,7 +184,7 @@ in
     # and the failure is silent: the machine keeps working while quietly serving
     # stale config from whenever the flake input was last updated. Failing loudly
     # is the point — one SoT or an error, never a guess.
-    REPO_SOT="''${CLAUDE_SOT_DIR:-$HOME/git/cloud-unix/da_my-ai/src/data/claude}"
+    REPO_SOT="''${CLAUDE_SOT_DIR:-$HOME/git/cloud-u-linux/da_my-ai/src/data/claude}"
     if [ ! -r "$REPO_SOT/settings.base.json" ] || [ ! -r "$REPO_SOT/settings.desktop.json" ]; then
       echo "[claude-settings] FATAL: SoT missing at $REPO_SOT" >&2
       echo "[claude-settings] ~/.claude/settings.json left UNCHANGED. Clone the repo there, or set CLAUDE_SOT_DIR." >&2

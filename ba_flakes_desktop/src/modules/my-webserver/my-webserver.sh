@@ -51,7 +51,7 @@ ROUTES
 
   There is no route table: URL paths map straight onto the filesystem under
   DIR, so a directory or symlink IS the alias.
-    ln -s ~/git/cloud-unix/da_watchdog/reports ~/watchdog   ->  :8000/watchdog/
+    ln -s ~/git/cloud-u-linux/da_watchdog/reports ~/watchdog   ->  :8000/watchdog/
 
 WRITE API
   /__api__/write and /__api__/git are disabled here and fail closed. They are
