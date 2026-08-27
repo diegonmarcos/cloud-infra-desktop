@@ -3,6 +3,11 @@
 // Moved out of monitor/mod.rs, which had grown to 6007 lines. Same code,
 // same order; only the file it lives in changed.
 
+/// One mode of a tab.
+///
+/// `key` is the direct shortcut where the mode used to be a tab of its own —
+/// t, z and I still land exactly where they always did, they simply arrive at
+/// a sub-tab now instead of a sibling. `net` is only read by the fleet tab.
 pub(crate) struct Sub {
     pub(crate) name: &'static str,
     pub(crate) key: Option<char>,
@@ -76,14 +81,3 @@ pub(crate) const TABS: &[Tab] = &[
     // them in its own header, so a view key named 'a' silently never arrives.
     Tab { name: "about", key: 'b', desc: "what this machine is, not what it is doing", subs: &[] },
 ];
-
-/// `tree -L 4` over the home directory, or the nearest thing available.
-///
-/// Shelled out rather than walked here: tree(1) already draws the box-drawing
-/// prefixes this panel wants, and reimplementing that to avoid one process is
-/// work for no benefit. find(1) is the fallback for a box without tree, with a
-/// flat listing — less pretty, still the answer.
-///
-/// Bounded on purpose. -L 4 because past four levels a home directory is
-/// mostly node_modules and .git objects, and the output is capped because a
-/// tree with a million entries is not a view, it is a hang.

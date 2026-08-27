@@ -1,10 +1,20 @@
-// Every key table. The help, the pickers and the dispatch all read
-// these, so none of them can disagree about what is bound.
+// Every key table. The help, the pickers and the dispatch all read these,
+// so none of them can disagree about what is bound.
 //
 // Moved out of monitor/mod.rs, which had grown to 6007 lines. Same code,
 // same order; only the file it lives in changed.
 use crate::dashboards::monitor::data::sort::Sort;
 
+
+/// What the `k` menu can send. RESTART is first because it is the thing people
+/// actually want most of the time — a wedged process put back rather than a
+/// hole where it used to be — and because listing it beside the signals is the
+/// only way anyone discovers the daemon grew the verb.
+///
+/// It is not a signal: the daemon restarts a user systemd unit through
+/// systemctl when the pid belongs to one, and otherwise re-execs its argv. The
+/// blurb says which, because "restart" quietly meaning two different things is
+/// worse than saying so.
 pub(crate) const ACTIONS: [(&str, &str); 8] = [
     ("RESTART", "stop it and bring it back (unit, else re-exec argv)"),
     ("TERM", "polite stop, the default"),
@@ -134,12 +144,7 @@ pub(crate) const CMD_HELP: &[(&str, &str)] = &[
     ("esc backspace", "leave — backspacing past the colon also leaves"),
 ];
 
-/// One mode of a tab.
-///
-/// `key` is the direct shortcut where the mode used to be a tab of its own —
-/// t, z and I still land exactly where they always did, they simply arrive at
-/// a sub-tab now instead of a sibling. `net` is only read by the fleet tab.
-
+/// The btop-style Esc menu.
 pub(crate) const MENU: [(&str, &str); 4] = [
     ("measure", "this machine, or any mesh peer over ssh"),
     ("options", "sorting, averaging window, which boxes are shown"),
@@ -156,6 +161,3 @@ pub(crate) const B_NET: usize = 1;
 pub(crate) const B_PSI: usize = 2;
 pub(crate) const B_SLICES: usize = 3;
 pub(crate) const B_MESH: usize = 4;
-
-// ───────────────────────────────── dashboard ──────────────────────────────────
-
