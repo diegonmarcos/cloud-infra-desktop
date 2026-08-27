@@ -189,6 +189,33 @@ in
     fi
   '';
 
+  # plasma-manager WRITES ~/.local/share/plasma-manager/{scripts,data} but never
+  # removes what it has stopped generating, and run_all.sh globs scripts/*.sh —
+  # so a generator dropped from the declaration keeps running at every login,
+  # forever, with nothing pointing at it.
+  #
+  # 2026-08-27, what this cost: a 2_desktop_script_panels.sh dated Aug 22 —
+  # from the era when programs.plasma.panels still defined the panels, before
+  # panels.json took over — survived every switch since. Its first act is
+  #   rm ~/.config/plasma-org.kde.plasma.desktop-appletsrc
+  # and its second is to replay the old desktop_script_panels.js. So every
+  # login deleted both trays' shownItems/hiddenItems and reinstated 30px
+  # floating panels on top of panels.json. No last_run_* marker existed to
+  # suppress it either, because 0_script_reset_lastrun_desktopscripts.sh
+  # deletes all of them whenever any desktop script looks new — which a
+  # markerless one always does. Emptying the two directories first makes their
+  # contents a pure function of the declaration: a generator that is no longer
+  # declared is gone because it was never rewritten, not because something
+  # remembered to delete it.
+  home.activation.plasmaManagerPrune =
+    lib.hm.dag.entryBetween [ "configure-plasma" ] [ "writeBoundary" ] ''
+      d="$HOME/.local/share/plasma-manager"
+      if [ -d "$d" ]; then
+        run rm -rf $VERBOSE_ARG "$d/scripts" "$d/data"
+        run rm -f $VERBOSE_ARG "$d"/last_run_desktop_script_*
+      fi
+    '';
+
   # Same binary as the startupScript above — this only exists so a switch takes
   # effect without a logout. It is a no-op when panels.json has not moved.
   #
