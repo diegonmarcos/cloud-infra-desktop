@@ -211,18 +211,18 @@ build.log
 /IV_cloud-configs/
 /V_front-configs/
 
-## ── da_dtk: content that generic ignore rules would swallow ──────────
+## ── dtk: content that generic ignore rules would swallow ──────────
 ## dtk arrived from the standalone cloud-mykonsole-dtk repo (2026-08-26)
 ## where `build/` and `libs/` are REAL source, not build output:
 ##   build/git-workflows + build/flake-engines are the dtk build engine,
 ##   commands/connect/dashboard/libs is vendored dashboard code.
 ## `build/` is ignored by the USER-GLOBAL ~/.config/git/ignore, and `libs/`
-## by this file, so a plain `git add da_dtk` silently drops 39 files with no
+## by this file, so a plain `git add dtk` silently drops 39 files with no
 ## error. Un-ignoring the DIRECTORY is required — git cannot re-include a
 ## file whose parent directory is excluded.
-!/da_dtk/build/
-!/da_dtk/.archive/a-Git/build/
-!/da_dtk/commands/connect/dashboard/libs/
+!/dtk/build/
+!/dtk/.archive/a-Git/build/
+!/dtk/commands/connect/dashboard/libs/
 ## CI diff/staging dirs written by the per-flake build (2026-08-27). They mirror
 ## dist/ for a CI-vs-local comparison and are regenerated every run; cloud-data
 ## grew the same untracked pair. Never vendored.
@@ -246,3 +246,10 @@ af_waydroid-container/src/data-seed.tar.zst
 ## The dir stays on disk; whether `cloud` or `I_cloud` is the canonical name is
 ## a separate decision, and belongs in 0_git/src/gitmodules when it is made.
 I_cloud/
+
+# dtk/ is the cloud-mykonsole-dtk repo merged in whole (2026-08-27). It
+# carried its own .vscode/ as tracked content, so re-include it here rather
+# than force-adding past the global .vscode/ rule. Its node_modules symlink
+# stays ignored.
+!dtk/.vscode/
+!dtk/.vscode/**
