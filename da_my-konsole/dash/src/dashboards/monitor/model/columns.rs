@@ -3,6 +3,14 @@
 // Moved out of monitor/mod.rs, which had grown to 6007 lines. Same code,
 // same order; only the file it lives in changed.
 
+/// Which slot in the strip a view sits in, by name.
+///
+/// What a container row can be ranked by, and how to read the value out.
+///
+/// docker renders these as strings ("12.34%", "469.7MiB / 7.595GiB"), which is
+/// what the table shows; ranking needs a number, so each column says how to
+/// get one from its own text. ←/→ walks this list the way it walks the process
+/// header.
 pub(crate) const CTR_SORT: &[(&str, &str)] = &[
     ("CPU%", "cpu"),
     ("MEM%", "mem_pct"),
@@ -53,11 +61,8 @@ pub(crate) const IMG_SORT: &[(&str, &str)] = &[
     ("IN USE", ""),
 ];
 
-/// docker's MemUsage is "469.7MiB / 7.595GiB" — used on the left of the
-/// slash, the limit on the right. Two different questions in one cell: what a
-/// container is using, and what it is allowed. They get a column each, and
-/// splitting them is what makes "rank by memory used" possible at all.
-
+/// What can be done to a container. No `rm`: stopping one is reversible and
+/// removing one is not, and a keystroke is the wrong weight for that.
 pub(crate) const CTR_ACTIONS: [(&str, &str); 5] = [
     ("restart", "stop it and bring it back"),
     ("stop", "take it down"),
@@ -93,8 +98,3 @@ pub(crate) const UNIT_ACTIONS: [(&str, &str); 4] = [
     ("stop", "take it down"),
     ("reset-failed", "clear the failed state so it can start again"),
 ];
-
-/// Which modal owns the keyboard. btop's Esc opens a menu rather than quitting,
-/// and every modal here closes back to None — so Esc is never a way out of the
-/// program, which is the whole point of ^c/^d being the only exit.
-#[derive(Clone, Copy, PartialEq, Debug)]

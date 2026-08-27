@@ -3,6 +3,16 @@
 // Moved out of monitor/mod.rs, which had grown to 6007 lines. Same code,
 // same order; only the file it lives in changed.
 
+/// `tree -L 4` over the home directory, or the nearest thing available.
+///
+/// Shelled out rather than walked here: tree(1) already draws the box-drawing
+/// prefixes this panel wants, and reimplementing that to avoid one process is
+/// work for no benefit. find(1) is the fallback for a box without tree, with a
+/// flat listing — less pretty, still the answer.
+///
+/// Bounded on purpose. -L 4 because past four levels a home directory is
+/// mostly node_modules and .git objects, and the output is capped because a
+/// tree with a million entries is not a view, it is a hang.
 pub(crate) fn file_tree(hidden: bool, target: Option<&str>) -> [Vec<String>; 4] {
     // ONE script, run locally or over ssh. The tab used to shell out to `tree`
     // on this machine unconditionally, so measuring a peer showed you THIS
@@ -122,12 +132,3 @@ impl TreeCache {
         });
     }
 }
-
-/// Which slot in the strip a view sits in, by name.
-///
-/// What a container row can be ranked by, and how to read the value out.
-///
-/// docker renders these as strings ("12.34%", "469.7MiB / 7.595GiB"), which is
-/// what the table shows; ranking needs a number, so each column says how to
-/// get one from its own text. ←/→ walks this list the way it walks the process
-/// header.

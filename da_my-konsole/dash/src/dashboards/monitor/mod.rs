@@ -36,34 +36,10 @@ use serde_json::Value;
 
 use crate::frame::Dashboard;
 
-/// What the `k` menu can send. RESTART is first because it is the thing people
-/// actually want most of the time — a wedged process put back rather than a
-/// hole where it used to be — and because listing it beside the signals is the
-/// only way anyone discovers the daemon grew the verb.
-///
-/// It is not a signal: the daemon restarts a user systemd unit through
-/// systemctl when the pid belongs to one, and otherwise re-execs its argv. The
-/// blurb says which, because "restart" quietly meaning two different things is
-/// worse than saying so.
-
 // ── the parts of this dashboard that are their own concern ─────────────
 // Split out because a four-thousand-line file is not a module, it is a
 // directory that has not happened yet. Each is testable on its own and none
 // of them knows about the others.
-// FOUR FOLDERS, by what the code is FOR rather than what it happens to touch:
-//
-//   model/  what exists — tabs, key tables, sortable columns, row verbs.
-//           Pure data, no behaviour, read by the help and the dispatch alike
-//           so neither can invent an entry the other does not have.
-//   data/   where numbers come from — the snapshot, sorting, storage units,
-//           the file tree, and the parsers that read docker's prose back into
-//           numbers. Knows nothing about drawing.
-//   view/   how it looks — the primitives every box is built from.
-//   input/  what a keystroke means — the `:` language lives here.
-//
-// export.rs stays at the root: it is the one thing that writes rather than
-// reads, and a folder holding a single file is a folder that has not earned
-// itself yet.
 mod data;
 mod export;
 mod input;
@@ -93,6 +69,16 @@ use view::fmt::{
     fmt_uptime, push, trunc, z, zp,
 };
 
+
+
+
+
+
+
+/// Which modal owns the keyboard. btop's Esc opens a menu rather than quitting,
+/// and every modal here closes back to None — so Esc is never a way out of the
+/// program, which is the whole point of ^c/^d being the only exit.
+#[derive(Clone, Copy, PartialEq, Debug)]
 enum Overlay {
     None,
     Menu,
@@ -117,7 +103,9 @@ enum Overlay {
     Boxes,
 }
 
-/// The btop-style Esc menu.
+
+// ───────────────────────────────── dashboard ──────────────────────────────────
+
 pub struct Monitor {
     snap: Value,
     guard: Value,

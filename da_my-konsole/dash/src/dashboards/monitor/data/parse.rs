@@ -3,6 +3,10 @@
 // Moved out of monitor/mod.rs, which had grown to 6007 lines. Same code,
 // same order; only the file it lives in changed.
 
+/// docker's MemUsage is "469.7MiB / 7.595GiB" — used on the left of the
+/// slash, the limit on the right. Two different questions in one cell: what a
+/// container is using, and what it is allowed. They get a column each, and
+/// splitting them is what makes "rank by memory used" possible at all.
 pub(crate) fn ctr_mem(v: &str) -> (String, String) {
     match v.split_once('/') {
         Some((a, b)) => (a.trim().to_string(), b.trim().to_string()),
@@ -65,6 +69,3 @@ pub(crate) fn ctr_num(v: &str) -> f64 {
     };
     n * mult
 }
-
-/// What can be done to a container. No `rm`: stopping one is reversible and
-/// removing one is not, and a keystroke is the wrong weight for that.
