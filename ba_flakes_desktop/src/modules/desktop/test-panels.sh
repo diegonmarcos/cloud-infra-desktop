@@ -113,4 +113,20 @@ check "the prune runs before plasma-manager regenerates" \
 check "the runner serialises itself" \
   "$(grep -c '^flock 9' "$RUNNER")" 1
 
+# The tray step restarts plasmashell, and a restart restores the panels from
+# plasmashellrc — so the geometry the same run had just set at runtime was
+# thrown away by its own last step. On 2026-08-27 21:48 that left bottom/top at
+# plasma's 30px floating default instead of the declared 70/40, with the state
+# hash already written, so every later run reported "nothing to do".
+check "geometry is a function, so it can be applied more than once" \
+  "$(grep -c '^apply_geometry() {' "$RUNNER")" 1
+
+check "geometry is re-asserted after the plasmashell restart" \
+  "$(grep -c 'wait_for_plasmashell && apply_geometry' "$RUNNER")" 1
+
+# ...and the restart has to be branched on, not fire-and-forget: the re-assert
+# must be skipped when the restart failed, or it reports a loss that never was.
+check "the restart is branched on, not fire-and-forget" \
+  "$(grep -c 'if systemctl --user restart plasma-plasmashell.service; then' "$RUNNER")" 1
+
 exit "$fail"
