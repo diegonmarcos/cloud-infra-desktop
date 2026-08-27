@@ -1,8 +1,8 @@
 { config, lib, pkgs, ... }:
 
 # my-konsole (KDE role) — the Rust (Tauri v2) Konsole-alternative app from
-# da_my-konsole. Desktop integration is SELF-CONTAINED in the app: HM activation
-# just runs `da_my-konsole/build.sh install`, which (data-driven from build.json)
+# da__my-konsole. Desktop integration is SELF-CONTAINED in the app: HM activation
+# just runs `da__my-konsole/build.sh install`, which (data-driven from build.json)
 # writes the ~/.local/bin/my-konsole launcher, the .desktop entry, and installs
 # the personalized icon into the hicolor theme — so there is ONE source of the
 # desktop entry/icon (build.json), never double-managed here.
@@ -20,7 +20,7 @@
 # a raw console) — see configuration_my-konsole-tty.nix + the rescue ISO.
 
 let
-  repoDir = "${config.home.homeDirectory}/git/cloud-unix/da_my-konsole";
+  repoDir = "${config.home.homeDirectory}/git/cloud-unix/da__my-konsole";
 in
 {
   home.packages = with pkgs; [ zstd curl jq ];
