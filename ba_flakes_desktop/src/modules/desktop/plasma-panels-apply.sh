@@ -111,6 +111,15 @@ live_layout=$(evaluate 'print(panels().map(function (p) { return p.widgets().map
 # had NEITHER key, only plasmashell's own 15-entry stock knownItems/extraItems),
 # nothing ever put them back, and Plasma's compiled-in defaults became the
 # effective source of truth. A gate must measure everything it guards.
+# Geometry as DECLARED and as LIVE. Height is otherwise set ONLY inside the
+# rebuild below, and the layout gate suppresses the rebuild whenever the widget
+# lists match — so a height that drifts can never come back. 2026-08-27: both
+# panels sat at Plasma's default 30 (and floating=true) while panels.json had
+# said bottom=70 top=40 floating=false all along, and every run logged
+# "nothing to do". Same shape as the tray bug directly below.
+want_geom=$(jq -r '[.panels[] | "\(.location)=\(.height),\(.floating),\(.alignment // "center")"] | join("|")' "$JSON")
+live_geom=$(evaluate 'print(panels().map(function (p) { return p.location + "=" + p.height + "," + p.floating + "," + p.alignment; }).join("|"));' 2>/dev/null | tr -d '\r')
+
 want_tray=$(jq -r '[.panels[].widgets[] | select(has("shown")) | .shown | join(",")] | join("|")' "$JSON")
 live_tray=$(
   for _id in $(tray_ids); do
@@ -121,8 +130,9 @@ live_tray=$(
 
 if [ "$cur_hash" = "$old_hash" ] &&
    [ "$live_layout" = "$want_layout" ] &&
+   [ "$live_geom" = "$want_geom" ] &&
    [ "$live_tray" = "$want_tray" ]; then
-  log "layout, tray and definition all match — nothing to do"
+  log "layout, geometry, tray and definition all match — nothing to do"
   exit 0
 fi
 [ "$live_tray" = "$want_tray" ] || log "tray contents drifted from the declaration — reapplying"
@@ -199,6 +209,31 @@ else
     exit 1
   fi
 
+fi
+
+# ── geometry: set in place, no rebuild ────────────────────────────────────
+# Assigning to an existing panel's properties does not destroy it, so this is
+# safe to run whether or not the layout was just rebuilt (after a rebuild it is
+# a no-op re-assert). It exists as its own step precisely because it must NOT
+# require the destroy/recreate that the layout gate is there to avoid.
+if [ "$live_geom" != "$want_geom" ]; then
+  log "geometry differs — setting in place"
+  log "  live: $live_geom"
+  log "  want: $want_geom"
+  n=0
+  while [ "$n" -lt "$want" ]; do
+    js=$(jq -r --argjson n "$n" '.panels[$n] |
+      "var p = panels()[\($n)];\nif (p) { p.height = \(.height); p.floating = \(.floating); p.alignment = \(.alignment // "center" | tojson); }"' "$JSON")
+    evaluate "$js" >/dev/null
+    n=$((n + 1))
+  done
+  got=$(evaluate 'print(panels().map(function (p) { return p.location + "=" + p.height + "," + p.floating + "," + p.alignment; }).join("|"));' 2>/dev/null | tr -d '\r')
+  if [ "$got" != "$want_geom" ]; then
+    log "ERROR: geometry did not take — leaving state unset so this retries"
+    log "  got: $got"
+    exit 1
+  fi
+  log "geometry now $got"
 fi
 
 # plasmashell writes appletsrc asynchronously; the tray step below reads it.
