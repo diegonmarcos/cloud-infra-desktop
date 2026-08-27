@@ -120,6 +120,32 @@ live_layout=$(evaluate 'print(panels().map(function (p) { return p.widgets().map
 want_geom=$(jq -r '[.panels[] | "\(.location)=\(.height),\(.floating),\(.alignment // "center")"] | join("|")' "$JSON")
 live_geom=$(evaluate 'print(panels().map(function (p) { return p.location + "=" + p.height + "," + p.floating + "," + p.alignment; }).join("|"));' 2>/dev/null | tr -d '\r')
 
+# Widget CONFIG as DECLARED and as LIVE, addressed panel.widget.group.key.
+# Third instance of the same bug as the tray and the geometry: w.writeConfig is
+# reached ONLY from the widget-add loop inside the rebuild, and the layout gate
+# suppresses the rebuild — so a config value that drifts can never come back.
+# 2026-08-27: panels.json listed ten icontasks launchers and the live panel had
+# nine, missing exactly waydroid-container-mobile.desktop, with every run
+# logging "nothing to do". Widget indices line up with the declaration because
+# the layout term above has already established that the plugin sequence does.
+CFG_ADDR='[.panels | to_entries[] as $p | $p.value.widgets | to_entries[] as $w
+  | (($w.value.config // {}) | to_entries[]) as $g | $g.value | to_entries[]
+  | { p: $p.key, w: $w.key, g: $g.key, k: .key, v: .value }]'
+
+want_cfg=$(jq -r "$CFG_ADDR"' | map("\(.p).\(.w).\(.g).\(.k)=" +
+  (if (.v | type) == "array" then (.v | join(",")) else (.v | tostring) end)) | join("|")' "$JSON")
+
+# One print, joined in JS. plasmashell's print() does not emit a newline here,
+# so N prints arrive as one unsplittable blob — the separator has to be built
+# on the JS side or the readback can never be compared to want_cfg.
+cfg_read_js=$(jq -r "$CFG_ADDR"' | ["var out = []; var w;"] + map(
+  "w = panels()[\(.p)].widgets()[\(.w)];" +
+  "\nw.currentConfigGroup = [\(.g | tojson)];" +
+  "\nout.push(\("\(.p).\(.w).\(.g).\(.k)=" | tojson) + w.readConfig(\(.k | tojson)));"
+) + ["print(out.join(\"|\"));"] | join("\n")' "$JSON")
+
+live_cfg=$(evaluate "$cfg_read_js" 2>/dev/null | tr -d '\r\n')
+
 want_tray=$(jq -r '[.panels[].widgets[] | select(has("shown")) | .shown | join(",")] | join("|")' "$JSON")
 live_tray=$(
   for _id in $(tray_ids); do
@@ -131,8 +157,9 @@ live_tray=$(
 if [ "$cur_hash" = "$old_hash" ] &&
    [ "$live_layout" = "$want_layout" ] &&
    [ "$live_geom" = "$want_geom" ] &&
+   [ "$live_cfg" = "$want_cfg" ] &&
    [ "$live_tray" = "$want_tray" ]; then
-  log "layout, geometry, tray and definition all match — nothing to do"
+  log "layout, geometry, widget config, tray and definition all match — nothing to do"
   exit 0
 fi
 [ "$live_tray" = "$want_tray" ] || log "tray contents drifted from the declaration — reapplying"
@@ -234,6 +261,28 @@ if [ "$live_geom" != "$want_geom" ]; then
     exit 1
   fi
   log "geometry now $got"
+fi
+
+# ── widget config: written in place, no rebuild ───────────────────────────
+# Same reasoning as the geometry step: writeConfig on a live widget does not
+# destroy it, so this deliberately avoids the destroy/recreate the layout gate
+# exists to prevent. After a rebuild it is a no-op re-assert.
+if [ "$live_cfg" != "$want_cfg" ]; then
+  log "widget config differs — writing in place"
+  cfg_write_js=$(jq -r "$CFG_ADDR"' | map(
+    "var w = panels()[\(.p)].widgets()[\(.w)];" +
+    "\nw.currentConfigGroup = [\(.g | tojson)];" +
+    "\nw.writeConfig(\(.k | tojson), \(.v | tojson));"
+  ) | join("\n")' "$JSON")
+  evaluate "$cfg_write_js" >/dev/null
+  got=$(evaluate "$cfg_read_js" 2>/dev/null | tr -d '\r\n')
+  if [ "$got" != "$want_cfg" ]; then
+    log "ERROR: widget config did not take — leaving state unset so this retries"
+    log "  want: $want_cfg"
+    log "  got:  $got"
+    exit 1
+  fi
+  log "widget config now matches the declaration"
 fi
 
 # plasmashell writes appletsrc asynchronously; the tray step below reads it.

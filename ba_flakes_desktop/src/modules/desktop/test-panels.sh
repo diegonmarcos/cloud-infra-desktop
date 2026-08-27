@@ -74,6 +74,36 @@ check "geometry is set in place, not via a rebuild" \
 # plasma-manager never removes a generator it has stopped emitting, and
 # run_all.sh globs scripts/*.sh — so a stale 2_desktop_script_panels.sh kept
 # running `rm ~/.config/plasma-org.kde.plasma.desktop-appletsrc` at every login.
+# w.writeConfig is otherwise reached only from the widget-add loop inside the
+# rebuild, which the layout gate suppresses — so panels.json listed ten
+# icontasks launchers while the live panel had nine, missing exactly
+# waydroid-container-mobile.desktop, and every run said "nothing to do".
+check "the runner compares live widget config" \
+  "$(grep -c 'live_cfg=' "$RUNNER")" 1
+
+check "the early-exit gate tests widget config too" \
+  "$(sed -n '/^if \[ "$cur_hash" = "$old_hash" \]/,/^fi$/p' "$RUNNER" | grep -c '\$live_cfg" = "\$want_cfg')" 1
+
+check "widget config is written in place, not via a rebuild" \
+  "$(grep -c 'cfg_write_js' "$RUNNER")" 2
+
+# plasmashell's print() emits no newline here, so N prints arrive as one blob;
+# the separator has to be built JS-side or the readback cannot be compared.
+check "the config readback joins its entries in JS" \
+  "$(grep -c 'out.join' "$RUNNER")" 1
+
+# every declared launcher must have a .desktop that exists, or it renders blank
+check "every icontasks launcher names a real .desktop file" \
+  "$(jq -r '[.panels[].widgets[] | select(.plugin=="org.kde.plasma.icontasks") | .config.General.launchers[]] | .[]' "$JSON" |
+     sed 's|^applications:||' |
+     while read -r d; do
+       found=0
+       for p in "$HOME/.nix-profile/share/applications" /run/current-system/sw/share/applications "$HOME/.local/share/applications"; do
+         [ -f "$p/$d" ] && found=1
+       done
+       [ "$found" = 0 ] && echo "$d"
+     done | wc -l | tr -d ' ')" 0
+
 check "the generated plasma-manager dirs are pruned before they are rewritten" \
   "$(grep -c 'plasmaManagerPrune' "$(dirname "$0")/plasma.nix")" 1
 
