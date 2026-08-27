@@ -255,10 +255,28 @@ heaviest_leaf() {
 # Largest-RSS non-kthread, non-avoid victim across the HOG slices (the bulk
 # writers/CPU hogs that starve the desktop). Used when the DESKTOP slice is
 # starved but global PSI is low — the culprit is elsewhere, not the desktop.
+# Every pid in a cgroup SUBTREE, not just the slice's own cgroup.procs.
+#
+# 2026-08-27 — THE bug behind every "no eligible victim" / "no hog victim" line
+# in this guard's history, 2026-07-26 included. Under cgroup v2 processes live
+# ONLY in leaf cgroups: user-1000.slice/cgroup.procs reads 0 while its subtree
+# holds 108 pids, system.slice reads 0 against 37. Every picker below read the
+# slice's own file, so the candidate list was EMPTY BEFORE ANY FILTER RAN. The
+# 07-26 fix widened avoid_kill on the theory that the filters excluded everyone;
+# the filters were never reached. Measured on surface-nixos 2026-08-27.
+#
+# Pure bash recursion on purpose: `find` returns nothing on cgroupfs under some
+# sandboxes (silently, exit 0), and a killer that depends on that is no killer.
+cg_procs() {
+  local d="$1" sub
+  [ -r "$d/cgroup.procs" ] && cat "$d/cgroup.procs" 2>/dev/null
+  for sub in "$d"/*/; do [ -d "$sub" ] && cg_procs "${sub%/}"; done
+}
+
 pick_hog_victim() {
   local cg p comm rss best_pid="" best_rss=-1 lp lr
   for cg in $HOG_CGS; do
-    [ -r "$cg/cgroup.procs" ] || continue
+    [ -d "$cg" ] || continue
     while read -r p; do
       if ! [[ "$p" =~ ^[0-9]+$ ]] || [ "$p" -le 1 ]; then continue; fi
       is_kthread "$p" && continue
@@ -269,7 +287,7 @@ pick_hog_victim() {
       rss=$(subtree_rss "$p")
       if [ -z "$rss" ] || [ "$rss" -le 0 ]; then continue; fi
       if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; fi
-    done < "$cg/cgroup.procs"
+    done < <(cg_procs "$cg")
   done
   [ -n "$best_pid" ] || return 0
   # ...then kill the leaf inside it, never the tree root.
@@ -278,6 +296,49 @@ pick_hog_victim() {
   [ -n "$leaf" ] || return 0
   read -r lp lr <<<"$leaf"
   echo "$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null)"
+}
+
+# Top IO offender INSIDE the starved slice, by /proc/PID/io (read+write) DELTA.
+#
+# 2026-08-27 root cause of the 12:37 freeze. pick_hog_victim only scans
+# HOG_CGS (workload/machine/system), because the 15:29 case was a bulk writer
+# starving the desktop from OUTSIDE it. On 08-27 the hog WAS the desktop's own
+# slice -- a pile of Claude Code sessions in user-1000.slice -- so
+# pick_hog_victim found nothing, the STARVED branch logged "no hog victim" and
+# returned, every tick for the final 35s, while io.pressure some avg10 climbed
+# to 91.56 and the box died. The guard SAW the freeze and had nowhere to aim.
+#
+# Ranked by IO bytes, not RSS: this is an IO breach, and the fattest process is
+# not the one holding the NVMe queue. Same two-tier shape as
+# pick_cgroup_victim -- prefer a non-soft_avoid victim, fall back to any
+# non-hard_protect one (which can include the compositor) rather than the
+# do-nothing that killed the machine. Prints "pid mb comm".
+declare -A PREV_RWB
+pick_slice_io_victim() {
+  local p comm rb wb d
+  local best_pid="" best_d=-1 best_comm="" fb_pid="" fb_d=-1 fb_comm=""
+  [ -d "$WATCH_CG" ] || return 0
+  while read -r p; do
+    if ! [[ "$p" =~ ^[0-9]+$ ]] || [ "$p" -le 1 ]; then continue; fi
+    is_kthread "$p" && continue
+    comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
+    rb=$(awk '/^read_bytes:/{print $2}' "/proc/$p/io" 2>/dev/null) || continue
+    wb=$(awk '/^write_bytes:/{print $2}' "/proc/$p/io" 2>/dev/null) || continue
+    [ -n "$rb" ] && [ -n "$wb" ] || continue
+    d=$(( rb + wb - ${PREV_RWB[$p]:-$((rb + wb))} ))
+    PREV_RWB[$p]=$(( rb + wb ))
+    [ "$d" -gt 0 ] || continue
+    # hard_protect is absolute; soft_avoid only demotes to the fallback tier.
+    is_protected "$p" && continue
+    if echo "$comm" | grep -Eq -- "$SOFT_AVOID"; then
+      if [ "$d" -gt "$fb_d" ]; then fb_d="$d"; fb_pid="$p"; fb_comm="$comm"; fi
+      continue
+    fi
+    if [ "$d" -gt "$best_d" ]; then best_d="$d"; best_pid="$p"; best_comm="$comm"; fi
+  done < <(cg_procs "$WATCH_CG")
+  if [ -z "$best_pid" ]; then best_pid="$fb_pid"; best_d="$fb_d"; best_comm="$fb_comm"; fi
+  [ -n "$best_pid" ] || return 0
+  echo "$best_pid $((best_d/1024/1024)) $best_comm"
 }
 
 # Pick the top offender by $1 sort key (rss or pcpu), skipping already-killed
@@ -319,10 +380,10 @@ pick_victim() {
 # now STILL kills the largest-RSS non-hard_protect process instead of
 # doing nothing. Prints "pid rss comm tier".
 pick_cgroup_victim() {
-  local procs="$1/cgroup.procs" p comm rss
+  local p comm rss
   local best_pid="" best_rss=-1
   local fb_pid="" fb_rss=-1
-  [ -r "$procs" ] || return 1
+  [ -d "$1" ] || return 1
   while read -r p; do
     if ! [[ "$p" =~ ^[0-9]+$ ]] || [ "$p" -le 1 ]; then continue; fi
     comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
@@ -334,7 +395,7 @@ pick_cgroup_victim() {
     # Preferred pool: non-hard_protect AND non-soft_avoid.
     echo "$comm" | grep -Eq -- "$SOFT_AVOID" && continue
     if [ "$rss" -gt "$best_rss" ]; then best_rss="$rss"; best_pid="$p"; fi
-  done < "$procs"
+  done < <(cg_procs "$1")
   # Tree descent (2026-08-19): whichever pool won, the pid chosen above is only
   # the ROOT of the offending tree. Replace it with the heaviest killable leaf
   # so one workload/tab dies instead of the whole session container.
@@ -454,6 +515,7 @@ while :; do
   # Prune maps: drop pids that already died (unbounded-growth guard).
   for _p in "${!TERMED[@]}"; do [ -d "/proc/$_p" ] || unset "TERMED[$_p]"; done
   for _p in "${!PREV_WB[@]}"; do [ -d "/proc/$_p" ] || unset "PREV_WB[$_p]"; done
+  for _p in "${!PREV_RWB[@]}"; do [ -d "/proc/$_p" ] || unset "PREV_RWB[$_p]"; done
 
   cpu=$(psi_avg10 cpu some);    cpu=${cpu:-0}
   mem=$(psi_avg10 memory full); mem=${mem:-0}
@@ -498,7 +560,18 @@ while :; do
       do_kill "$hpid" "$hcomm"; hsig=$SIG
       echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem (global io=$io) → SIG$hsig hog pid=$hpid rss=${hrss}kB ($hcomm)"
     else
-      echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem — no hog victim outside the desktop (all essential/kthread?)"
+      # 2026-08-27: this used to be a bare log and a return. When the hog is
+      # INSIDE the desktop slice there is no hog "elsewhere", so the guard sat
+      # here doing nothing for 35s while the box froze. Fall back to the top IO
+      # offender within the starved slice itself — same last-resort principle
+      # that pick_cgroup_victim already had, applied to the voter that lacked it.
+      read -r spid smb scomm <<< "$(pick_slice_io_victim)"
+      if [ -n "$spid" ] && [ "$spid" -gt 1 ] 2>/dev/null; then
+        do_kill "$spid" "$scomm"; ssig=$SIG
+        echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem — no hog outside the desktop → SIG$ssig top in-slice IO pid=$spid io=${smb}MB/tick ($scomm)"
+      else
+        echo "[freeze-guard] DESKTOP-STARVED sliceIO=$sio sliceMEM=$smem — no victim anywhere, in or out of the desktop (all essential/kthread?)"
+      fi
     fi
   fi
 
