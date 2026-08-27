@@ -72,12 +72,6 @@
         "--new-window"
       ]
     },
-    "qutebrowser": {
-      "exec": "qutebrowser",
-      "match_class": "qutebrowser",
-      "arg_mode": "urls",
-      "single_instance": true
-    },
     "systemsettings": {
       "exec": "systemsettings",
       "match_class": "systemsettings",
@@ -125,6 +119,12 @@
       "arg_mode": "urls",
       "single_instance": true,
       "_single_instance_doc": "Brave is one process: a second `brave` invocation opens a tab/window inside the running one and exits, so the launcher can never match the new window by PID. Skip instead of guessing."
+    },
+    "my-browser-qute": {
+      "exec": "my-browser-qute",
+      "match_class": "my-browser-qute",
+      "arg_mode": "urls",
+      "single_instance": true
     }
   },
   "desktops": [
