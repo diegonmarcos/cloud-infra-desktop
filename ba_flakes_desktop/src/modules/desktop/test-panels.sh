@@ -71,6 +71,15 @@ check "the early-exit gate tests geometry too" \
 check "geometry is set in place, not via a rebuild" \
   "$(grep -c 'p.height = ' "$RUNNER")" 2
 
+# plasma-manager never removes a generator it has stopped emitting, and
+# run_all.sh globs scripts/*.sh — so a stale 2_desktop_script_panels.sh kept
+# running `rm ~/.config/plasma-org.kde.plasma.desktop-appletsrc` at every login.
+check "the generated plasma-manager dirs are pruned before they are rewritten" \
+  "$(grep -c 'plasmaManagerPrune' "$(dirname "$0")/plasma.nix")" 1
+
+check "the prune runs before plasma-manager regenerates" \
+  "$(sed -n '/plasmaManagerPrune/,/'"''"'/p' "$(dirname "$0")/plasma.nix" | grep -c 'entryBetween \[ "configure-plasma" \]')" 1
+
 check "the runner serialises itself" \
   "$(grep -c '^flock 9' "$RUNNER")" 1
 
