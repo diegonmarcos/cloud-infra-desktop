@@ -12,9 +12,9 @@ on:
   push:
     branches: [main]
     paths:
-      - "da_waydroid-container/build.json"
-      - "da_waydroid-container/src/**"
-      - "da_waydroid-container/build.sh"
+      - "af_waydroid-container/build.json"
+      - "af_waydroid-container/src/**"
+      - "af_waydroid-container/build.sh"
       - ".github/workflows/ship-waydroid-container.yml"
   workflow_dispatch:
 
@@ -41,9 +41,9 @@ jobs:
         run: echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
 
       - name: Build the image (engine-driven, sha256-pinned Sunshine deb)
-        working-directory: da_waydroid-container
+        working-directory: af_waydroid-container
         run: ./build.sh build
 
       - name: Push to GHCR
-        working-directory: da_waydroid-container
+        working-directory: af_waydroid-container
         run: ./build.sh push
