@@ -489,7 +489,6 @@
                 cloud-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-data.git"; ref = "main"; shallow = true; };
                 front      = builtins.fetchGit { url = "https://github.com/diegonmarcos/diegonmarcos.github.io.git"; ref = "main"; shallow = true; };
                 front-data = builtins.fetchGit { url = "https://github.com/diegonmarcos/front-data.git"; ref = "main"; shallow = true; };
-                tools      = builtins.fetchGit { url = "https://github.com/diegonmarcos/cloud-mykonsole-dtk.git";      ref = "main"; shallow = true; };
               };
             in pkgs.runCommand "bake-repos" {} ''
               mkdir -p $out/home/diego/git
