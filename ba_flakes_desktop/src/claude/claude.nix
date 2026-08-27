@@ -15,9 +15,14 @@
 #                 vendored copies is precisely how cloud-marketplace drifted across
 #                 7 files (desktop 2026-07-30 vs termux 2026-08-08).
 #
-#   THIS FLAKE    Platform-specific only: mcp.json.tpl (desktop keeps the three stdio
-#                 MCP servers termux bans), mcp-local-launch.sh, secrets.yaml (own
-#                 sops recipients), and the CLAUDE.md stub.
+#   THIS FLAKE    secrets.yaml (sops ciphertext keyed to this flake's own age
+#                 recipients — genuinely un-shareable) and the CLAUDE.md stub.
+#                 NOTHING ELSE. 2026-08-27: mcp.json.tpl and mcp-local-launch.sh
+#                 moved to the my-ai REPO as mcp.desktop.json.tpl and
+#                 mcp-local-launch.sh. "Platform-specific" is not a reason to own
+#                 a second copy — settings.desktop.json is platform-specific and
+#                 lives in the SoT; the suffix carries the platform, the
+#                 directory carries the ownership.
 { config, lib, pkgs, inputs, ... }:
 
 let
@@ -100,20 +105,29 @@ in
     done
     [ -f "$SOT/claude-plugins.json" ] && $CP -f "$SOT/claude-plugins.json" "$HOME/.claude/claude-plugins.json"
     [ -f "$SOT/rgignore" ]           && $CP -f "$SOT/rgignore"           "$HOME/.rgignore"
+    # Platform-suffixed exactly like settings.desktop.json: the file is
+    # desktop-only (termux bans the stdio servers it declares) but it is still
+    # claude SETTINGS, so it lives in the one SoT dir, not beside the flake.
+    [ -f "$SOT/mcp.desktop.json.tpl" ] && $CP -f --no-preserve=mode "$SOT/mcp.desktop.json.tpl" "$HOME/.claude/mcp.json.tpl"
+    if [ -f "$SOT/mcp-local-launch.sh" ]; then
+      $CP -f --no-preserve=mode "$SOT/mcp-local-launch.sh" "$HOME/.claude/mcp-local-launch.sh"
+      ${pkgs.coreutils}/bin/chmod 0755 "$HOME/.claude/mcp-local-launch.sh"
+    fi
     ${pkgs.coreutils}/bin/chmod -R u+w "$HOME/.claude/agents" "$HOME/.claude/cloud-marketplace" 2>/dev/null || true
     echo "[claude-assets] deployed from $SOT (single SoT)"
     ) || echo "[claude-assets] subshell failed; HM chain continues"
   '';
 
   home.file.".claude/CLAUDE.md".text = "\n";
-  home.file.".claude/mcp.json.tpl".source = ./assets/mcp.json.tpl;
-  # Universal launcher for local stdio MCP servers — self-creates the
-  # node_modules symlink(s) ESM bare-import resolution requires (NODE_PATH is
-  # ignored by the ESM loader). See the script header for the full rationale.
-  home.file.".claude/mcp-local-launch.sh" = {
-    source = ./assets/mcp-local-launch.sh;
-    executable = true;
-  };
+  # mcp.json.tpl and mcp-local-launch.sh WERE home.file entries pointing at
+  # ./assets/. That made this flake a second SoT for claude settings, and it
+  # cost exactly what a second SoT always costs: cloud-infra declared
+  # cloud-cgc-pvt-mcp on 2026-08-23 and the client-side list here never heard
+  # about it. Both now come from the ONE SoT via home.activation.claudeAssets.
+  #
+  # secrets.yaml STAYS. It is sops ciphertext keyed to THIS flake's age
+  # recipients, not settings — the termux flake has its own, and a shared copy
+  # would be undecryptable on one of the two machines.
   home.file.".claude/secrets.yaml".source = ./assets/secrets.yaml;
   # ── The status line is OWNED BY THE my-ai BINARY, not by this flake ────────
   #
@@ -413,7 +427,7 @@ in
   # Subshell wrap: `exit 0` early-returns (missing files, decrypt failure)
   # must stay local to this block. Bare `exit 0` in HM activations terminates
   # the entire activation script, silently skipping every later activation.
-  home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration"] ''
+  home.activation.mcpSecrets = lib.hm.dag.entryAfter ["linkGeneration" "claudeAssets"] ''
     (
     SOPS="${pkgs.sops}/bin/sops"
     TPL="$HOME/.claude/mcp.json.tpl"

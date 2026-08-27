@@ -21,10 +21,13 @@
 #                 already uses (home.activation.claudeSettings /
 #                 claudeAssets there). Edit those files in da_my-ai, not here.
 #
-#   THIS FLAKE    Deploys, owns almost nothing. Platform-specific leftovers only:
-#                 mcp.json.tpl (termux bans stdio MCP servers — 30s startup through
-#                 proot), secrets.yaml (own sops recipients), the CLAUDE.md stub,
-#                 and the out-of-store state symlinks.
+#   THIS FLAKE    Deploys, owns almost nothing: secrets.yaml (own sops
+#                 recipients — genuinely un-shareable), the CLAUDE.md stub, and
+#                 the out-of-store state symlinks. 2026-08-27: mcp.json.tpl left
+#                 too, to da_my-ai as mcp.termux.json.tpl. Termux banning the
+#                 stdio servers is a CONTENT difference, not an ownership one —
+#                 the suffix carries the platform, the directory carries the SoT,
+#                 exactly as settings.termux.json already did.
 { config, lib, pkgs, ... }:
 
 let
@@ -63,7 +66,10 @@ in
     # via SessionStart/UserPromptSubmit hooks) in the SHARED cloud-marketplace.
     ".claude/CLAUDE.md".text = "\n";
 
-    ".claude/mcp.json.tpl".source = ./assets/mcp.json.tpl;
+    # mcp.json.tpl WAS here, i.e. a second SoT for claude settings. It moved to
+    # da_my-ai/src/data/claude/mcp.termux.json.tpl on 2026-08-27 and is deployed
+    # by claude-assets-deploy.sh (MCP_VARIANT=termux). secrets.yaml STAYS: sops
+    # ciphertext keyed to this flake's own age recipients, not settings.
     ".claude/secrets.yaml".source = ./assets/secrets.yaml;
 
     # agents/, claude-plugins.json, cloud-marketplace/ and rgignore are NOT
@@ -92,6 +98,7 @@ in
     REPO_SOT="''${CLAUDE_SOT_DIR:-${claudeSotDefault}}" \
     DEST_CLAUDE="$HOME/.claude" \
     DEST_RGIGNORE="$HOME/.rgignore" \
+    MCP_VARIANT=termux \
     CP_BIN="${pkgs.coreutils}/bin/cp" \
     RM_BIN="${pkgs.coreutils}/bin/rm" \
     MKDIR_BIN="${pkgs.coreutils}/bin/mkdir" \
