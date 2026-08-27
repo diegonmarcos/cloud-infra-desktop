@@ -117,8 +117,6 @@ libs/
 ## 2026-08-11) via `build.sh materialize-fork`. Huge third-party trees —
 ## NEVER vendored. OUR changes live as git-am patch series in
 ## blanket rule, removed 2026-07-10.
-cloud-unix-termux-boot/**/*.keystore
-cloud-unix-termux-boot/**/*.jks
 ## Orphan gitlink guard (restored 2026-07-22). These 4 dirs are empty nested-repo
 ## placeholders with NO .gitmodules entry. An auto-sync `git add -A` keeps
 ## re-capturing them as mode-160000 gitlinks, which makes actions/checkout fail
@@ -128,9 +126,6 @@ cloud-unix-termux-boot/**/*.jks
 ## local ./gradlew left .gradle/ and build/ untracked-but-addable — and
 ## bb_flakes_termux/build.sh does `git add -A`. Same class of gap as the
 ## whitelist above, or the whitelist would drag libs/*/build/ back in.
-cloud-unix-termux-boot/.gradle/
-cloud-unix-termux-boot/build/
-cloud-unix-termux-boot/**/build/
 ## Gradle writes local.properties with a machine-local `sdk.dir` on every
 ## build. It must never be committed — it points at whatever SDK path that
 ## one machine had (here: /tmp/android-sdk) and breaks every other checkout
