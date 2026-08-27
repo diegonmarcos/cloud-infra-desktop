@@ -40,6 +40,16 @@ log() { echo "[panels] $*"; }
 
 [ -f "$JSON" ] || { log "missing $JSON" >&2; exit 1; }
 
+# One runner at a time. This binary is triggered from HM activation AND from
+# the login autostart, and the journal has both firing in the same second
+# (run_all.sh[5314] and [5323] on 2026-08-27 12:40:42). Two concurrent passes
+# through the rebuild below both call panels().forEach(p => p.remove()) — the
+# destroy/recreate that plasmashell SEGV'd inside on 2026-08-22, leaving the
+# desktop with no taskbar. The second arrival waits, then re-reads live state
+# and finds the first one's work already done.
+exec 9>"${XDG_RUNTIME_DIR:-/tmp}/plasma-panels-apply.lock"
+flock 9 2>/dev/null || log "no flock — proceeding unserialised"
+
 qd=""
 for c in qdbus6 qdbus; do command -v "$c" >/dev/null 2>&1 && { qd="$c"; break; }; done
 [ -n "$qd" ] || { log "no qdbus on PATH — nothing to do"; exit 0; }
@@ -67,6 +77,17 @@ while [ "$i" -lt 60 ]; do
 done
 [ "$i" -lt 60 ] || { log "plasmashell never answered on D-Bus — giving up"; exit 0; }
 
+# Tray containment ids, ascending = creation order = the order the systemtray
+# widgets appear in panels.json. Read twice: once for the gate below, once
+# after a rebuild (which mints new ids).
+tray_ids() {
+  [ -f "$APPLETS" ] || return 0
+  awk '
+    /^\[Containments\]\[[0-9]+\]$/ { id = gensub(/.*\[([0-9]+)\]$/, "\\1", "g"); next }
+    /^plugin=org\.kde\.plasma\.private\.systemtray$/ { if (id != "") print id }
+  ' "$APPLETS" | sort -n
+}
+
 # ── do we need to do anything? ──────────────────────────────────
 want=$(jq '.panels | length' "$JSON")
 cur_hash=$(sha256sum "$JSON" | cut -d' ' -f1)
@@ -78,10 +99,33 @@ old_hash=$(cat "$STATE" 2>/dev/null || echo "")
 want_layout=$(jq -r '[.panels[] | [.widgets[].plugin] | join(",")] | join("|")' "$JSON")
 live_layout=$(evaluate 'print(panels().map(function (p) { return p.widgets().map(function (w) { return w.type; }).join(","); }).join("|"));' 2>/dev/null | tr -d '\r')
 
-if [ "$cur_hash" = "$old_hash" ] && [ "$live_layout" = "$want_layout" ]; then
-  log "layout matches and definition unchanged — nothing to do"
+# The tray contents as DECLARED and as LIVE, in the same panel-then-widget
+# order — the exact counterpart of the layout comparison above.
+#
+# 2026-08-27: this comparison is why the tray was wrong for a day. The gate
+# used to be (hash && layout) alone, and $STATE records that PANELS.JSON was
+# applied — but tray contents live in appletsrc, which plasmashell rewrites on
+# its own schedule and which no hash here covers. So the first successful run
+# wrote $STATE, and every run after it exited at this line before reaching the
+# tray step. When plasmashell later dropped shownItems/hiddenItems (both trays
+# had NEITHER key, only plasmashell's own 15-entry stock knownItems/extraItems),
+# nothing ever put them back, and Plasma's compiled-in defaults became the
+# effective source of truth. A gate must measure everything it guards.
+want_tray=$(jq -r '[.panels[].widgets[] | select(has("shown")) | .shown | join(",")] | join("|")' "$JSON")
+live_tray=$(
+  for _id in $(tray_ids); do
+    kreadconfig6 --file "$APPLETS" --group Containments --group "$_id" \
+      --group General --key shownItems
+  done | paste -sd'|'
+)
+
+if [ "$cur_hash" = "$old_hash" ] &&
+   [ "$live_layout" = "$want_layout" ] &&
+   [ "$live_tray" = "$want_tray" ]; then
+  log "layout, tray and definition all match — nothing to do"
   exit 0
 fi
+[ "$live_tray" = "$want_tray" ] || log "tray contents drifted from the declaration — reapplying"
 
 # NEVER destroy a layout that is already correct. 2026-08-24: on a first run
 # the state file does not exist, so the hash gate above could not match and the
@@ -164,12 +208,7 @@ sleep 3
 if [ ! -f "$APPLETS" ]; then
   log "no $APPLETS yet — skipping tray contents"
 else
-  # Private systemtray containments, in ascending id = creation order = the
-  # order the systemtray widgets appear in panels.json.
-  mapfile -t TRAYS < <(awk '
-    /^\[Containments\]\[[0-9]+\]$/ { id = gensub(/.*\[([0-9]+)\]$/, "\\1", "g"); next }
-    /^plugin=org\.kde\.plasma\.private\.systemtray$/ { if (id != "") print id }
-  ' "$APPLETS" | sort -n)
+  mapfile -t TRAYS < <(tray_ids)
 
   # The universe every hidden list is the complement of: everything any tray
   # already knows about, everything we declare, and — critically — every SNI
@@ -218,6 +257,15 @@ else
     plasmoids=$(printf '%s\n' "$shown" | tr ',' '\n' | awk '/\./' | paste -sd,)
     kwriteconfig6 --file "$APPLETS" --group Containments --group "$id" \
       --group General --key extraItems "$plasmoids"
+    # knownItems is plasmashell's OWN memory of every id it has ever seen, and
+    # an id absent from it is treated as new and defaults to SHOWN regardless of
+    # hiddenItems. Left alone it is a second source of truth that outlives any
+    # declaration — on this box both trays carried an identical 15-entry stock
+    # list nothing here ever asked for. Overwriting it with exactly the set we
+    # have an opinion about (shown + hidden, i.e. the universe) leaves Plasma
+    # nothing of its own to fall back to.
+    kwriteconfig6 --file "$APPLETS" --group Containments --group "$id" \
+      --group General --key knownItems "$shown${hidden:+,$hidden}"
     log "tray $((i + 1)) (containment $id): shown=[$shown]"
     log "tray $((i + 1)) (containment $id): hidden=[$hidden]"
   done
