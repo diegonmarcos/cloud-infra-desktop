@@ -250,3 +250,11 @@ db_autofill-rbw-rofi/dist/
 ## fetches them. Added 2026-08-27.
 ca_waydroid-container/src/apks/
 ca_waydroid-container/src/data-seed.tar.zst
+## I_cloud joins the orphan-gitlink guard (2026-08-27). Unlike the 4 above it is
+## a REAL clone -- of the same cloud.git already registered as the `cloud`
+## submodule -- so auto-sync kept re-capturing it as a mode-160000 gitlink with
+## no .gitmodules mapping. `git submodule status` then dies with "no submodule
+## mapping found for path 'I_cloud'", which blocks rebase and breaks CI checkout.
+## The dir stays on disk; whether `cloud` or `I_cloud` is the canonical name is
+## a separate decision, and belongs in 0_git/src/gitmodules when it is made.
+I_cloud/
