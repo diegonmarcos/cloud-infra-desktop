@@ -1,3 +1,9 @@
+// Where the numbers come from. Knows nothing about drawing.
+pub(crate) mod parse;
+pub(crate) mod sort;
+pub(crate) mod storage;
+pub(crate) mod tree;
+
 // Snapshot access — one dotted-path reader instead of a mirrored schema.
 //
 // The daemon's JSON is broad and grows; mirroring it as structs would mean a

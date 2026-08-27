@@ -3,8 +3,8 @@ use std::fs;
 
 use serde_json::Value;
 
-use super::data::{arr, num, text};
-use super::fmt::{fmt_bytes_short, fmt_g, fmt_gib, fmt_uptime};
+use crate::dashboards::monitor::data::{arr, num, text};
+use crate::dashboards::monitor::view::fmt::{fmt_bytes_short, fmt_g, fmt_gib, fmt_uptime};
 
 /// Everything on screen, written out twice: the snapshot verbatim as JSON and
 /// a readable report as Markdown.

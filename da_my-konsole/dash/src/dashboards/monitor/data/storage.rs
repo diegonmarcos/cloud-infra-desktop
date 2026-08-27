@@ -20,7 +20,7 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 
-use super::data::{arr, num, text};
+use crate::dashboards::monitor::data::{arr, num, text};
 
 /// One thing you could mount, or already have.
 #[derive(Clone)]

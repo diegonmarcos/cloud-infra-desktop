@@ -5,7 +5,7 @@
 // values" are different questions.
 use serde_json::Value;
 
-use super::data::{arr, num, text};
+use crate::dashboards::monitor::data::{arr, num, text};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Sort {
