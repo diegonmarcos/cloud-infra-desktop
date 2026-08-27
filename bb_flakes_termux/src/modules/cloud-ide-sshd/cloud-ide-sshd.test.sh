@@ -210,7 +210,10 @@ grep -q 'WAKELOCK_STAMP\|wake_lock_held' "$SCRIPT" \
 # The APK and the flake are two separately-deployed halves of one mechanism,
 # and every failure between them is silent: the phone simply never comes up.
 # These assertions are the only thing holding the halves together.
-APK="$DIR/../../../../cloud-unix-termux-boot"
+# The APK moved to the cloud-android repo (2026-08-27) — it is an Android
+# product, not a flake. Override CLOUD_ANDROID to test against a checkout
+# elsewhere; the [ -f ] guard below reports honestly when it is absent.
+APK="${CLOUD_ANDROID:-$HOME/git/cloud-android}/a_solutions/ae-tool_termux-boot"
 
 # RunCommandService refuses every foreign package unless this is set, and
 # Cloud Unix Termux Boot is necessarily foreign (it cannot share the uid without the
@@ -243,7 +246,7 @@ if [ -f "$APK/app/src/main/java/com/termux/nix/boot/BootReceiver.java" ]; then
     && nope "APK declares sharedUserId — it cannot install without F-Droid's signing key" \
     || ok "APK declares no sharedUserId (it cannot join the host uid)"
 else
-  nope "cloud-unix-termux-boot missing — the boot APK half of the mechanism is absent"
+  nope "termux-boot APK not found at $APK — the boot APK half of the mechanism is absent"
 fi
 
 # Home Manager leaves .hm-bak-<ts> copies beside replaced files; running them
