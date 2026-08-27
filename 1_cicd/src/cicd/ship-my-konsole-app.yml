@@ -15,7 +15,7 @@ on:
   push:
     branches: [main]
     paths:
-      - 'da_my-konsole/**'
+      - 'da__my-konsole/**'
       # my-konsole compiles the shared sampler from here.
       - 'da_watchdog/**'
       - '1_cicd/src/cicd/ship-my-konsole-app.yml'
@@ -29,7 +29,7 @@ jobs:
     runs-on: ubuntu-latest
     defaults:
       run:
-        working-directory: da_my-konsole
+        working-directory: da__my-konsole
     steps:
       - uses: actions/checkout@v4
 
@@ -38,7 +38,7 @@ jobs:
           node-version: '22'
 
       - name: Build agentic-ui (goose-desktop-derived React frontend)
-        working-directory: da_my-konsole/agentic-ui
+        working-directory: da__my-konsole/agentic-ui
         # npm install, not ci: no package-lock.json is committed (all builds
         # happen in CI, never locally, so there's no natural place a lockfile
         # gets generated/reviewed yet).
@@ -68,10 +68,10 @@ jobs:
         with:
           name: my-konsole-bundle
           path: |
-            da_my-konsole/src-tauri/target/release/my-konsole
-            da_my-konsole/dash/target/release/my-konsole-dash
-            da_my-konsole/src-tauri/target/release/bundle/**
-            da_my-konsole/agentic-ui-dist.tar.gz
+            da__my-konsole/src-tauri/target/release/my-konsole
+            da__my-konsole/dash/target/release/my-konsole-dash
+            da__my-konsole/src-tauri/target/release/bundle/**
+            da__my-konsole/agentic-ui-dist.tar.gz
           if-no-files-found: warn
 
       - name: Publish rolling GitHub Release
@@ -81,7 +81,7 @@ jobs:
         run: |
           gh release create my-konsole-latest \
             --title "my-konsole (rolling)" \
-            --notes "Latest Tauri build — main@${GITHUB_SHA:0:8}. Install the .deb, or fetch via da_my-konsole/build.sh run." \
+            --notes "Latest Tauri build — main@${GITHUB_SHA:0:8}. Install the .deb, or fetch via da__my-konsole/build.sh run." \
             --target "$GITHUB_SHA" 2>/dev/null || true
           gh release upload my-konsole-latest \
             src-tauri/target/release/my-konsole \
@@ -100,7 +100,7 @@ jobs:
     runs-on: ubuntu-24.04-arm
     defaults:
       run:
-        working-directory: da_my-konsole
+        working-directory: da__my-konsole
     steps:
       - uses: actions/checkout@v4
 
@@ -128,7 +128,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: my-konsole-engine-aarch64
-          path: da_my-konsole/engine-dist/my-konsole-engine-aarch64
+          path: da__my-konsole/engine-dist/my-konsole-engine-aarch64
           if-no-files-found: warn
 
       - name: Publish rolling GitHub Release
@@ -138,7 +138,7 @@ jobs:
         run: |
           gh release create my-konsole-latest \
             --title "my-konsole (rolling)" \
-            --notes "Latest Tauri build — main@${GITHUB_SHA:0:8}. Install the .deb, or fetch via da_my-konsole/build.sh run." \
+            --notes "Latest Tauri build — main@${GITHUB_SHA:0:8}. Install the .deb, or fetch via da__my-konsole/build.sh run." \
             --target "$GITHUB_SHA" 2>/dev/null || true
           gh release upload my-konsole-latest \
             engine-dist/my-konsole-engine-aarch64 \

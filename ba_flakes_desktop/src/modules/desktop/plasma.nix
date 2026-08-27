@@ -1001,15 +1001,15 @@ in
   # Same mechanism as kstats above, same reasons — see that comment for why
   # this is a `cp` and not a symlink.
   #
-  # It lives here rather than in da_my-konsole/configs/plasmoid/ because it
-  # used to be installed by `da_my-konsole/build.sh install`, which `cp -rf`'d
+  # It lives here rather than in da__my-konsole/configs/plasmoid/ because it
+  # used to be installed by `da__my-konsole/build.sh install`, which `cp -rf`'d
   # it out of the WORKING TREE. That made the deployed widget a function of
   # whatever happened to be checked out — a dirty edit, a stale branch or no
   # checkout at all each produced a different desktop at the same generation,
   # and nothing about the result was reproducible from the flake.
   #
   # It also silently broke CI: the desktop closure workflow filters on
-  # `ba_flakes_desktop/src/**`, so a QML change under da_my-konsole/ triggered
+  # `ba_flakes_desktop/src/**`, so a QML change under da__my-konsole/ triggered
   # ship-my-konsole-app but NEVER rebuilt the home-manager closure. Living
   # under src/ is what makes an edit here actually reach the closure.
   #

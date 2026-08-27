@@ -88,7 +88,7 @@
         "appear when they have something to say while nix-flakes, docker and",
         "my-ai stay one click away. A single tray cannot express both policies —",
         "shownItems/hiddenItems are per-tray. Tray 1's ids are the ones",
-        "da_my-konsole's configs/systrays.json publishes (one --tray-daemon",
+        "da__my-konsole's configs/systrays.json publishes (one --tray-daemon",
         "process, NINE items)."
       ],
       "location": "bottom",
