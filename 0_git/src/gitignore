@@ -231,13 +231,13 @@ build.log
 ## db_autofill-rbw-rofi/dist/ holds the compiled rust binary + build.log. build.log
 ## was already covered; the binary was not, and `git add -A` would have committed it.
 db_autofill-rbw-rofi/dist/
-## ca_waydroid-container/src/apks/ holds ~101 third-party APKs (Brave, ProtonVPN,
+## af_waydroid-container/src/apks/ holds ~101 third-party APKs (Brave, ProtonVPN,
 ## Organic Maps, ...) and data-seed.tar.zst. None were EVER tracked at the old
-## da_waydroid-container path -- `git add -A` after the ca_ rename would have
+## ca_/da_waydroid-container paths -- `git add -A` after the ca_ rename would have
 ## vendored them all. Third-party trees are never vendored; the container build
 ## fetches them. Added 2026-08-27.
-ca_waydroid-container/src/apks/
-ca_waydroid-container/src/data-seed.tar.zst
+af_waydroid-container/src/apks/
+af_waydroid-container/src/data-seed.tar.zst
 ## I_cloud joins the orphan-gitlink guard (2026-08-27). Unlike the 4 above it is
 ## a REAL clone -- of the same cloud.git already registered as the `cloud`
 ## submodule -- so auto-sync kept re-capturing it as a mode-160000 gitlink with
