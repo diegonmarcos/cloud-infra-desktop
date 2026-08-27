@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+export CT_PROFILE="cloud"
+export CT_PROFILES_DIR="/home/diego/git/unix/da_cloud-terminal/src/data"
+export CT_ICON="/home/diego/git/unix/da_cloud-terminal/src/assets/cloud.png"
+export CT_PANEL="/home/diego/git/unix/da_cloud-terminal/lib/panel.html"
+export CT_BIN_DIR="/home/diego/git/unix/da_cloud-terminal/dist/bin"
+export CT_NODE="${CT_NODE:-/home/diego/.nix-profile/bin/node}"
+export CT_PTY_SERVER="${CT_PTY_SERVER:-/home/diego/git/unix/da_cloud-terminal/src/scripts/pty-server.js}"
+export CT_SHELL="${CT_SHELL:-/home/diego/.nix-profile/bin/fish}"
+export ELECTRON_OZONE_PLATFORM_HINT="${ELECTRON_OZONE_PLATFORM_HINT:-auto}"
+exec "/nix/store/drgbqwaxzvyzn0sksvzvhpr6k9y564r2-electron-37.10.2/bin/electron" "/home/diego/git/unix/da_cloud-terminal/src/scripts/dist/main.js" --class="cloud-terminal-cloud" "$@"

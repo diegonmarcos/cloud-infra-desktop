@@ -1,0 +1,226 @@
+{
+  "meta": {
+    "name": "Kinoite Bifrost",
+    "version": "1.0",
+    "tagline": "QubesOS-style isolation optimized for 8GB RAM",
+    "device": "Surface Pro 8",
+    "base": "Fedora Kinoite 41",
+    "description": "RAM-optimized dual-profile security OS. Provides full 8GB RAM per profile by sharing kernel, while maintaining BTRFS+LUKS isolation between ANON and AUTH profiles."
+  },
+
+  "profiles": {
+    "anon": {
+      "description": "Anonymous/Privacy Profile",
+      "luks_slot": 0,
+      "auto_login_user": "anon",
+      "hostname": "surface-anon",
+      "sessions": ["plasma", "openbox", "android", "tor-kiosk"],
+      "mounts": {
+        "etc": "@etc-anon",
+        "var": "@var-anon",
+        "tools": "@tools-anon",
+        "vault": "@vault-anon",
+        "private": "@shared-anon",
+        "shared": "@shared-common"
+      }
+    },
+    "auth": {
+      "description": "Authenticated/Personal Profile",
+      "luks_slot": 1,
+      "auto_login_user": "diego",
+      "hostname": "surface-diego",
+      "inner_luks": true,
+      "sessions": ["plasma", "openbox", "android", "chrome-kiosk"],
+      "mounts": {
+        "etc": "@etc-auth",
+        "var": "@var-auth",
+        "tools": "@tools-auth",
+        "vault": "@vault-auth",
+        "private": "@shared-auth",
+        "shared": "@shared-common"
+      }
+    }
+  },
+
+  "users": {
+    "anon": {
+      "uid": 1000,
+      "gid": 1000,
+      "shell": "/bin/bash",
+      "password": "1234567890",
+      "groups": ["podman"],
+      "sudo": false,
+      "auto_login": true,
+      "home_dirs": ["apps", "git", "mnt", "syncs", "sys", "user", "vault"]
+    },
+    "diego": {
+      "uid": 1000,
+      "gid": 1000,
+      "shell": "/bin/bash",
+      "password": "1234567890",
+      "groups": ["wheel", "podman"],
+      "sudo": true,
+      "sudo_nopasswd": true,
+      "auto_login": true,
+      "home_dirs": ["apps", "git", "mnt", "syncs", "sys", "user", "vault"]
+    }
+  },
+
+  "ssh": {
+    "permit_root_login": false,
+    "password_authentication": true,
+    "password_authentication_todo": "Disable after setup complete",
+    "pubkey_authentication": true,
+    "pubkey_accepted_types": ["ssh-rsa", "rsa-sha2-256", "rsa-sha2-512"],
+    "max_auth_tries": 5,
+    "permit_empty_passwords": false
+  },
+
+  "auto_login": {
+    "kde": {
+      "display_manager": "sddm",
+      "config_path": "/etc/sddm.conf.d/autologin.conf",
+      "session": "plasma.desktop"
+    },
+    "light": {
+      "display_manager": "getty",
+      "config_path": "/etc/systemd/system/getty@tty1.service.d/autologin.conf"
+    }
+  },
+
+  "surface": {
+    "packages": {
+      "fedora": [
+        "kernel-surface",
+        "kernel-surface-devel",
+        "iptsd",
+        "libwacom-surface",
+        "surface-control"
+      ],
+      "arch": [
+        "linux-surface",
+        "linux-surface-headers",
+        "iptsd",
+        "surface-control"
+      ]
+    },
+    "repos": {
+      "fedora": {
+        "url": "https://pkg.surfacelinux.com/fedora/linux-surface.repo",
+        "key": "https://pkg.surfacelinux.com/keys/surface.asc"
+      },
+      "arch": {
+        "server": "https://pkg.surfacelinux.com/arch/",
+        "key": "https://pkg.surfacelinux.com/keys/surface.asc",
+        "key_id": "56C464BAAC421453"
+      }
+    },
+    "services": ["iptsd"],
+    "kernel_params": [
+      "quiet",
+      "splash",
+      "mem_sleep_default=deep",
+      "nvme.noacpi=1",
+      "i915.enable_psr=0"
+    ]
+  },
+
+  "podman": {
+    "rootless": true,
+    "enable_linger": true,
+    "storage_driver": "overlay",
+    "containers": {
+      "anon": {
+        "image": "cloud-connect:anon",
+        "packages": ["tor", "torsocks", "dnscrypt-proxy", "wireguard-tools"]
+      },
+      "auth": {
+        "image": "cloud-connect:auth",
+        "packages": ["nodejs", "npm", "python", "rust", "git"]
+      }
+    }
+  },
+
+  "twofa": {
+    "enabled_by_default": false,
+    "options": {
+      "totp": {
+        "name": "TOTP (Aegis)",
+        "package": "google-authenticator",
+        "pam_module": "pam_google_authenticator.so"
+      },
+      "passkey": {
+        "name": "Passkey (Bitwarden)",
+        "packages": ["libfido2", "pam-u2f"],
+        "pam_module": "pam_u2f.so"
+      },
+      "fido2": {
+        "name": "FIDO2 Key",
+        "package": "pam-u2f",
+        "pam_module": "pam_u2f.so"
+      }
+    }
+  },
+
+  "disk": {
+    "partitions": {
+      "efi": {"size": "500M", "type": "FAT32", "mount": "/boot/efi"},
+      "luks": {"size": "215G", "type": "LUKS+BTRFS"},
+      "windows": {"size": "20G", "type": "NTFS"}
+    },
+    "btrfs_subvolumes": {
+      "outer": [
+        {"name": "@root", "size": "12G", "purpose": "Single OS: Kinoite + KDE + Openbox + Waydroid (immutable /usr)"},
+        {"name": "@etc-anon", "size": "200M", "purpose": "ANON's /etc (hostname, network, ssh keys)"},
+        {"name": "@var-anon", "size": "3G", "purpose": "ANON's /var (logs, containers, cache)"},
+        {"name": "@tools-anon", "size": "5G", "purpose": "Tor, DNSCrypt, Privacy containers"},
+        {"name": "@vault-anon", "size": "1G", "purpose": "Burner identities"},
+        {"name": "@shared-anon", "size": "10G", "purpose": "ANON-only private files"},
+        {"name": "@shared-common", "size": "25G", "purpose": "Shared data (Downloads, Media, Transfer)"},
+        {"name": "@snapshots", "size": "dynamic", "purpose": "BTRFS snapshots for rollback"},
+        {"name": "auth.luks", "size": "55G", "purpose": "Inner encrypted container (AUTH only)"}
+      ],
+      "inner": [
+        {"name": "@etc-auth", "size": "200M", "purpose": "AUTH's /etc (hidden from ANON!)"},
+        {"name": "@var-auth", "size": "3G", "purpose": "AUTH's /var (hidden from ANON!)"},
+        {"name": "@tools-auth", "size": "10G", "purpose": "Claude, Git, Dev containers"},
+        {"name": "@vault-auth", "size": "1G", "purpose": "SSH, GPG, API keys"},
+        {"name": "@shared-auth", "size": "35G", "purpose": "Documents, Projects"}
+      ]
+    },
+    "swap": {
+      "type": "file",
+      "location": "/mnt/pool/swapfile",
+      "size": "16G",
+      "inside_luks": true
+    }
+  },
+
+  "security": {
+    "luks": {
+      "cipher": "aes-xts-plain64",
+      "key_size": 512,
+      "hash": "sha512"
+    },
+    "mount_options": ["noatime"],
+    "tmpfs": {
+      "/tmp": {"size": "2G", "mode": "1777"},
+      "/var/tmp": {"size": "1G", "mode": "1777"}
+    },
+    "journal": {
+      "storage": "volatile"
+    }
+  },
+
+  "dotfiles": {
+    "source_dir": "../dotfiles_src/",
+    "files": {
+      ".bashrc": "shells/bashrc",
+      ".zshrc": "shells/zshrc",
+      ".config/starship.toml": "shells/starship.toml",
+      ".vimrc": "editors/vimrc",
+      ".gitconfig": "git/gitconfig",
+      ".gitignore_global": "git/gitignore_global"
+    }
+  }
+}

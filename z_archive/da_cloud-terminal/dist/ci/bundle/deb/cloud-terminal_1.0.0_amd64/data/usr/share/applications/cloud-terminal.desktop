@@ -1,0 +1,9 @@
+[Desktop Entry]
+Categories=Utility;
+Comment=Cloud Terminal
+Exec=cloud-terminal
+StartupWMClass=cloud-terminal
+Icon=cloud-terminal
+Name=cloud-terminal
+Terminal=false
+Type=Application

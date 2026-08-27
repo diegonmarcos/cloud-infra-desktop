@@ -1,0 +1,160 @@
+# ~/.gitconfig - Dual Profile Architecture
+# Profile-aware git configuration
+
+# ============================================
+# IDENTITY (Override per-profile in ~/.gitconfig.local)
+# ============================================
+[user]
+    # Default identity - override in profile-specific config
+    name = User
+    email = user@localhost
+
+# ============================================
+# CORE SETTINGS
+# ============================================
+[core]
+    editor = vim
+    autocrlf = input
+    whitespace = fix,-indent-with-non-tab,trailing-space,cr-at-eol
+    pager = less -FRX
+    excludesfile = ~/.gitignore_global
+
+[init]
+    defaultBranch = main
+
+# ============================================
+# COLORS
+# ============================================
+[color]
+    ui = auto
+    branch = auto
+    diff = auto
+    status = auto
+
+[color "branch"]
+    current = green bold
+    local = yellow
+    remote = cyan
+
+[color "diff"]
+    meta = yellow bold
+    frag = magenta bold
+    old = red bold
+    new = green bold
+
+[color "status"]
+    added = green bold
+    changed = yellow bold
+    untracked = red
+
+# ============================================
+# ALIASES
+# ============================================
+[alias]
+    # Status
+    s = status -sb
+    st = status
+
+    # Commit
+    c = commit
+    cm = commit -m
+    ca = commit --amend
+    can = commit --amend --no-edit
+
+    # Branch
+    b = branch
+    ba = branch -a
+    bd = branch -d
+    bD = branch -D
+
+    # Checkout
+    co = checkout
+    cob = checkout -b
+
+    # Log
+    l = log --oneline -20
+    lg = log --graph --oneline --decorate -20
+    ll = log --pretty=format:'%C(yellow)%h%Creset %s %C(cyan)<%an>%Creset %C(green)(%cr)%Creset' -20
+    hist = log --pretty=format:'%h %ad | %s%d [%an]' --graph --date=short
+
+    # Diff
+    d = diff
+    ds = diff --staged
+    dc = diff --cached
+
+    # Push/Pull
+    p = push
+    pf = push --force-with-lease
+    pl = pull
+    plr = pull --rebase
+
+    # Stash
+    ss = stash save
+    sl = stash list
+    sp = stash pop
+    sa = stash apply
+    sd = stash drop
+
+    # Reset
+    unstage = reset HEAD --
+    discard = checkout --
+    undo = reset --soft HEAD~1
+
+    # Utility
+    aliases = config --get-regexp alias
+    whoami = !git config user.name && git config user.email
+    root = rev-parse --show-toplevel
+
+# ============================================
+# MERGE & DIFF
+# ============================================
+[merge]
+    tool = vimdiff
+    conflictstyle = diff3
+
+[diff]
+    tool = vimdiff
+    algorithm = patience
+
+[difftool]
+    prompt = false
+
+# ============================================
+# PUSH & PULL
+# ============================================
+[push]
+    default = current
+    autoSetupRemote = true
+
+[pull]
+    rebase = true
+
+[fetch]
+    prune = true
+
+# ============================================
+# REBASE
+# ============================================
+[rebase]
+    autoStash = true
+
+# ============================================
+# CREDENTIAL (Profile-specific)
+# ============================================
+# For SSH-based auth (recommended)
+# Keys should be in ~/.ssh/
+
+# For HTTPS with credential helper
+# [credential]
+#     helper = cache --timeout=3600
+
+# ============================================
+# INCLUDE PROFILE-SPECIFIC CONFIG
+# ============================================
+# This allows profile-specific identity and settings
+# Create ~/.gitconfig.local with:
+#   [user]
+#       name = Your Name
+#       email = your@email.com
+[include]
+    path = ~/.gitconfig.local

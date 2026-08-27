@@ -1,0 +1,9 @@
+Package: cloud-terminal
+Version: 1.0.0
+Architecture: amd64
+Installed-Size: 5193
+Maintainer: diegonmarcos
+Priority: optional
+Depends: libayatana-appindicator3-1, libwebkit2gtk-4.1-0, libgtk-3-0
+Description: Cloud Terminal
+ Registry-driven multi-profile terminal with per-profile system tray.

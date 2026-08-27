@@ -48,15 +48,21 @@
   # XDG Base Directory compliance
   xdg = {
     enable = true;
+    # Every XDG user dir lives under ~/others so the home root stays clean.
+    # publicShare/templates MUST be listed explicitly: their option defaults
+    # are $HOME/Public and $HOME/Templates, and createDirectories mkdir -p's
+    # the defaults too — leaving them out is what kept recreating those two.
     userDirs = {
       enable = true;
       createDirectories = true;
-      desktop = "${config.home.homeDirectory}/Desktop";
-      documents = "${config.home.homeDirectory}/Documents";
-      download = "${config.home.homeDirectory}/Downloads";
-      music = "${config.home.homeDirectory}/Music";
-      pictures = "${config.home.homeDirectory}/Pictures";
-      videos = "${config.home.homeDirectory}/Videos";
+      desktop = "${config.home.homeDirectory}/others/Desktop";
+      documents = "${config.home.homeDirectory}/others/Documents";
+      download = "${config.home.homeDirectory}/others/Downloads";
+      music = "${config.home.homeDirectory}/others/Music";
+      pictures = "${config.home.homeDirectory}/others/Pictures";
+      publicShare = "${config.home.homeDirectory}/others/Public";
+      templates = "${config.home.homeDirectory}/others/Templates";
+      videos = "${config.home.homeDirectory}/others/Videos";
     };
   };
 

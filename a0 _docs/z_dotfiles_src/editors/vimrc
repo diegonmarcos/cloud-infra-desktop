@@ -1,0 +1,157 @@
+" ~/.vimrc - Dual Profile Architecture
+" Minimal but functional Vim configuration
+
+" ============================================
+" BASIC SETTINGS
+" ============================================
+set nocompatible              " Use Vim settings, not Vi
+filetype plugin indent on     " Enable filetype detection
+syntax enable                 " Enable syntax highlighting
+
+" ============================================
+" INTERFACE
+" ============================================
+set number                    " Show line numbers
+set relativenumber            " Relative line numbers
+set ruler                     " Show cursor position
+set showcmd                   " Show incomplete commands
+set showmode                  " Show current mode
+set laststatus=2              " Always show status line
+set wildmenu                  " Enhanced command completion
+set wildmode=longest:full,full
+
+" Colors
+set background=dark
+colorscheme desert            " Available by default
+
+" ============================================
+" EDITING
+" ============================================
+set encoding=utf-8            " UTF-8 encoding
+set backspace=indent,eol,start " Allow backspace over everything
+set autoindent                " Copy indent from current line
+set smartindent               " Smart autoindenting
+set tabstop=4                 " Tab width
+set shiftwidth=4              " Indent width
+set softtabstop=4             " Soft tab width
+set expandtab                 " Use spaces instead of tabs
+set smarttab                  " Smart tab handling
+
+" ============================================
+" SEARCH
+" ============================================
+set incsearch                 " Incremental search
+set hlsearch                  " Highlight search results
+set ignorecase                " Case-insensitive search
+set smartcase                 " Case-sensitive if uppercase present
+
+" ============================================
+" FILES
+" ============================================
+set hidden                    " Allow hidden buffers
+set autoread                  " Reload files changed outside
+set nobackup                  " Don't create backup files
+set nowritebackup             " Don't write backup before save
+set noswapfile                " Don't create swap files
+
+" ============================================
+" PERFORMANCE
+" ============================================
+set lazyredraw                " Don't redraw during macros
+set ttyfast                   " Fast terminal connection
+
+" ============================================
+" KEY MAPPINGS
+" ============================================
+" Leader key
+let mapleader = " "
+
+" Quick save
+nnoremap <leader>w :w<CR>
+
+" Quick quit
+nnoremap <leader>q :q<CR>
+
+" Clear search highlight
+nnoremap <leader><space> :nohlsearch<CR>
+
+" Better window navigation
+nnoremap <C-h> <C-w>h
+nnoremap <C-j> <C-w>j
+nnoremap <C-k> <C-w>k
+nnoremap <C-l> <C-w>l
+
+" Buffer navigation
+nnoremap <leader>bn :bnext<CR>
+nnoremap <leader>bp :bprevious<CR>
+nnoremap <leader>bd :bdelete<CR>
+
+" Quick edit vimrc
+nnoremap <leader>ev :edit $MYVIMRC<CR>
+nnoremap <leader>sv :source $MYVIMRC<CR>
+
+" Visual mode - move lines
+vnoremap J :m '>+1<CR>gv=gv
+vnoremap K :m '<-2<CR>gv=gv
+
+" Keep visual selection when indenting
+vnoremap < <gv
+vnoremap > >gv
+
+" ============================================
+" STATUS LINE
+" ============================================
+set statusline=
+set statusline+=%#PmenuSel#
+set statusline+=\ %{$PROFILE}\
+set statusline+=%#LineNr#
+set statusline+=\ %f
+set statusline+=%m
+set statusline+=%=
+set statusline+=%#CursorColumn#
+set statusline+=\ %y
+set statusline+=\ %{&fileencoding?&fileencoding:&encoding}
+set statusline+=\ [%{&fileformat}]
+set statusline+=\ %p%%
+set statusline+=\ %l:%c
+set statusline+=\
+
+" ============================================
+" FILETYPE SPECIFIC
+" ============================================
+" Web development
+autocmd FileType html,css,javascript,typescript,json setlocal tabstop=2 shiftwidth=2 softtabstop=2
+autocmd FileType yaml,yml setlocal tabstop=2 shiftwidth=2 softtabstop=2
+
+" Python
+autocmd FileType python setlocal tabstop=4 shiftwidth=4 softtabstop=4
+
+" Markdown
+autocmd FileType markdown setlocal wrap linebreak
+
+" ============================================
+" PROFILE-SPECIFIC
+" ============================================
+if $PROFILE == "anon"
+    " Privacy mode - no undo files, limited history
+    set noundofile
+    set viminfo=
+    set history=100
+elseif $PROFILE == "auth"
+    " Full features
+    set undofile
+    set undodir=~/.vim/undodir
+    set history=1000
+endif
+
+" Create undodir if it doesn't exist (auth profile)
+if $PROFILE == "auth" && !isdirectory(expand("~/.vim/undodir"))
+    call mkdir(expand("~/.vim/undodir"), "p")
+endif
+
+" ============================================
+" LOCAL OVERRIDES
+" ============================================
+if filereadable(expand("~/.vimrc.local"))
+    source ~/.vimrc.local
+endif
