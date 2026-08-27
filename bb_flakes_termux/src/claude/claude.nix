@@ -38,7 +38,7 @@ let
   # for a non-standard checkout. See assets/scripts/claude-settings-merge.sh
   # and claude-assets-deploy.sh for the activation-time read + the "no
   # fallback, fail loud" rationale.
-  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-unix/da_my-ai/src/data/claude";
+  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/src/data/claude";
 
   # Bulky runtime state lives in the memory repo, under a_sessions/<instance>/ — the
   # same arrangement surface uses, so both devices' transcripts are versioned and
