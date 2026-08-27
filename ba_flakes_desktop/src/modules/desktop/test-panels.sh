@@ -59,6 +59,18 @@ check "the runner owns knownItems" \
 # them in the same second. Concurrent passes through the rebuild both call
 # panels().forEach(p => p.remove()) — the destroy/recreate plasmashell SEGV'd
 # inside on 2026-08-22.
+# Height is otherwise only ever assigned inside the rebuild, which the layout
+# gate suppresses — so both panels sat at Plasma's default 30 while panels.json
+# said 70 and 40, and every run reported "nothing to do".
+check "the runner compares live geometry" \
+  "$(grep -c 'live_geom=' "$RUNNER")" 1
+
+check "the early-exit gate tests geometry too" \
+  "$(sed -n '/^if \[ "$cur_hash" = "$old_hash" \]/,/^fi$/p' "$RUNNER" | grep -c '\$live_geom" = "\$want_geom')" 1
+
+check "geometry is set in place, not via a rebuild" \
+  "$(grep -c 'p.height = ' "$RUNNER")" 2
+
 check "the runner serialises itself" \
   "$(grep -c '^flock 9' "$RUNNER")" 1
 
