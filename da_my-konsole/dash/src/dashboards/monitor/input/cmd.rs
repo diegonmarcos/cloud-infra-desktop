@@ -3,7 +3,9 @@
 // Everything addressable is read out of TABS, so a tab added to that table is
 // reachable here the moment it exists — by name, by number, and in the picker
 // — with nothing else to keep in step.
-use super::{Overlay, Sub, Tab, MENU, TABS};
+use crate::dashboards::monitor::model::keys::MENU;
+use crate::dashboards::monitor::model::tabs::{Sub, Tab, TABS};
+use crate::dashboards::monitor::Overlay;
 
 /// What a `:` line resolved to.
 ///
