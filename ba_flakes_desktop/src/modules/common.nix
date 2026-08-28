@@ -190,6 +190,19 @@
           continue
         fi
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t" || true
+        # Drop the backup linkGeneration just made, but ONLY when it is
+        # identical to what we just copied in. Unfreeze guarantees every
+        # managed path is a real file, so the NEXT switch finds all of them
+        # "in the way" and backs them up again -- an ever-growing pile that
+        # eventually fails activation outright with "would be clobbered by
+        # backing up", which is why each switch needed a fresh -b suffix.
+        # An identical backup is pure noise; one that differs is a real local
+        # edit and is left alone.
+        _bak="$_t.''${HOME_MANAGER_BACKUP_EXT:-}"
+        if [ -n "''${HOME_MANAGER_BACKUP_EXT:-}" ] && [ -e "$_bak" ] \
+           && ${pkgs.diffutils}/bin/diff -rq "$_bak" "$_t" >/dev/null 2>&1; then
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$_bak"
+        fi
       done < ${_writableTargets}
     '';
 
