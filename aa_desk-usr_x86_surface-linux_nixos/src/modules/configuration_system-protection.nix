@@ -184,7 +184,13 @@ in
   # Data-driven (cloud-data-system-protection.json → sysprot.sysctl): lower dirty
   # ratios flush writeback in small batches (no NVMe iowait burst), vfs_cache_pressure<100
   # keeps metadata cached, swappiness 150 prefers zram over the disk swapfile.
-  boot.kernel.sysctl = sysprot.sysctl;
+  # Underscore keys are prose, not knobs. They were being passed straight
+  # through: /etc/sysctl.d/60-nixos.conf currently carries a literal
+  # `_comment = 2026-07-10 v3.2 - WRITE-STORM voter...` line that
+  # systemd-sysctl fails on every boot. Drop them here rather than moving the
+  # notes out of the file, so the rationale stays next to the value it explains.
+  boot.kernel.sysctl =
+    lib.filterAttrs (n: _: !(lib.hasPrefix "_" n)) sysprot.sysctl;
 
   # ═══════════════════════════════════════════════════════════════════════════
   # ZRAM: compressed swap in RAM (NixOS-only — HM can't write /etc/systemd/)
