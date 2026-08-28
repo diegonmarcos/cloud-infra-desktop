@@ -198,10 +198,23 @@
         # backing up", which is why each switch needed a fresh -b suffix.
         # An identical backup is pure noise; one that differs is a real local
         # edit and is left alone.
+        #
+        # "Identical" is judged against the PREVIOUS generation, not against
+        # "$_t". Comparing to "$_t" only catches files whose store content did
+        # not change, so anything regenerated every switch (fish completions
+        # embed the store hash of every package) always "differed", kept its
+        # backup forever, and re-armed the clobber abort on the next switch.
+        # What we actually want to know is whether the user edited the copy we
+        # left behind last time -- i.e. does the backup still equal what the
+        # old generation put there. If it does, it is ours and disposable.
         _bak="$_t.''${HOME_MANAGER_BACKUP_EXT:-}"
-        if [ -n "''${HOME_MANAGER_BACKUP_EXT:-}" ] && [ -e "$_bak" ] \
-           && ${pkgs.diffutils}/bin/diff -rq "$_bak" "$_t" >/dev/null 2>&1; then
-          $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$_bak"
+        if [ -n "''${HOME_MANAGER_BACKUP_EXT:-}" ] && [ -e "$_bak" ]; then
+          _prev="''${oldGenPath:-}/home-files/$_rel"
+          if ${pkgs.diffutils}/bin/diff -rq "$_bak" "$_t" >/dev/null 2>&1 \
+             || { [ -n "''${oldGenPath:-}" ] && [ -e "$_prev" ] \
+                  && ${pkgs.diffutils}/bin/diff -rq "$_bak" "$_prev" >/dev/null 2>&1; }; then
+            $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$_bak"
+          fi
         fi
       done < ${_writableTargets}
     '';
