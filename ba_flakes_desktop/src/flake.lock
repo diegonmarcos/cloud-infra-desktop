@@ -257,11 +257,11 @@
     "ulinux-repo": {
       "flake": false,
       "locked": {
-        "lastModified": 1787937082,
-        "narHash": "sha256-7AhSBjtR8v0+koIyaf6qbrZtuDPYVgf036WiO1+1ZdI=",
+        "lastModified": 1787941587,
+        "narHash": "sha256-YgoZYz24EaEVM3neXSbUphQs1lZEa8H0sTogLgbDCyU=",
         "owner": "diegonmarcos",
         "repo": "cloud-u-linux",
-        "rev": "be2dd74ce50e279fb6b5778bab86b9cda3d6f8dd",
+        "rev": "d6ad5076c2deff9f007853bca21ebbe5a3bf737f",
         "type": "github"
       },
       "original": {
