@@ -1,6 +1,47 @@
 # Common configuration shared by all hosts
 { config, pkgs, lib, ... }:
 
+let
+  # Every home-manager-managed target, one relative path per line. Shared by
+  # the two backup passes below and by unfreezeHmFiles, so all three agree on
+  # exactly which paths are ours to touch.
+  _writableTargets = pkgs.writeText "hm-writable-targets"
+    (lib.concatMapStringsSep "\n" (f: f.target) (lib.attrValues config.home.file));
+
+  # Shell helper shared by both backup passes. A backup is OURS -- and so pure
+  # noise, safe to drop -- when its bytes match what the live file holds or
+  # what some home-manager generation put at that path. A real local edit
+  # matches none of them and is always kept.
+  #
+  # Scanning generations, not just $oldGenPath, is the point: unfreeze's copy
+  # of generation N-1 gets backed up during switch N, so by the time anything
+  # notices, the backup is already two generations behind and a single
+  # old-gen comparison says "modified" for every file whose store content
+  # moves each switch. That is what wedged the last switch.
+  #
+  # ponytail: 20 newest generations, newest-first, first hit wins. A backup
+  # older than that is left alone and home-manager's own abort fires with its
+  # own clear message -- the right outcome for something we cannot vouch for.
+  _bakIsOursFn = ''
+    _hm_backup_is_ours() {
+      local bak="$1" live="$2" rel="$3" g t
+      if [ -e "$live" ] && ${pkgs.diffutils}/bin/diff -rq "$bak" "$live" >/dev/null 2>&1; then
+        return 0
+      fi
+      for g in $(${pkgs.coreutils}/bin/ls -d \
+                   "$HOME/.local/state/nix/profiles"/home-manager-*-link 2>/dev/null \
+                 | ${pkgs.coreutils}/bin/sort -V | ${pkgs.coreutils}/bin/tail -20 \
+                 | ${pkgs.coreutils}/bin/tac); do
+        t="$(${pkgs.coreutils}/bin/readlink -f "$g")/home-files/$rel"
+        [ -e "$t" ] || continue
+        if ${pkgs.diffutils}/bin/diff -rq "$bak" "$t" >/dev/null 2>&1; then
+          return 0
+        fi
+      done
+      return 1
+    }
+  '';
+in
 {
   imports = [
     ./programs/shells/bash.nix
@@ -161,11 +202,32 @@
   # list is derived from config.home.file (xdg.configFile feeds into it), so
   # every managed file is covered with zero per-file wiring. Only store-backed
   # symlinks are touched (out-of-store symlinks are left as-is).
+  # check-link-targets runs BEFORE linkGeneration and ABORTS activation when a
+  # backup is already sitting where it would write a new one. unfreezeHmFiles'
+  # pruner runs after linkGeneration, so it can never clear a backup that
+  # blocks that pre-flight -- one stale file wedges every `-b <ext>` switch
+  # permanently, which is exactly what happened. Prune first, on the same
+  # "is this still ours" test, so a leftover from an older generation cannot
+  # deadlock the switch. A backup we cannot prove is ours is left alone and
+  # home-manager's own abort still fires, with its own clear message.
+  home.activation.pruneStaleHmBackups =
+    lib.hm.dag.entryBefore [ "checkLinkTargets" ] ''
+      ${_bakIsOursFn}
+      if [ -n "''${HOME_MANAGER_BACKUP_EXT:-}" ]; then
+        while IFS= read -r _rel; do
+          [ -n "$_rel" ] || continue
+          _bak="$HOME/$_rel.$HOME_MANAGER_BACKUP_EXT"
+          [ -e "$_bak" ] || continue
+          if _hm_backup_is_ours "$_bak" "$HOME/$_rel" "$_rel"; then
+            $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$_bak"
+          fi
+        done < ${_writableTargets}
+      fi
+    '';
+
   home.activation.unfreezeHmFiles =
-    let
-      _writableTargets = pkgs.writeText "hm-writable-targets"
-        (lib.concatMapStringsSep "\n" (f: f.target) (lib.attrValues config.home.file));
-    in lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+      ${_bakIsOursFn}
       while IFS= read -r _rel; do
         [ -n "$_rel" ] || continue
         _t="$HOME/$_rel"
@@ -190,31 +252,17 @@
           continue
         fi
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/chmod -R u+w "$_t" || true
-        # Drop the backup linkGeneration just made, but ONLY when it is
-        # identical to what we just copied in. Unfreeze guarantees every
-        # managed path is a real file, so the NEXT switch finds all of them
-        # "in the way" and backs them up again -- an ever-growing pile that
-        # eventually fails activation outright with "would be clobbered by
-        # backing up", which is why each switch needed a fresh -b suffix.
-        # An identical backup is pure noise; one that differs is a real local
-        # edit and is left alone.
-        #
-        # "Identical" is judged against the PREVIOUS generation, not against
-        # "$_t". Comparing to "$_t" only catches files whose store content did
-        # not change, so anything regenerated every switch (fish completions
-        # embed the store hash of every package) always "differed", kept its
-        # backup forever, and re-armed the clobber abort on the next switch.
-        # What we actually want to know is whether the user edited the copy we
-        # left behind last time -- i.e. does the backup still equal what the
-        # old generation put there. If it does, it is ours and disposable.
+        # Drop the backup linkGeneration just made when it is one of ours.
+        # Unfreeze guarantees every managed path is a real file, so the NEXT
+        # switch finds all of them "in the way" and backs them up again -- an
+        # ever-growing pile that eventually fails activation outright with
+        # "would be clobbered by backing up", which is why each switch needed a
+        # fresh -b suffix. pruneStaleHmBackups clears the inherited pile before
+        # the pre-flight check; this keeps the steady state clean.
         _bak="$_t.''${HOME_MANAGER_BACKUP_EXT:-}"
-        if [ -n "''${HOME_MANAGER_BACKUP_EXT:-}" ] && [ -e "$_bak" ]; then
-          _prev="''${oldGenPath:-}/home-files/$_rel"
-          if ${pkgs.diffutils}/bin/diff -rq "$_bak" "$_t" >/dev/null 2>&1 \
-             || { [ -n "''${oldGenPath:-}" ] && [ -e "$_prev" ] \
-                  && ${pkgs.diffutils}/bin/diff -rq "$_bak" "$_prev" >/dev/null 2>&1; }; then
-            $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$_bak"
-          fi
+        if [ -n "''${HOME_MANAGER_BACKUP_EXT:-}" ] && [ -e "$_bak" ] \
+           && _hm_backup_is_ours "$_bak" "$_t" "$_rel"; then
+          $DRY_RUN_CMD ${pkgs.coreutils}/bin/rm -rf "$_bak"
         fi
       done < ${_writableTargets}
     '';
