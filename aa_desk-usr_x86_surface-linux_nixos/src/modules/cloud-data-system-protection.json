@@ -155,6 +155,8 @@
     "_comment": "Writeback + reclaim tuning. Lower dirty ratios flush dirty pages earlier and in smaller batches → no giant NVMe writeback burst that spikes iowait. vfs_cache_pressure<100 keeps dentry/inode cache longer → less metadata IO. min_free_kbytes/watermark keep a kernel reserve so allocation never stalls hard. swappiness 150 = prefer compressed zram over disk (zram is RAM-backed).",
     "vm.min_free_kbytes": 262144,
     "vm.swappiness": 150,
+    "vm.page-cluster": 0,
+    "_page_cluster_note": "2026-08-28 — was the kernel default 3, i.e. 8 pages read ahead per swap-in fault. That is a bet that swap is a seeky disk where one big read beats eight small ones. Here swap is zram: every page is decompressed individually, so the 7 extra pages are pure CPU and pure zram footprint, and they are what pushes zram toward full. Full zram is the only thing that makes this box touch the 12GB disk swapfile. 0 = fault one page at a time. NOTE the deliberate asymmetry with the VMs, which run vfs_cache_pressure=200 while this box keeps 50: the ladder is cheapest-eviction-first, and cheapest is machine-dependent. Here zram compresses 4.5:1 with room to spare, so compressing an anon page costs less than dropping a dentry and re-stat-ing NVMe. On a 1GB VM whose 512MB zram is already 95% full there is no cheap compress left, so dropping slab IS the cheap move. Same rule, different arithmetic.",
     "vm.dirty_ratio": 5,
     "vm.dirty_background_ratio": 2,
     "vm.vfs_cache_pressure": 50,
