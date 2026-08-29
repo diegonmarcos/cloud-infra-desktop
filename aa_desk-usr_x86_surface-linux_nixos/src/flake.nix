@@ -22,6 +22,17 @@
 
     nixos-hardware.url = "github:NixOS/nixos-hardware/master";
 
+    # cloud-u-linux - where db_fido2-vault-broker actually lives and is
+    # maintained. It is ALSO synced into this repo as ../../db_fido2-vault-broker
+    # for local convenience, and .gitignore:280 ignores that copy, so the
+    # relative-path import this used to do resolved fine on the laptop and left
+    # CI with `error: path '.../db_fido2-vault-broker/src/nix/module.nix' does
+    # not exist` on 2026-08-29. Same input the home-manager flake already uses.
+    ulinux-repo = {
+      url = "github:diegonmarcos/cloud-u-linux";
+      flake = false;
+    };
+
     nixos-generators = {
       url = "github:nix-community/nixos-generators";
       inputs.nixpkgs.follows = "nixpkgs";
@@ -33,15 +44,15 @@
     # or re-fetch relative-path flake inputs inside a git flake (every
     # `nix flake update`/eval died on it, 2026-06-11/12). Its NixOS module
     # + package are composed by PLAIN PATH IMPORT instead:
-    # module:  ../../db_fido2-vault-broker/src/nix/module.nix  (modules list)
-    # package: ../../db_fido2-vault-broker/src/nix/package.nix (set in
+    # module:  ${ulinux-repo}/db_fido2-vault-broker/src/nix/module.nix  (modules list)
+    # package: ${ulinux-repo}/db_fido2-vault-broker/src/nix/package.nix (set in
     #          ./modules/configuration_fido2-vault-broker.nix via callPackage)
     # Revisit as a proper input when nix >= 2.26 (native relative-path flakes).
 
     # NOTE: home-manager is NOT here - it's managed separately in cb_user_diego_nix
   };
 
-  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, ... }:
+  outputs = { self, nixpkgs, nixpkgs-unstable, nixos-hardware, nixos-generators, ulinux-repo, ... }:
   let
     system = "x86_64-linux";
 
@@ -61,6 +72,7 @@
       # in stable 24.11). Scoped per-package via specialArgs, never a global
       # overlay (see the KDE Connect Qt-mismatch note above for why).
       specialArgs = {
+        inherit ulinux-repo;
         pkgsUnstable = import nixpkgs-unstable {
           inherit system;
           config.allowUnfree = true;
@@ -83,7 +95,7 @@
         # composed by plain path import (see inputs NOTE above).
         # Brings: boot.kernelModules += "uhid", /dev/uhid udev rule, `uhid` +
         # `tss` group membership for diego, security.tpm2 for /dev/tpmrm0.
-        ../../db_fido2-vault-broker/src/nix/module.nix
+        "${ulinux-repo}/db_fido2-vault-broker/src/nix/module.nix"
         ./modules/configuration_fido2-vault-broker.nix
 
         # Waydroid sensors HAL UNWIRED 2026-07-01 — waydroid disabled entirely.
