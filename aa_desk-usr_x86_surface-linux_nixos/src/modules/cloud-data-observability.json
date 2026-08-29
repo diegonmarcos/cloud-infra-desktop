@@ -2,7 +2,7 @@
   "_meta": {
     "purpose": "Producer-side verbosity config to make journald sufficient for forensic root-cause analysis (signal sender, target activation requester, KDE shutdown trace, kernel signal delivery, PSI throttle history). All sinks funnel into journald.",
     "created": "2026-04-28",
-    "owner": "aa_nixos-surface_host"
+    "owner": "aa_desk-usr_x86_surface-linux_nixos"
   },
 
   "audit": {

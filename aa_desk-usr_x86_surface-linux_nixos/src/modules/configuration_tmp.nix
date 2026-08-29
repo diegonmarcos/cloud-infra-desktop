@@ -13,7 +13,7 @@
 #   3. (btrfs only) activation-script branch that creates the subvolume on
 #      /mnt/btrfs-root if missing — first `switch` creates it, reboot mounts it.
 #
-# RELOAD: ~/git/cloud-infra-desktop/aa_nixos-surface_host/build.sh (option r = switch).
+# RELOAD: ~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/build.sh (option r = switch).
 # The JSON is copied into this module dir by build.sh `sync_cloud_data` before
 # nixos-rebuild — same pattern as configuration_system-protection-disk.nix.
 #

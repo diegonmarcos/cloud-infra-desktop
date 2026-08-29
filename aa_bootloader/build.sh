@@ -90,7 +90,7 @@ write_manifest() {
 # Generated $(date '+%Y-%m-%d %H:%M:%S')
 
 ## Adapters (per-OS, copied at install time)
-adapters/nixos/             → aa_nixos-surface_host/src/modules/
+adapters/nixos/             → aa_desk-usr_x86_surface-linux_nixos/src/modules/
 adapters/debian/            → /etc/ (Phase 2 stub)
 
 ## Loaders (parallel: rEFInd primary + GRUB fallback)
@@ -232,11 +232,11 @@ cmd_plan() {
     header "plan — diff dist/ vs live system"
     log "(Phase 1: structural plan only)"
     log ""
-    log "Adapter files dist/adapters/nixos/* → aa_nixos-surface_host/src/modules/"
+    log "Adapter files dist/adapters/nixos/* → aa_desk-usr_x86_surface-linux_nixos/src/modules/"
     for f in "$SCRIPT_DIR/dist/adapters/nixos/"*.nix; do
         [ -f "$f" ] || continue
         bn=$(basename "$f")
-        live="$SCRIPT_DIR/../aa_nixos-surface_host/src/modules/$bn"
+        live="$SCRIPT_DIR/../aa_desk-usr_x86_surface-linux_nixos/src/modules/$bn"
         if [ -f "$live" ]; then
             if cmp -s "$f" "$live"; then
                 log "  unchanged   $bn"

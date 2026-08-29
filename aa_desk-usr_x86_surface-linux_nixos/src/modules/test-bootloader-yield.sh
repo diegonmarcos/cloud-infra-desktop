@@ -16,7 +16,7 @@ fail()  { echo "[FAIL] $1"; FAIL=$((FAIL+1)); FAILED_TESTS+=("$1"); }
 REPO="$(cd "$(dirname "$0")/../../.." && pwd)"
 
 # T1 — NixOS GRUB module disabled (yield)
-if grep -q "boot.loader.grub.enable = lib.mkForce false" "$REPO/aa_nixos-surface_host/src/modules/nixos_yield.nix" 2>/dev/null; then
+if grep -q "boot.loader.grub.enable = lib.mkForce false" "$REPO/aa_desk-usr_x86_surface-linux_nixos/src/modules/nixos_yield.nix" 2>/dev/null; then
   ok "T1 nixos_yield.nix disables boot.loader.grub.enable"
 else
   fail "T1 nixos_yield.nix not yielding GRUB"
@@ -55,7 +55,7 @@ fi
 # (skip comment-only lines starting with '#', and skip the tester itself,
 #  nixos_yield.nix, and cloud-data-power.json which all legitimately mention GRUB)
 STALE=$(grep -rEn "^[^#]*(boot\.loader\.grub\.enable\s*=\s*true|grub-extra-entries|hardware_grub|update-grub\.sh|/boot/grub/grub\.cfg)" \
-  "$REPO/aa_nixos-surface_host/src/" --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null \
+  "$REPO/aa_desk-usr_x86_surface-linux_nixos/src/" --include='*.nix' --include='*.json' --include='*.sh' 2>/dev/null \
   | grep -vE "nixos_yield\.nix|cloud-data-power\.json|test-bootloader-yield\.sh" | wc -l)
 if [ "$STALE" -eq 0 ]; then
   ok "T5 no stale GRUB references in host flake source"
@@ -64,12 +64,12 @@ else
 fi
 
 # T6 — /mnt/shared-lib mount declared, /mnt/kubuntu NOT in source
-if grep -q '"/mnt/shared-lib"' "$REPO/aa_nixos-surface_host/src/modules/hardware_filesystems.nix" 2>/dev/null; then
+if grep -q '"/mnt/shared-lib"' "$REPO/aa_desk-usr_x86_surface-linux_nixos/src/modules/hardware_filesystems.nix" 2>/dev/null; then
   ok "T6a /mnt/shared-lib declared in fileSystems"
 else
   fail "T6a /mnt/shared-lib missing from fileSystems"
 fi
-if grep -q '"/mnt/kubuntu"' "$REPO/aa_nixos-surface_host/src/modules/hardware_filesystems.nix" 2>/dev/null; then
+if grep -q '"/mnt/kubuntu"' "$REPO/aa_desk-usr_x86_surface-linux_nixos/src/modules/hardware_filesystems.nix" 2>/dev/null; then
   fail "T6b /mnt/kubuntu still in fileSystems"
 else
   ok "T6b /mnt/kubuntu removed from fileSystems"
@@ -102,7 +102,7 @@ fi
 # (it's a generated artifact deployed by aa_bootloader/build.sh deploy --target nixos
 #  — hardware_bootloader_boot.nix reads it as ./boot.json)
 SRC="$REPO/aa_bootloader/dist/adapters/nixos/boot.json"
-DST="$REPO/aa_nixos-surface_host/src/modules/boot.json"
+DST="$REPO/aa_desk-usr_x86_surface-linux_nixos/src/modules/boot.json"
 if [ -f "$SRC" ] && [ -f "$DST" ] && cmp -s "$SRC" "$DST"; then
   ok "T9 host flake boot.json matches aa_bootloader/dist/ (deployed in sync)"
 else

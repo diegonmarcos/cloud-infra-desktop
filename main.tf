@@ -332,7 +332,7 @@ locals {
   os_installed = {
     # ─── aa: NixOS (Primary) ────────────────────────────────────────────────
     nixos = {
-      repo_path    = "aa_nixos-surface_host"
+      repo_path    = "aa_desk-usr_x86_surface-linux_nixos"
       partition    = "p6_luks (BTRFS subvolumes)"
       version      = "NixOS 24.11"
       kernel       = "linux-surface (stable)"

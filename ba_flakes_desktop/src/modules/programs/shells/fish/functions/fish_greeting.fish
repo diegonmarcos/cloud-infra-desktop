@@ -122,8 +122,8 @@ set_color normal
 # Flakes
 set_color cyan; echo "  Flakes:"
 set_color normal
-set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/git/cloud-infra-desktop/aa_nixos-surface_host/"
-set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/"
+set_color magenta; echo -n "    NixOS            "; set_color normal; echo "~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/"
+set_color magenta; echo -n "    OS Modules       "; set_color normal; echo "~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src/modules/"
 set_color magenta; echo -n "    Home-Manager     "; set_color normal; echo "~/git/cloud-infra-desktop/ba_flakes_desktop/"
 set_color magenta; echo -n "    HM Modules       "; set_color normal; echo "~/git/cloud-infra-desktop/ba_flakes_desktop/src/modules/"
 # Wrappers - Guardrails

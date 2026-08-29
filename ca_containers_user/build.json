@@ -16,7 +16,7 @@
     },
     "nixos-hm": {
       "ghcr": "ghcr.io/diegonmarcos/user-dev-x86-nixos-nix-hm:latest",
-      "source_flake": "../aa_nixos-surface_host/src",
+      "source_flake": "../aa_desk-usr_x86_surface-linux_nixos/src",
       "hm_flake": "../ba_flakes_desktop/src",
       "hm_config": "diego@cli",
       "base": "pure nix (dockerTools.buildLayeredImage)"
