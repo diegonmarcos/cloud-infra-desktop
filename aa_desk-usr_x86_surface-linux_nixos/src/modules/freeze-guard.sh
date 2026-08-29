@@ -324,7 +324,10 @@ pick_slice_io_victim() {
     comm=$(cat "/proc/$p/comm" 2>/dev/null) || continue
     rb=$(awk '/^read_bytes:/{print $2}' "/proc/$p/io" 2>/dev/null) || continue
     wb=$(awk '/^write_bytes:/{print $2}' "/proc/$p/io" 2>/dev/null) || continue
-    [ -n "$rb" ] && [ -n "$wb" ] || continue
+    # Not `[ -n "$rb" ] && [ -n "$wb" ] || continue`: shellcheck SC2015 flags
+    # A && B || C as a false if-then-else, and writeShellApplication fails the
+    # build on any finding, info included. Same skip, stated as one.
+    if [ -z "$rb" ] || [ -z "$wb" ]; then continue; fi
     d=$(( rb + wb - ${PREV_RWB[$p]:-$((rb + wb))} ))
     PREV_RWB[$p]=$(( rb + wb ))
     [ "$d" -gt 0 ] || continue
