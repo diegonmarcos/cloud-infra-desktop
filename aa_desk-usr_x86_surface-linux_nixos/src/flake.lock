@@ -105,7 +105,24 @@
         "nixos-generators": "nixos-generators",
         "nixos-hardware": "nixos-hardware",
         "nixpkgs": "nixpkgs_2",
-        "nixpkgs-unstable": "nixpkgs-unstable"
+        "nixpkgs-unstable": "nixpkgs-unstable",
+        "ulinux-repo": "ulinux-repo"
+      }
+    },
+    "ulinux-repo": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1788001812,
+        "narHash": "sha256-yJNNbV4H66AhJuAE0x663k3Wi2Yz9G6nbUpZa6BPGQI=",
+        "owner": "diegonmarcos",
+        "repo": "cloud-u-linux",
+        "rev": "c6ae024c2a50e9a902224612483c31f63a717878",
+        "type": "github"
+      },
+      "original": {
+        "owner": "diegonmarcos",
+        "repo": "cloud-u-linux",
+        "type": "github"
       }
     }
   },

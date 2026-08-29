@@ -18,7 +18,7 @@
 # (cb_user_diego_nix or wherever home-manager is configured). This file
 # only owns the system-level integration.
 
-{ pkgs, pkgsUnstable, ... }:
+{ pkgs, pkgsUnstable, ulinux-repo, ... }:
 
 {
   programs.fido2-vault-broker = {
@@ -29,6 +29,9 @@
     # Built with pkgsUnstable: the broker's Cargo.lock pins base64ct 1.8.3
     # (edition 2024), which stable 24.11's cargo < 1.85 cannot parse —
     # 2026-06-12 switch failure. Unstable's rustPlatform handles it.
-    package = pkgsUnstable.callPackage ../../../db_fido2-vault-broker/src/nix/package.nix { };
+    # Same reason as the module import in flake.nix: ../../../db_fido2-vault-broker
+    # is a local sync of the cloud-u-linux directory and is gitignored here, so a
+    # relative path builds on the laptop and cannot build in CI.
+    package = pkgsUnstable.callPackage "${ulinux-repo}/db_fido2-vault-broker/src/nix/package.nix" { };
   };
 }
