@@ -232,6 +232,24 @@ in
         [ -n "$_rel" ] || continue
         _t="$HOME/$_rel"
         [ -L "$_t" ] || continue
+        # A systemd .wants/ or .requires/ entry is an ENABLING symlink, not
+        # config. systemd ignores a regular file there outright, so unfreezing
+        # one silently disables the unit -- and unfreeze cannot tell the
+        # difference, because at this point it is just another store symlink.
+        #
+        # Measured 2026-08-29: every user timer on this box was `disabled`.
+        # timers.target.wants held eight regular files and zero symlinks, so
+        # hm-auto-update-check never polled for a new closure (the generation
+        # was two days stale and nothing was going to fix that on its own),
+        # nix-gc never ran (/nix at 93%), and the desktop watchdog and
+        # ssh-stale-socket-cleaner were dead too. The generation itself was
+        # correct the whole time -- home-files has the symlinks.
+        #
+        # Nobody hand-edits a .wants entry, so there is nothing here for the
+        # writable-copy step to buy.
+        case "$_rel" in
+          *.wants/*|*.requires/*) continue ;;
+        esac
         _r="$(${pkgs.coreutils}/bin/readlink -f "$_t" 2>/dev/null)"
         [ -n "$_r" ] && [ -e "$_r" ] || continue
         case "$_r" in /nix/store/*) ;; *) continue ;; esac
