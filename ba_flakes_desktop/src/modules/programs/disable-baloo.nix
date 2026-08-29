@@ -40,12 +40,20 @@
     fi
   '';
 
-  # A unit symlinked to /dev/null is masked: systemd refuses to start it, and
-  # nothing baloo writes to its own config can undo that. ~/.config/systemd/user
-  # is the HIGHEST-priority search path for user units, so this outranks the
+  # Mask the unit: systemd refuses to start a masked unit, and nothing baloo
+  # writes to its own config can undo that. ~/.config/systemd/user is the
+  # HIGHEST-priority search path for user units, so this outranks the
   # runtime-linked kde-baloo.service that plasma-workspace drops in (it was
   # `linked-runtime` and `active` on 2026-08-29). Masking rather than disabling
   # because `disable` only clears Install symlinks, and this unit is pulled in
   # by the desktop session, not by a wants/ link.
-  xdg.configFile."systemd/user/kde-baloo.service".source = "/dev/null";
+  #
+  # systemd.unit(5) gives two ways to mask, and only one of them survives Nix:
+  # a symlink to /dev/null, or a ZERO-LENGTH unit file. `source = "/dev/null"`
+  # looks like the canonical one and fails the build — home-manager's
+  # modules/files.nix puts every source through `builtins.path`, which rejects a
+  # character device outright: "error: file '/dev/null' has an unsupported
+  # type". An empty file is the same mask by the same spec sentence and is an
+  # ordinary store path, so it is the one that works here.
+  xdg.configFile."systemd/user/kde-baloo.service".text = "";
 }
