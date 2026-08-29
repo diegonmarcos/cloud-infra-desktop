@@ -4,7 +4,7 @@
 
 let
   # Unified system wallpaper (declared in cloud-data-wallpaper.json, also
-  # consumed by aa_nixos-surface_host's SDDM Background). Resolved against
+  # consumed by aa_desk-usr_x86_surface-linux_nixos's SDDM Background). Resolved against
   # the kdePackages.plasma-workspace-wallpapers derivation directly.
   wallpaperJson = builtins.fromJSON (builtins.readFile ./cloud-data-wallpaper.json);
   wallpaperPath = "${pkgs.kdePackages.plasma-workspace-wallpapers}/share/wallpapers/${wallpaperJson.wallpaper.theme}/contents/images/${wallpaperJson.wallpaper.image}";
@@ -226,7 +226,16 @@ in
   # script is a child of the session plasmashell is bringing up — and there it
   # never would anyway, since activation already matched the hash.
   home.activation.plasmaPanels = lib.hm.dag.entryAfter [ "writeBoundary" "configure-plasma" ] ''
-    PANELS_ALLOW_RESTART=1 ${panelsApplyScript}/bin/plasma-panels-apply || true
+    # `|| true` on its own is how this hid for a day and a half: on 2026-08-29
+    # the panels sat at Plasma's 30px floating defaults while panels.json
+    # declared 70/40, and the only trace anywhere was a state stamp two days
+    # older than the definition. A failure here must not abort the switch - the
+    # rest of the generation is still worth activating - but it must not be
+    # silent either, so say so on stderr and leave the stamp untouched so the
+    # next run retries.
+    if ! PANELS_ALLOW_RESTART=1 ${panelsApplyScript}/bin/plasma-panels-apply; then
+      echo "[plasma] WARNING: plasma-panels-apply failed - panels do NOT match panels.json" >&2
+    fi
   '';
 
   # Details as the default Dolphin view — see the script's header for why this
@@ -725,7 +734,7 @@ in
       # Note: this rule depends on upowerd reporting a numeric percentage.
       # SAM voltage=0 glitches → percentage NaN → this never fires. The
       # SAM-independent safety net lives at:
-      #   aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix
+      #   aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_system-protection-battery.nix
       "powerdevilrc"."BatteryManagement" = {
         BatteryCriticalAction = critAction;       # actions.critical (= 2 / Hibernate)
         BatteryCriticalLevel  = thr.critical_pct; # thresholds.critical_pct

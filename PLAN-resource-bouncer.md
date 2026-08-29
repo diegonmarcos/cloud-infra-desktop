@@ -5,7 +5,7 @@
 > `aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_system-protection.nix`
 > + `cloud-data-system-protection.json` (SoT), with slice budgets, PSI killers
 > (systemd-oomd + freeze-guard), zram, disk-watchdog, and swap valves all shipped.
-> This plan's file path (`aa_nixos-surface_host/src/configuration.nix`) is RETIRED.
+> This plan's file path (`aa_desk-usr_x86_surface-linux_nixos/src/configuration.nix`) is RETIRED.
 >
 > - [x] **§1 Merge two `nix.settings` blocks (U2)** — DONE, structurally, by the
 >   77-leaf module split. The old single-attrset shadow (two `nix.settings` in one
@@ -43,7 +43,7 @@ Additionally: two `nix.settings` blocks (lines 30-34 and 635-645) — the first 
 
 ## File
 
-`/home/diego/Mounts/Git/unix/aa_nixos-surface_host/src/configuration.nix`
+`/home/diego/Mounts/Git/unix/aa_desk-usr_x86_surface-linux_nixos/src/configuration.nix`
 
 ## Architecture: The Bouncer
 
@@ -229,7 +229,7 @@ A timer that checks disk space every 5 minutes and triggers nix GC if /nix is >9
 
 ```bash
 # Build and test
-~/Mounts/Git/unix/aa_nixos-surface_host/build.sh  # select test option
+~/Mounts/Git/unix/aa_desk-usr_x86_surface-linux_nixos/build.sh  # select test option
 
 # After reboot:
 zramctl && swapon --show                                    # zram active

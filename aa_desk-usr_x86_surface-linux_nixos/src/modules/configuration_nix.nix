@@ -21,7 +21,7 @@
   # NIX SETTINGS  (canonical block — substituters + trusted-public-keys live HERE)
   # ═══════════════════════════════════════════════════════════════════════════
   # U2 (PLAN-resource-bouncer.md / PLAN-hardening §1C): the old monolithic
-  # aa_nixos-surface_host/src/configuration.nix had TWO `nix.settings = { … }`
+  # aa_desk-usr_x86_surface-linux_nixos/src/configuration.nix had TWO `nix.settings = { … }`
   # blocks in ONE attribute set, where the second silently shadowed the first's
   # substituters/trusted-public-keys (the reported data loss). The 77-leaf split
   # dissolved that: nix.settings is now owned by exactly TWO modules that use

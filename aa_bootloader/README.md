@@ -1,7 +1,7 @@
 # aa_bootloader — UEFI Bootloader Engine
 
 > Owner of the entire boot stack on this host. NixOS yields all bootloader
-> management to this engine via `aa_nixos-surface_host/src/modules/nixos_yield.nix`.
+> management to this engine via `aa_desk-usr_x86_surface-linux_nixos/src/modules/nixos_yield.nix`.
 > Single source of truth: `src/boot.json`. Apply via `./build.sh deploy`.
 
 ## What it does
@@ -61,7 +61,7 @@ aa_bootloader/
 
 ## Tester
 
-`aa_nixos-surface_host/src/modules/test-bootloader-yield.sh` — 12 invariants
+`aa_desk-usr_x86_surface-linux_nixos/src/modules/test-bootloader-yield.sh` — 12 invariants
 that prove NixOS has yielded bootloader, the deployed state matches the JSON
 SoT, and there are no stale GRUB/Kubuntu/Arch references in the rest of the
 repo. Run after any deploy.
@@ -75,6 +75,6 @@ the freshly captured files under `snapshots/` (re-capture with
 
 ## See also
 
-- `~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/nixos_yield.nix` — the NixOS-side disable
-- `~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/test-bootloader-yield.sh` — the verifier
+- `~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src/modules/nixos_yield.nix` — the NixOS-side disable
+- `~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src/modules/test-bootloader-yield.sh` — the verifier
 - `SNAPSHOT-2026-05-01.md` — historical pre-redesign capture (frozen)

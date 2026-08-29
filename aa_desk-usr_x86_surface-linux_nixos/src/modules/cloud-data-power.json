@@ -57,9 +57,9 @@
   },
 
   "consumers": [
-    "aa_nixos-surface_host/src/modules/configuration_security.nix (services.logind.lidSwitch family)",
-    "aa_nixos-surface_host/src/modules/configuration_power.nix (UPower.conf + logind HandlePowerKey + kernelParams)",
-    "aa_nixos-surface_host/src/modules/configuration_pre-hibernate-warning.nix (ExecStartPre on systemd-hibernate.service — 30s cancellable warning gate, all hibernation paths — pre_hibernate_warning.*)",
+    "aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_security.nix (services.logind.lidSwitch family)",
+    "aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_power.nix (UPower.conf + logind HandlePowerKey + kernelParams)",
+    "aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_pre-hibernate-warning.nix (ExecStartPre on systemd-hibernate.service — 30s cancellable warning gate, all hibernation paths — pre_hibernate_warning.*)",
     "ba_flakes_desktop/src/modules/desktop/plasma.nix (PowerDevil [BatteryManagement] + [*][SuspendAndShutdown] + HandleButtonEvents + kscreenlockerrc lock idle)"
   ],
 
@@ -180,7 +180,7 @@
   "deployment": {
     "_comment": "After editing this JSON, the host flake AND the home-manager flake both need a switch (each consumes its own replica).",
     "reload_commands": [
-      "cd ~/git/cloud-infra-desktop/aa_nixos-surface_host && ./build.sh switch",
+      "cd ~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch",
       "cd ~/git/cloud-infra-desktop/ba_flakes_desktop && ./build.sh switch"
     ]
   }

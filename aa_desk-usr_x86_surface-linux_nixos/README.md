@@ -71,7 +71,7 @@ sudo nixos-rebuild switch --rollback
 | Path | Description |
 |------|-------------|
 | `/nix/specs/` | Symlink to this repo (after boot) |
-| `~/git/cloud-infra-desktop/aa_nixos-surface_host/` | Git repo location (canonical) |
+| `~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/` | Git repo location (canonical) |
 
 ## Credentials
 

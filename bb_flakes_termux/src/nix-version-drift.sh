@@ -17,7 +17,7 @@ CACHE_TTL=3600  # 1 hour
 # Flake directories
 FLAKE_TERMUX="$UNIX_ROOT/bb_flakes_termux/src"
 FLAKE_DESKTOP="$UNIX_ROOT/ba_flakes_desktop/src"
-FLAKE_HOST="$UNIX_ROOT/aa_nixos-surface_host/src"
+FLAKE_HOST="$UNIX_ROOT/aa_desk-usr_x86_surface-linux_nixos/src"
 CLOUD_HM="$CLOUD_ROOT/b_infra"
 
 # Cloud VMs with home-manager flakes

@@ -1,5 +1,5 @@
 {
-  "_comment": "Source of truth for the unified system wallpaper used by SDDM (host flake aa_nixos-surface_host) + desktop + lock screen (home-manager flake ba_flakes_desktop). All three converge on the same image so login → desktop → lock screen present a coherent visual. Resolved at run time via /run/current-system/sw/share/wallpapers/<theme>/contents/images/<image> (KDE plasma-workspace-wallpapers is in environment.systemPackages so this path is stable across rebuilds). Replicated verbatim in ba_flakes_desktop/src/modules/desktop/cloud-data-wallpaper.json because Nix pure-eval flakes cannot read paths outside their own source root.",
+  "_comment": "Source of truth for the unified system wallpaper used by SDDM (host flake aa_desk-usr_x86_surface-linux_nixos) + desktop + lock screen (home-manager flake ba_flakes_desktop). All three converge on the same image so login → desktop → lock screen present a coherent visual. Resolved at run time via /run/current-system/sw/share/wallpapers/<theme>/contents/images/<image> (KDE plasma-workspace-wallpapers is in environment.systemPackages so this path is stable across rebuilds). Replicated verbatim in ba_flakes_desktop/src/modules/desktop/cloud-data-wallpaper.json because Nix pure-eval flakes cannot read paths outside their own source root.",
   "version": 1,
 
   "wallpaper": {
@@ -9,7 +9,7 @@
   },
 
   "consumers": [
-    "~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/configuration_display.nix (SDDM login Background)",
+    "~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_display.nix (SDDM login Background)",
     "~/git/cloud-infra-desktop/ba_flakes_desktop/src/modules/desktop/plasma.nix (workspace.wallpaper + lockScreenWallpaper activation)"
   ],
 
@@ -40,7 +40,7 @@
   "deployment": {
     "_comment": "After editing this JSON, both flakes need a rebuild for SDDM and home-manager to pick up the new value.",
     "reload_commands": [
-      "cd ~/git/cloud-infra-desktop/aa_nixos-surface_host && ./build.sh switch",
+      "cd ~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch",
       "cd ~/git/cloud-infra-desktop/ba_flakes_desktop && ./build.sh switch"
     ]
   }

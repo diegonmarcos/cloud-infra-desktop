@@ -57,7 +57,7 @@
 
 | OS | Folder | Purpose |
 |----|--------|---------|
-| **NixOS 24.11** | `aa_nixos-surface_host/` | Primary workstation. Immutable root (tmpfs), impermanence, KDE Plasma 6 |
+| **NixOS 24.11** | `aa_desk-usr_x86_surface-linux_nixos/` | Primary workstation. Immutable root (tmpfs), impermanence, KDE Plasma 6 |
 | **Bootloader (rEFInd)** | `aa_bootloader/` | UEFI bootloader engine — declarative `boot.json` → rEFInd menu + GRUB chainload |
 | **Rescue OS (Debian)** | `rescue-os-debian/` | On-disk minimal CLI rescue (p6) — replaces Arch, replaced 2026-05-03 |
 | **Kali Linux** | `ab_fallback_os/ab_kali_security/` | Security auditing, network forensics (debootstrap) |
@@ -90,7 +90,7 @@ Nix Home Manager for Android/Termux. Mobile development environment with Claude 
 
 ```bash
 # Rebuild NixOS system
-~/git/cloud-infra-desktop/aa_nixos-surface_host/build.sh       # Interactive TUI
+~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/build.sh       # Interactive TUI
 
 # Rebuild Home Manager (desktop)
 ~/git/cloud-infra-desktop/ba_flakes_desktop/build.sh switch surface
@@ -141,7 +141,7 @@ unix/
 │   ├── ISOLATION_LAYERS.md            Sandbox breakdown
 │   └── TOOLS.md                       Curated package lists
 │
-├── aa_nixos-surface_host/             NixOS host configuration
+├── aa_desk-usr_x86_surface-linux_nixos/             NixOS host configuration
 ├── aa_bootloader/                     UEFI bootloader engine (rEFInd + GRUB chainload)
 ├── ab_fallback_os/                    Multi-OS fallback catalog
 │   ├── ab_kali_security/              Kali security zone (debootstrap)
@@ -167,7 +167,7 @@ Every major project uses `build.sh` (engine) + `build.json` (config) at project 
 
 | Project | Engine | Purpose |
 |---------|--------|---------|
-| `aa_nixos-surface_host/build.sh` | NixOS installer | Create raw EFI / ISO images for Surface |
+| `aa_desk-usr_x86_surface-linux_nixos/build.sh` | NixOS installer | Create raw EFI / ISO images for Surface |
 | `ba_flakes_desktop/build.sh` | Home Manager | Switch/build/update desktop environment |
 | `bb_flakes_termux/build.sh` | nix-on-droid | Switch/build/update Termux environment |
 | `bc_unix-mcp-api/build.sh` | Node.js | Build MCP server |
@@ -176,7 +176,7 @@ Every major project uses `build.sh` (engine) + `build.json` (config) at project 
 
 ### B.3 NixOS Host Configuration
 
-- **Flake**: `aa_nixos-surface_host/src/flake.nix`
+- **Flake**: `aa_desk-usr_x86_surface-linux_nixos/src/flake.nix`
 - **Impermanence**: Root is `tmpfs`, wiped on reboot. Persistent data via BTRFS subvolumes.
 - **Multi-user**: `diego` (UID 1000), `guest` (UID 1001)
 - **Desktop**: KDE Plasma 6 (Wayland), GNOME, Openbox

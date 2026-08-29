@@ -111,7 +111,7 @@ switch $argv[1]
 
     # Collect ALL env var declarations into a temp file (one pass, both tables use it)
     set -l _hm_root "$HOME/git/cloud-infra-desktop/bb_flakes_termux/src"
-    set -l _os_root "$HOME/git/cloud-infra-desktop/aa_nixos-surface_host/src"
+    set -l _os_root "$HOME/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src"
     set -l _tmpfile (mktemp)
     # sessionVariables from all nix files
     command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f

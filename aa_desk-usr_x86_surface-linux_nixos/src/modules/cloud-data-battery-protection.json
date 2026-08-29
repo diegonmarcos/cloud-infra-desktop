@@ -195,8 +195,8 @@
   "deployment": {
     "_comment": "Where this config is consumed.",
     "consumers": [
-      "~/git/cloud-infra-desktop/aa_nixos-surface_host/src/modules/configuration_system-protection-battery.nix"
+      "~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src/modules/configuration_system-protection-battery.nix"
     ],
-    "reload_command": "cd ~/git/cloud-infra-desktop/aa_nixos-surface_host && ./build.sh switch"
+    "reload_command": "cd ~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos && ./build.sh switch"
   }
 }

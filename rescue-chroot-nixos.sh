@@ -32,7 +32,7 @@ NIX_SUBVOL="@nixos/nix"
 HOME_SUBVOL="@home-diego"
 
 # NixOS flake location (relative to home)
-FLAKE_PATH="git/cloud-infra-desktop/aa_nixos-surface_host/src"
+FLAKE_PATH="git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src"
 
 # ═══════════════════════════════════════════════════════════════════════════════
 # AUTO-DETECT NIX STORE PATHS

@@ -1,4 +1,4 @@
-set -l nixos_dir "$HOME/git/cloud-infra-desktop/aa_nixos-surface_host/src"
+set -l nixos_dir "$HOME/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src"
 set -l flake_dir "$HOME/git/cloud-infra-desktop/ba_flakes_desktop/src"
 set -l profiles_dir "$flake_dir/modules/profiles"
 set -l shells_dir "$flake_dir/modules/programs/shells"
@@ -13,7 +13,7 @@ if test (count $argv) -eq 0
   if test -d "$nixos_dir"
     set -l nixos_rev (git -C "$nixos_dir/.." rev-parse --short HEAD 2>/dev/null; or echo "?")
     set -l nixos_dirty (git -C "$nixos_dir/.." diff --quiet 2>/dev/null; and echo ""; or echo " *dirty*")
-    echo "~/git/cloud-infra-desktop/aa_nixos-surface_host/  ($nixos_rev$nixos_dirty)"
+    echo "~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/  ($nixos_rev$nixos_dirty)"
   else
     echo "(not found)"
   end
@@ -109,7 +109,7 @@ switch $argv[1]
 
     # Collect ALL env var declarations into a temp file (one pass, both tables use it)
     set -l _hm_root "$HOME/git/cloud-infra-desktop/ba_flakes_desktop/src"
-    set -l _os_root "$HOME/git/cloud-infra-desktop/aa_nixos-surface_host/src"
+    set -l _os_root "$HOME/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src"
     set -l _tmpfile (mktemp)
     # sessionVariables from all nix files
     command find "$_hm_root" "$_os_root" -name '*.nix' 2>/dev/null | sort | while read -l f
