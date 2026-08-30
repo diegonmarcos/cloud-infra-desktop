@@ -1220,6 +1220,17 @@ ghcr_pull_layered_skopeo() {
 cmd_pull() {
     log_header "Activate prebuilt closure (no eval — cannot OOM the phone)"
     check_nix || return 1
+
+    # NIX ALWAYS WINS — same policy as cmd_switch (see the note above the
+    # matching export there). cmd_pull was missing this, so every activation
+    # aborted the moment ANY unmanaged file sat where a managed one belongs
+    # ("Existing file ... would be clobbered"). A pull that refuses to
+    # activate is not a safer pull, it is a no-op that silently leaves the
+    # stale generation live (2026-08-30: 56 drifted files kept the phone
+    # pinned to a generation predating two repo renames, so ~/.claude/projects
+    # dangled and every session was unreachable).
+    export HOME_MANAGER_BACKUP_EXT="hm-bak-$(date +%Y%m%d-%H%M%S)"
+
     _art="${1:-$ART_DIR}"
     _tb="$_art/nixondroid-closure.nar.zst"
     _sys=""
