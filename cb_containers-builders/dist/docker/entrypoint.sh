@@ -40,7 +40,7 @@ case "${1:-}" in
     echo "  ship --all          Ship all VMs"
     echo "  gen-configs         Generate configs (Caddy, DNS, etc.)"
     echo "  ship-hm             Ship home-manager to VMs"
-    echo "  ship-reports        Build + push cloud-data-reports image"
+    echo "  ship-reports        RETIRED — see cloud-infra .github/workflows/ship-reports.yml"
     echo "  health              Run health checks"
     echo "  bash                Interactive shell"
     echo ""
@@ -388,8 +388,23 @@ case "$CMD" in
     exec bash "$SCRIPTS/cloud-ship-ci-builder-dispatch.sh" ship-hm "$@"
     ;;
   ship-reports)
-    CLOUD_DATA_SCRIPTS="$HOME/git/cloud-data/.github/workflows/scripts"
-    exec bash "$CLOUD_DATA_SCRIPTS/ship-reports.sh" "$@"
+    # RETIRED 2026-08-31. This exec'd
+    # /root/git/cloud-data/.github/workflows/scripts/ship-reports.sh, a path
+    # that died with the 2026-08-19 cloud-data -> cloud-infra source move —
+    # so every invocation since has been "No such file or directory" and
+    # ship-reports.yml had never once completed a run.
+    #
+    # NOT repointed at the post-move location, because the script itself is
+    # obsolete: its arm64 leg dispatched over WireGuard to an SSH runner
+    # selected by build-workflows.json .runners.arm64 {type:ssh,host:oci-apps},
+    # and .runners.arm64 is now {type:local, runs_on:ubuntu-24.04-arm} — the
+    # script's own type!=ssh guard fails loud on that. The reports image is
+    # now built by GitHub-hosted native runners (amd64 + arm64 + manifest),
+    # with no builder container, no mesh and no SSH in the path at all.
+    echo "FATAL: the 'ship-reports' verb is retired." >&2
+    echo "  Build the reports image with cloud-infra's ship-reports.yml:" >&2
+    echo "    gh workflow run ship-reports.yml -R diegonmarcos/cloud-infra" >&2
+    exit 1
     ;;
   bash|sh)
     exec bash "$@"
