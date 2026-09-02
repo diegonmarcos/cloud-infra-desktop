@@ -935,6 +935,101 @@
           "type": "github",
           "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Wallet.apk"
         }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.analytics",
+        "label": "Cloud-Lib-Analytics",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Analytics.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.search",
+        "label": "Cloud-Lib-Search",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Search.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudlib.watchdog",
+        "label": "Cloud-Lib-Watchdog",
+        "group": "lib",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Watchdog.apk"
+        }
+      },
+      {
+        "package": "cld.camera",
+        "label": "Cloud-Camera",
+        "group": "phone",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Camera.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.cloudme",
+        "label": "Cloud-Me",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Me-x86_64.apk"
+        }
+      },
+      {
+        "package": "com.collabora.libreoffice",
+        "label": "Cloud-Sheets",
+        "group": "fleet",
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Sheets.apk"
+        }
+      },
+      {
+        "package": "com.diegonmarcos.watchdog",
+        "label": "Cloud-Watchdog",
+        "group": "fleet",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Watchdog-x86_64.apk"
+        }
+      },
+      {
+        "package": "cld.termux",
+        "label": "Cloud-Terminal",
+        "group": "ide",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/cloud-terminal-x86_64.apk"
+        }
+      },
+      {
+        "package": "cld.termux.nix",
+        "label": "Cloud-NixDroid",
+        "group": "ide",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/cloud-nixdroid-x86_64.apk"
+        }
+      },
+      {
+        "package": "cld.termux.nix.boot",
+        "label": "Cloud-Unix-Termux-Boot",
+        "group": "ide",
+        "full_perms": true,
+        "source": {
+          "type": "github",
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Unix-Termux-Boot.apk"
+        }
       }
     ]
   },
@@ -1326,5 +1421,36 @@
       "theme_style": "SPRITZ",
       "color_both": true
     }
+  },
+  "repos": {
+    "_doc": "Git repos cloned into ANDROID shared storage so the on-device IDE apps (Cloud-IDE-Hub, Cloud-Terminal, Cloud-NixDroid) open the real working trees. Cloned at PROVISION time into the persistent data volume, NOT baked into the image: the image is already 4GB and these are several GB more, and a runtime clone can be refreshed without a rebuild. `dest` is a path under Android's /sdcard, written on the Linux side via /var/lib/waydroid/data/media/0 (same bytes, Android sees /sdcard). PUBLIC repos only, cloned ANONYMOUSLY over https — a private repo would need a token inside the container, and a token must never enter an image or a data volume (cloud-vault, cloud-data*, cloud-notes are deliberately absent). Shallow (depth=1): these trees are for reading and editing on-device, not for history archaeology; `git fetch --unshallow` on demand. Guarded by its own marker so adding a repo here does not re-run the app/launcher provisioning.",
+    "dest": "git",
+    "depth": 1,
+    "list": [
+      {
+        "name": "cloud",
+        "url": "https://github.com/diegonmarcos/cloud.git"
+      },
+      {
+        "name": "cloud-infra",
+        "url": "https://github.com/diegonmarcos/cloud-infra.git"
+      },
+      {
+        "name": "cloud-infra-desktop",
+        "url": "https://github.com/diegonmarcos/cloud-infra-desktop.git"
+      },
+      {
+        "name": "cloud-u-android",
+        "url": "https://github.com/diegonmarcos/cloud-u-android.git"
+      },
+      {
+        "name": "cloud-u-containers",
+        "url": "https://github.com/diegonmarcos/cloud-u-containers.git"
+      },
+      {
+        "name": "cloud-u-linux",
+        "url": "https://github.com/diegonmarcos/cloud-u-linux.git"
+      }
+    ]
   }
 }

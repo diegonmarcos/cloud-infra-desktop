@@ -393,6 +393,7 @@ _ensure_running() {
     fi
     docker run -d --name "$(container_name)" \
       --privileged \
+      --label cloud.preserve=true \
       --cgroupns=host \
       --cpus "$(cpu_cap)" \
       --memory-reservation "$(get container.memory_reservation)" \

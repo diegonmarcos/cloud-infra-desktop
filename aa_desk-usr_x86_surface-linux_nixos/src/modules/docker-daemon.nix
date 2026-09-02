@@ -22,7 +22,18 @@
     autoPrune = {
       enable = true;
       dates = "daily";
-      flags = [ "--all" "--filter" "until=24h" ];
+      # `label!=cloud.preserve=true` is load-bearing, not tidiness. This runs
+      # `docker system prune -f --all --filter until=24h`, and prune removes every
+      # STOPPED container plus (with --all) every image no RUNNING container uses.
+      # Three settings in this very file conspire to make that fatal for long-lived
+      # workloads: docker does not autostart (wantedBy = []), docker-no-restart forces
+      # restart=no on everything, so at 00:00 nothing is running by definition — the
+      # waydroid-container and its 4GB image were silently destroyed overnight
+      # (observed 2026-09-01: `docker ps -a` and `docker images` both empty, 23G of
+      # orphaned overlay2 left behind). Anything labelled cloud.preserve=true is now
+      # exempt; the label is set in af_waydroid-container/src/Dockerfile and on
+      # `docker run` in its build.sh.
+      flags = [ "--all" "--filter" "until=24h" "--filter" "label!=cloud.preserve=true" ];
     };
     daemon.settings = {
       data-root = "/mnt/shared-lib/docker";
