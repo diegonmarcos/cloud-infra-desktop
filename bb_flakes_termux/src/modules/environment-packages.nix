@@ -5,6 +5,11 @@
 
 {
   environment.packages = with pkgs; [
+    # android-tools: adb for the Shizuku-INDEPENDENT privileged plane. cloud-superapp-mcp
+    # (superapp_shell/grant/logcat_full/adb_pair) runs `adb` HERE, on the phone, against
+    # its own Wireless Debugging port (uid 2000) -- no Shizuku APK needed. One `adb pair`
+    # then autoconnect. Without this binary every privileged tool fails "adb: MISSING".
+    android-tools
     # Nerd Fonts (for terminal icons)
     jbMonoNerd  # single nerdfonts derivation — a second override with a different font list built a SEPARATE multi-hundred-MB package (2026-08-08 audit)
 
