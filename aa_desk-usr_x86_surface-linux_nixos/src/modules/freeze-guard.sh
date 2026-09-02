@@ -49,12 +49,18 @@ AVOID=$(jq -r '.watchdog.avoid_kill' "$CONFIG_JSON")
 # → zero kills → froze).
 HARD_PROTECT=$(jq -r '.watchdog.hard_protect' "$CONFIG_JSON")
 SOFT_AVOID=$(jq -r '.watchdog.soft_avoid' "$CONFIG_JSON")
-# NOTE (2026-08-19): there is deliberately NO "session container" name list
-# here. An earlier cut of this fix carried one (konsole|fish|claude|...) so the
-# picker could refuse to kill a tab host. It is unnecessary: "a process with
-# living children is never a victim" (see heaviest_leaf) protects konsole by
-# STRUCTURE, and structure does not go stale when someone switches terminal or
-# shell. Do not reintroduce the list.
+# session_container_re (2026-09-02) — the 2026-08-19 note here said a
+# container name list was unnecessary because "a process with living children
+# is never a victim" protects konsole by structure. 2026-09-02 11:32 proved
+# that absolute invariant OVER-protects: every active claude held a transient
+# child (sleep/gh/git), so the only killable leaves were 0.8-13MB of junk,
+# pressure never dropped, and after 10s systemd-oomd killed the whole konsole
+# unit at cgroup granularity -- the exact forbidden outcome. tree_victim now
+# uses a structural DOMINANCE rule instead (see it for the details); this
+# regex is only a narrow backstop for the one corner structure misses (a
+# terminal holding nothing but idle tabs dominates numerically). It vetoes
+# ONLY processes that still have living children, matched on full cmdline.
+CONTAINER_RE=$(jq -r '.watchdog.session_container_re // "^$"' "$CONFIG_JSON")
 # ── memory.high-THRASH voter (v3, 2026-07-10) ──────────────────────────
 # The 13:06 freeze was INVISIBLE to PSI (memory.pressure ~35%, below every
 # limit) yet user-1000.slice hit memory.high 1.14M times reclaim-thrashing.
@@ -208,46 +214,70 @@ subtree_rss() {
   printf '%s' "$total"
 }
 
-# The actual victim inside tree $1. ONE INVARIANT, no exceptions:
+# The actual victim inside tree $1 — LEAF OR DOMINATOR.
 #
-#     A PROCESS WITH LIVING CHILDREN IS NEVER A VICTIM.
+# v1 (2026-08-19 .. 2026-09-02) had one absolute invariant: "a process with
+# living children is never a victim". It stopped the guard shooting konsole,
+# but 2026-09-02 11:32 showed it over-protects: an ACTIVE claude always holds
+# some transient child (sleep, gh, git), so the only reachable leaves were
+# 0.8-13MB of junk. The guard killed sleep(792kB) and gh(2.4MB) while nine
+# ~450MB claudes sat untouchable behind their own spawns, user.slice memory
+# PSI stayed over oomd's 30%/10s line, and systemd-oomd killed the WHOLE
+# konsole unit — 156 processes — the exact outcome the invariant existed to
+# prevent. Over-protecting the tree starved the fine-grained killer and
+# handed the job to the blunt cgroup-granularity one.
 #
-# Grow from the bottom. The victim is the highest-RSS process in the tree that
-# has no living children; a father becomes eligible only once it IS a leaf,
-# i.e. everything below it is already gone. konsole is not special-cased and
-# is not immortal — it is simply unreachable while it still holds tabs, which
-# is what makes "kill konsole" stop happening without protecting it by name.
+# v2 rule: victim = highest OWN-RSS process in the tree that either
+#   (a) is a leaf (no living children), or
+#   (b) DOMINATES its own subtree: own RSS >= sum of everything below it.
+# A dominator IS the workload, not a container — killing it orphans only
+# children it outweighs, and those orphans are leaves next tick. A real
+# container never dominates (konsole: ~140MB own vs GBs of tabs).
 #
-#   konsole -> fish -> claude(450MB) -> zsh(3MB)
-#     tick 1: leaves are the zsh shells and every idle claude; the heaviest
-#             leaf is a 450MB idle claude  => ONE tab dies
-#     a busy claude is shielded by its own zsh until that zsh exits or is
-#     itself picked; konsole is reachable only after the last tab is gone.
-#
+#   konsole -> fish -> claude(450MB) -> sleep(1MB)
+#     claude dominates (450 >= 1)  => the tab's WORKLOAD dies; fish and
+#     konsole survive; the tab shell itself only dies later, as a leaf.
 #   konsole -> fish -> claude -> cc1plus(2GB)
-#     cc1plus is the leaf and outweighs everything  => the build dies, and
-#     claude is untouchable while it holds that child.
+#     claude does NOT dominate (2GB below)  => cc1plus (leaf) is picked:
+#     the build dies, claude survives — unchanged from v1.
 #
-# Two earlier designs were wrong and are recorded so they are not retried:
-# ranking a flat `ps` list by own-RSS let konsole out-rank its own children
-# (nine tabs died in one kill, 2026-08-19); greedy descent toward the largest
-# subtree stopped AT claude because claude outweighed its shell, i.e. it still
-# killed a father while a child lived.
-#
+# CONTAINER_RE backstop: a terminal/mux WITH living children is never a
+# victim even if it dominates (a konsole holding only idle 2MB fish tabs
+# dominates numerically, and "kill the whole konsole" is the one forbidden
+# outcome). Processes without children are never vetoed by it.
 # hard_protect'd processes are never returned. Prints "pid rss", or nothing.
-heaviest_leaf() {
-  local -a q=("$1"); local i=0 p c r kids
-  local best="" best_rss=-1
+tree_victim() {
+  local -a q=("$1")
+  local -A own kids parent sub
+  local i=0 p c r j below
   while [ "$i" -lt "${#q[@]}" ]; do
     p="${q[$i]}"; i=$((i+1))
-    kids=$(children_of "$p")
-    for c in $kids; do q+=("$c"); done
-    # Has living children => not a victim, at any RSS. This is the invariant.
-    [ -n "$kids" ] && continue
-    is_protected "$p" && continue
     r=$(awk '/^VmRSS:/ {print $2}' "/proc/$p/status" 2>/dev/null)
-    [ -n "$r" ] || continue
-    if [ "$r" -gt "$best_rss" ]; then best_rss="$r"; best="$p"; fi
+    own[$p]="${r:-0}"
+    kids[$p]="$(children_of "$p")"
+    for c in ${kids[$p]}; do
+      # parent map doubles as the visited set: a proc tree has one parent per
+      # pid, so a second sighting (thread-duplicated child list) is skipped.
+      if [ -z "${parent[$c]:-}" ]; then parent[$c]="$p"; q+=("$c"); fi
+    done
+  done
+  # Subtree sums bottom-up: q is BFS order, children sit after parents, so a
+  # reverse walk completes every node's total before its parent reads it.
+  for (( j=${#q[@]}-1; j>=0; j-- )); do
+    p="${q[$j]}"
+    sub[$p]=$(( ${sub[$p]:-0} + ${own[$p]:-0} ))
+    c="${parent[$p]:-}"
+    if [ -n "$c" ]; then sub[$c]=$(( ${sub[$c]:-0} + ${sub[$p]:-0} )); fi
+  done
+  local best="" best_rss=-1
+  for p in "${q[@]}"; do
+    is_protected "$p" && continue
+    if [ -n "${kids[$p]:-}" ]; then
+      proc_id "$p" | grep -Eq -- "$CONTAINER_RE" && continue
+      below=$(( ${sub[$p]:-0} - ${own[$p]:-0} ))
+      [ "${own[$p]:-0}" -ge "$below" ] || continue
+    fi
+    if [ "${own[$p]:-0}" -gt "$best_rss" ]; then best_rss="${own[$p]:-0}"; best="$p"; fi
   done
   [ -n "$best" ] && printf '%s %s' "$best" "$best_rss"
 }
@@ -292,7 +322,7 @@ pick_hog_victim() {
   [ -n "$best_pid" ] || return 0
   # ...then kill the leaf inside it, never the tree root.
   local leaf
-  leaf=$(heaviest_leaf "$best_pid")
+  leaf=$(tree_victim "$best_pid")
   [ -n "$leaf" ] || return 0
   read -r lp lr <<<"$leaf"
   echo "$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null)"
@@ -348,23 +378,45 @@ pick_slice_io_victim() {
 # pids ($2 = space-separated exclusion list). prefer_kill first, then any
 # non-avoid_kill process. Prints "pid metric comm".
 pick_victim() {
-  local key="$1" skip="$2" excl=""
-  [ -n "$skip" ] && excl="^($(echo "$skip" | tr ' ' '|')) "
+  local key="$1" skip="$2"
   # `ps comm=` renders kernel threads with their kworker/ksoftirqd/... name;
   # KTHREAD_RE strips them so the guard never wastes a kill on an unkillable
   # kernel thread (the 15:29 kworker/thermald flailing). AVOID protects the
   # compositor/session essentials.
   local cmd="ps -eo pid=,$key=,comm= --sort=-$key"
+  # 2026-09-02: the old pipeline grepped KTHREAD_RE/AVOID against the whole ps
+  # LINE, which starts with "  <pid>" -- so the ^-anchored kthread regex never
+  # matched and the guard SIGKILLed kworkers (metric=0, unkillable) during the
+  # 11:00 incident. Match the COMM FIELD. Same pass adds a 10MB floor to the
+  # prefer tier for the rss key: prefer_kill names processes worth killing, not
+  # any 540kB idle node -- a tiny match wastes the SIGTERM rung and relieves
+  # nothing (also observed 11:00-11:01).
+  pick_line() {
+    $cmd | awk -v want_pref="$1" -v key="$key" -v pref="$PREFER" \
+               -v avoid="$AVOID" -v kt="$KTHREAD_RE" -v skip="$skip" '
+      BEGIN { n = split(skip, a, " "); for (i = 1; i <= n; i++) sk[a[i]] = 1 }
+      {
+        comm = $3; for (i = 4; i <= NF; i++) comm = comm " " $i
+        if ($1 in sk) next
+        if (comm ~ kt) next
+        if (comm ~ avoid) next
+        if (want_pref == 1) {
+          if (pref == "" || comm !~ pref) next
+          if (key == "rss" && $2 < 10240) next
+        }
+        print; exit
+      }'
+  }
   local line
-  line=$($cmd | grep -E -- "$PREFER" | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { if [ -n "$excl" ]; then grep -E -v -- "$excl"; else cat; fi; } | head -n1)
-  [ -z "$line" ] && line=$($cmd | grep -E -v -- "$AVOID" | grep -E -v -- "$KTHREAD_RE" | { if [ -n "$excl" ]; then grep -E -v -- "$excl"; else cat; fi; } | head -n1)
+  line=$(pick_line 1)
+  [ -z "$line" ] && line=$(pick_line 0)
   [ -n "$line" ] || return 0
   # Tree descent (2026-08-19). Only for the rss key: pcpu is not additive down a
   # tree the way rss is, and a CPU hog is already the leaf that is spinning.
   if [ "$key" = "rss" ]; then
     local root leaf lp lr
     root=$(echo "$line" | awk '{print $1}')
-    leaf=$(heaviest_leaf "$root")
+    leaf=$(tree_victim "$root")
     if [ -n "$leaf" ]; then
       read -r lp lr <<<"$leaf"
       line="$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null)"
@@ -407,10 +459,10 @@ pick_cgroup_victim() {
   elif [ -n "$fb_pid" ];   then root="$fb_pid";   tier="fallback-soft_avoid"
   else return 0
   fi
-  leaf=$(heaviest_leaf "$root")
+  leaf=$(tree_victim "$root")
   [ -n "$leaf" ] || return 0
   read -r lp lr <<<"$leaf"
-  [ "$lp" != "$root" ] && tier="$tier-leaf"
+  [ "$lp" != "$root" ] && tier="$tier-deep"
   echo "$lp $lr $(cat "/proc/$lp/comm" 2>/dev/null) $tier"
 }
 
