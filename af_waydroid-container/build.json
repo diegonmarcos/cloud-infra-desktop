@@ -955,15 +955,6 @@
         }
       },
       {
-        "package": "com.diegonmarcos.cloudlib.watchdog",
-        "label": "Cloud-Lib-Watchdog",
-        "group": "lib",
-        "source": {
-          "type": "github",
-          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Watchdog.apk"
-        }
-      },
-      {
         "package": "cld.camera",
         "label": "Cloud-Camera",
         "group": "phone",
@@ -980,25 +971,6 @@
         "source": {
           "type": "github",
           "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Me-x86_64.apk"
-        }
-      },
-      {
-        "package": "com.collabora.libreoffice",
-        "label": "Cloud-Sheets",
-        "group": "fleet",
-        "source": {
-          "type": "github",
-          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Sheets.apk"
-        }
-      },
-      {
-        "package": "com.diegonmarcos.watchdog",
-        "label": "Cloud-Watchdog",
-        "group": "fleet",
-        "full_perms": true,
-        "source": {
-          "type": "github",
-          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Watchdog-x86_64.apk"
         }
       },
       {
@@ -1031,7 +1003,8 @@
           "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Unix-Termux-Boot.apk"
         }
       }
-    ]
+    ],
+    "_doc_excluded_abis": "EXCLUDED, do not re-add without checking the release first: Cloud-Lib-Watchdog, Cloud-Sheets (com.collabora.libreoffice) and Cloud-Watchdog all fail on this x86_64 Waydroid with INSTALL_FAILED_NO_MATCHING_ABIS (res=-113) — they ship arm64 native libs and there is no ndk-translation/houdini in this image, so no ABI can ever match. The first two have no -x86_64 asset in cloud-u-android's `latest` at all; Cloud-Watchdog publishes Cloud-Watchdog-x86_64.apk but that artifact still carries arm64 libs, so the name is not evidence — verified by install, 2026-09-02. Re-add each one only after `unzip -l` shows lib/x86_64/ in the actual asset."
   },
   "launcher": {
     "_doc": "Data-driven Launcher3 layout (home screen + hotseat/nav bar). Rendered into the Launcher3 favorites DB by src/apps/gen-layout-sql.js. `folders` are reusable groups (members = package ids). `hotseat` = bottom nav bar, left→right. `workspace.cells` = home screen grid placements (screen 0 default, a cell can override `screen` for a second page). Re-arrange by editing here + re-provisioning — no code changes.",
