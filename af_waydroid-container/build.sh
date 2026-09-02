@@ -142,8 +142,27 @@ cmd_apps_lock() {
         local gurl sha
         gurl="$(_config_json | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>process.stdout.write(JSON.parse(s).apps.list[$i].source.url||''))")"
         [ -n "$gurl" ] || die "github source for $pkg has no url in build.json"
-        log "  $pkg -> github ; prefetching…"
-        sha="$(nix store prefetch-file --json "$gurl" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>process.stdout.write(JSON.parse(d).hash))')"
+        # SIDECAR FIRST. Our own releases publish "<asset>.sha256" next to every APK, so
+        # the digest is available without downloading the APK at all. That matters here:
+        # these pins point at the ROLLING `latest` tag of an actively-shipping repo, and a
+        # full prefetch relock takes ~25 minutes — long enough that assets move underneath
+        # it. Measured 2026-09-02: a relock that completed cleanly had 33 of its 54 pins
+        # already stale by the time CI ran, and the build died on a hash mismatch. Reading
+        # sidecars turns the same relock into seconds, which is the only way the window
+        # gets small enough to win. Falls back to prefetch when no sidecar exists (Brave
+        # and other third-party releases publish none) — and nix still verifies the real
+        # download at build time either way, so a wrong sidecar fails loudly, never silently.
+        sha=""
+        if _sc="$(curl -fsSL --max-time 30 "${gurl}.sha256" 2>/dev/null)"; then
+          _hex="$(printf '%s' "$_sc" | tr -d '\r' | awk '{print $1}' | grep -Eo '^[0-9a-f]{64}$' || true)"
+          [ -n "$_hex" ] && sha="sha256-$(printf '%s' "$_hex" | xxd -r -p | base64 -w0)"
+        fi
+        if [ -n "$sha" ]; then
+          log "  $pkg -> github ; sidecar sha256"
+        else
+          log "  $pkg -> github ; prefetching…"
+          sha="$(nix store prefetch-file --json "$gurl" | node -e 'let d="";process.stdin.on("data",c=>d+=c).on("end",()=>process.stdout.write(JSON.parse(d).hash))')"
+        fi
         node -e "const fs=require('fs');const f='$tmp';const o=JSON.parse(fs.readFileSync(f));o.apps=o.apps.filter(a=>a.package!=='$pkg');o.apps.push({package:'$pkg',source:'github',url:'$gurl',sha256:'$sha'});fs.writeFileSync(f,JSON.stringify(o,null,2));"
         ;;
       *) die "unknown source.type '$stype' for $pkg" ;;
