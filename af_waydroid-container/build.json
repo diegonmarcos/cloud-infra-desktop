@@ -582,7 +582,7 @@
         "group": "fleet",
         "source": {
           "type": "github",
-          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/cloud-media-center.apk"
+          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/cloud-media-center-x86_64.apk"
         }
       },
       {
@@ -736,15 +736,6 @@
         "source": {
           "type": "github",
           "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Fin.apk"
-        }
-      },
-      {
-        "package": "com.diegonmarcos.cloudlib.firewall",
-        "label": "Cloud-Lib-Firewall",
-        "group": "lib",
-        "source": {
-          "type": "github",
-          "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Firewall.apk"
         }
       },
       {
@@ -1004,7 +995,7 @@
         }
       }
     ],
-    "_doc_excluded_abis": "EXCLUDED, do not re-add without checking the release first: Cloud-Lib-Watchdog, Cloud-Sheets (com.collabora.libreoffice) and Cloud-Watchdog all fail on this x86_64 Waydroid with INSTALL_FAILED_NO_MATCHING_ABIS (res=-113) — they ship arm64 native libs and there is no ndk-translation/houdini in this image, so no ABI can ever match. The first two have no -x86_64 asset in cloud-u-android's `latest` at all; Cloud-Watchdog publishes Cloud-Watchdog-x86_64.apk but that artifact still carries arm64 libs, so the name is not evidence — verified by install, 2026-09-02. Re-add each one only after `unzip -l` shows lib/x86_64/ in the actual asset."
+    "_doc_excluded_abis": "EXCLUDED, do not re-add without checking the release first: Cloud-Lib-Watchdog, Cloud-Sheets (com.collabora.libreoffice) and Cloud-Watchdog all fail on this x86_64 Waydroid with INSTALL_FAILED_NO_MATCHING_ABIS (res=-113) — they ship arm64 native libs and there is no ndk-translation/houdini in this image, so no ABI can ever match. The first two have no -x86_64 asset in cloud-u-android's `latest` at all; Cloud-Watchdog publishes Cloud-Watchdog-x86_64.apk but that artifact still carries arm64 libs, so the name is not evidence — verified by install, 2026-09-02. Re-add each one only after `unzip -l` shows lib/x86_64/ in the actual asset. Cloud-Lib-Firewall joins them 2026-09-02 for the same reason — the release ships one universal asset with arm64 libs only. com.diegonmarcos.mediacenter was NOT dropped: it was merely pinned to the wrong variant (cloud-media-center.apk) while cloud-media-center-x86_64.apk existed all along — repointed. Four F-Droid apps still fail the same way (net.osmand.plus, io.element.android.x, org.documentfoundation.libreoffice, org.mozilla.fennec_fdroid): F-Droid publishes per-ABI builds and the fdroid resolver in apps-lock picks whichever the index lists first, with no ABI preference — fixing that is an apps-lock change, not a data change."
   },
   "launcher": {
     "_doc": "Data-driven Launcher3 layout (home screen + hotseat/nav bar). Rendered into the Launcher3 favorites DB by src/apps/gen-layout-sql.js. `folders` are reusable groups (members = package ids). `hotseat` = bottom nav bar, left→right. `workspace.cells` = home screen grid placements (screen 0 default, a cell can override `screen` for a second page). Re-arrange by editing here + re-provisioning — no code changes.",

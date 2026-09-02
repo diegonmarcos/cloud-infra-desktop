@@ -402,12 +402,6 @@
       "sha256": "sha256-ZFh5M64kbV7Bii55xggyaosDkj6rRS38NhsXONFWpTY="
     },
     {
-      "package": "com.diegonmarcos.mediacenter",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/cloud-media-center.apk",
-      "sha256": "sha256-2Mr8kbVCqS1L9on/v6nCGSVs75b3IRL4bXyTLVyTMrI="
-    },
-    {
       "package": "com.diegonmarcos.cloudnews",
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-News-x86_64.apk",
@@ -508,12 +502,6 @@
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Fin.apk",
       "sha256": "sha256-7ySypEAGCtRuR58Mt7RK78wAZkq0/QoU9jKAzU/xip0="
-    },
-    {
-      "package": "com.diegonmarcos.cloudlib.firewall",
-      "source": "github",
-      "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Lib-Firewall.apk",
-      "sha256": "sha256-eoTUC+CTKw3XJFh+vk+yVgMMadpYBCAo0ARRemMU3zM="
     },
     {
       "package": "com.diegonmarcos.cloudlib.health",
@@ -694,6 +682,12 @@
       "source": "github",
       "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/Cloud-Nav-x86_64.apk",
       "sha256": "sha256-ruVNJsb8H99H2s5KFxp3V9N+Jngiu0uFBPZKSDWom2A="
+    },
+    {
+      "package": "com.diegonmarcos.mediacenter",
+      "source": "github",
+      "url": "https://github.com/diegonmarcos/cloud-u-android/releases/download/latest/cloud-media-center-x86_64.apk",
+      "sha256": "sha256-4A47HLO9hy/xB801rxN57fCzM51bWn410Gb7c9BpdJU="
     }
   ]
 }
