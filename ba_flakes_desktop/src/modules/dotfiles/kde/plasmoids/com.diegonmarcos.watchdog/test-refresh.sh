@@ -50,6 +50,8 @@ extract(){
 
 extract refresh      > "$TMP/refresh.js"
 extract refreshGuard > "$TMP/refreshGuard.js"
+extract clip         > "$TMP/clip.js"
+[ -s "$TMP/clip.js" ] || fail "could not extract clip() from main.qml"
 [ -s "$TMP/refresh.js" ]      || fail "could not extract refresh() from main.qml"
 [ -s "$TMP/refreshGuard.js" ] || fail "could not extract refreshGuard() from main.qml"
 grep -q 'xhr.send()' "$TMP/refresh.js" || fail "extracted refresh() looks truncated (no xhr.send)"
@@ -194,6 +196,40 @@ process.exit(bad === 0 ? 0 : 1);
 CHECKS
 
 node "$TMP/harness.js" || fail "one or more behaviour checks failed"
+
+# ── clip(): the panel-overflow guard ────────────────────────────────────────
+# 2026-09-02: proctable_head fed an UNBOUNDED daemon-supplied process name into
+# a Label with no elide, whose implicitWidth reached compactRoot's
+# Layout.minimumWidth -- so the applet claimed the whole top panel and pushed
+# every other widget off the bar. clip() is what bounds that string; if it ever
+# stops truncating, the overflow comes straight back.
+cat > "$TMP/clip-harness.js" <<'CLIPCHECKS'
+const src = require("fs").readFileSync(process.argv[2], "utf8");
+eval(src);
+const results = [];
+const check = (n, ok) => results.push([n, ok]);
+
+check("long name is truncated to n chars", clip("ld-linux-x86-64.so.2", 14).length === 14);
+check("truncated name ends in an ellipsis", clip("ld-linux-x86-64.so.2", 14).endsWith("\u2026"));
+check("short name is untouched", clip("fish", 14) === "fish");
+check("exact-length name is untouched", clip("abcdefghijklmn", 14) === "abcdefghijklmn");
+// The accessors around this one are all `|| 0`-defensive; a throw here blanks
+// the whole binding and the widget renders nothing at all.
+check("undefined does not throw", clip(undefined, 14) === "");
+check("null does not throw", clip(null, 14) === "");
+check("non-string does not throw", clip(12345678901234567890, 14).length <= 14);
+
+let bad = 0;
+for (const [name, ok] of results) {
+  console.log((ok ? "  \u2713 " : "  \u2717 ") + name);
+  if (!ok) bad++;
+}
+process.exit(bad === 0 ? 0 : 1);
+CLIPCHECKS
+
+node "$TMP/clip-harness.js" "$TMP/clip.js" || fail "clip() no longer bounds the string — panel overflow will return"
+
+
 
 echo
 echo "=== watchdog refresh(): PASS ==="

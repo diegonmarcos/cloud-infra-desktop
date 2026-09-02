@@ -946,6 +946,13 @@ PlasmoidItem {
             default: return [];
         }
     }
+    // Truncate to n characters with an ellipsis. Panel widgets must never let
+    // daemon-supplied strings size them (2026-09-02: a long process name in
+    // proctable_head overflowed the whole top panel).
+    function clip(str, n) {
+        var v = String(str === undefined || str === null ? "" : str);
+        return v.length > n ? v.slice(0, n - 1) + "…" : v;
+    }
     function textMetric(metric) {
         switch (metric) {
             // Raw load plus what it means on THIS machine. "1.84" says
@@ -963,7 +970,14 @@ PlasmoidItem {
                 // .toFixed() on an absent/null cpu_pct throws, which blanks
                 // the whole binding — every other accessor in this file is
                 // defensive (`|| 0`), this one needs to be too.
-                return (t[0].name || "?") + " " + Number(t[0].cpu_pct || 0).toFixed(0) + "%";
+                // A process name is UNBOUNDED — comm is 15 chars but a
+                // cmdline-derived name is not, and this box runs things like
+                // "ld-linux-x86-64.so.2" and full /nix/store paths. Left
+                // unbounded it reached compactRoot.Layout.minimumWidth (via
+                // content.implicitWidth) and the applet demanded the whole
+                // panel, pushing every other widget off the bar. Cap it here;
+                // textDelegate elides as the second line of defence.
+                return root.clip(t[0].name || "?", 14) + " " + Number(t[0].cpu_pct || 0).toFixed(0) + "%";
             }
             default: return "";
         }
@@ -1169,6 +1183,14 @@ PlasmoidItem {
                             PlasmaComponents.Label {
                                 text: root.textMetric(itemLoader.itemDef.metric)
                                 font.pointSize: root.fontPt
+                                // compactRoot feeds content.implicitWidth into
+                                // its own Layout.minimumWidth, so an unelided
+                                // Label here is a direct lever on how much
+                                // panel this applet claims — and minimumWidth
+                                // means the panel CANNOT shrink it back. Cap
+                                // the claim and elide inside it.
+                                Layout.maximumWidth: Kirigami.Units.gridUnit * 14
+                                elide: Text.ElideRight
                             }
                         }
                     }
