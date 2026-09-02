@@ -22,5 +22,6 @@
     ./system-protection-desktop-session.nix
     ./system-protection-orphan-reaper.nix
     ./mem-reclaim.nix
+    ./konsole-oomd-avoid.nix
   ];
 }
