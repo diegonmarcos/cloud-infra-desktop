@@ -16,6 +16,14 @@
 ARG BASE=debian:bookworm
 FROM ${BASE}
 
+# Exempts this image (and containers made from it) from the host's nightly
+# `docker system prune -f --all --filter until=24h`, which deleted both the container
+# and this 4GB image overnight on 2026-09-01 — docker never autostarts on that host and
+# every container is restart=no, so at 00:00 nothing is running and everything looks
+# unused. The matching `label!=cloud.preserve=true` filter lives in the NixOS module
+# aa_desk-usr_x86_surface-linux_nixos/src/modules/docker-daemon.nix.
+LABEL cloud.preserve=true
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 # 1) Waydroid's own apt repo (exact steps from https://repo.waydro.id, UPSTREAM_CODENAME
@@ -42,6 +50,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 #    gen-layout-sql.js — a small JS layout-SQL generator — via node).
 RUN apt-get install -y --no-install-recommends \
       waydroid \
+      git \
       sway \
       seatd \
       wayvnc \

@@ -463,6 +463,63 @@ elif [ -f "$PROVISION_MARKER" ]; then
 elif [ -z "$BOOT_COMPLETED" ]; then
   log "skipping app provisioning — sys.boot_completed never reached 1, Android session isn't usable this boot"
 fi
+# ── 6b) REPOS: clone build.json's `repos.list` into Android shared storage so the
+#    on-device IDE apps open the real working trees. Written on the LINUX side under
+#    $WD_DATA/media/0 — that directory IS Android's /sdcard, so no adb/`waydroid shell`
+#    round-trip and no Android-side git is needed. Own marker, deliberately separate
+#    from $PROVISION_MARKER: adding a repo to build.json must not re-run the whole
+#    app+launcher+theme pass, and a failed clone must not block app provisioning.
+#    PUBLIC repos over anonymous https only — see build.json::repos._doc for why a
+#    token can never live here. ─────────────────────────────────────────────────────
+REPOS_MARKER=/var/lib/waydroid/.repos-provisioned
+# Set locally, NOT reused from the block above: WD_DATA is assigned inside the
+# provisioning `if`, so on every run where apps are already provisioned it is UNSET —
+# "$WD_DATA/media/0" would silently become "/media/0", the -d test would fail, and this
+# whole step would skip with no error at all.
+REPOS_WD_DATA=/root/.local/share/waydroid/data
+N_REPOS="$(jq -r '.repos.list | length // 0' "$CFG" 2>/dev/null || echo 0)"
+if [ "${N_REPOS:-0}" -gt 0 ] && [ ! -f "$REPOS_MARKER" ] && [ -d "$REPOS_WD_DATA/media/0" ]; then
+  REPO_DEST="$REPOS_WD_DATA/media/0/$(jq -r '.repos.dest' "$CFG")"
+  REPO_DEPTH="$(jq -r '.repos.depth // 1' "$CFG")"
+  # Match whatever owns Android's shared storage rather than hardcoding media_rw's uid:
+  # the emulated-storage owner differs across Android versions, and a wrong uid makes
+  # the files invisible to every app (same reason the launcher DB is chown'd by stat).
+  MEDIA_OWNER="$(stat -c '%u:%g' "$REPOS_WD_DATA/media/0")"
+  mkdir -p "$REPO_DEST"
+  R_OK=0
+  i=0
+  while [ "$i" -lt "$N_REPOS" ]; do
+    R_NAME="$(jq -r ".repos.list[$i].name" "$CFG")"
+    R_URL="$(jq -r ".repos.list[$i].url" "$CFG")"
+    i=$((i + 1))
+    if [ -d "$REPO_DEST/$R_NAME/.git" ]; then
+      log "  repo $R_NAME already cloned — skipping"
+      R_OK=$((R_OK + 1))
+      continue
+    fi
+    log "  cloning $R_NAME (depth $REPO_DEPTH)…"
+    # -c http.extraheader= : strips any inherited credential header so this is a
+    # genuinely anonymous public clone (the cross-repo failure mode actions/checkout
+    # causes in CI). No token is present here by design; this keeps it that way even
+    # if the image is ever built somewhere that injects one.
+    if git -c http.extraheader= clone --depth "$REPO_DEPTH" "$R_URL" "$REPO_DEST/$R_NAME" >/dev/null 2>&1; then
+      R_OK=$((R_OK + 1))
+    else
+      log "  WARNING: clone of $R_NAME failed (network? renamed? private?) — continuing"
+      rm -rf "$REPO_DEST/$R_NAME"
+    fi
+  done
+  chown -R "$MEDIA_OWNER" "$REPO_DEST" 2>/dev/null || true
+  if [ "$R_OK" -eq "$N_REPOS" ]; then
+    touch "$REPOS_MARKER"
+    log "repos provisioned ($R_OK/$N_REPOS) into /sdcard/$(jq -r '.repos.dest' "$CFG")"
+  else
+    log "repos: $R_OK/$N_REPOS cloned — NOT marking done, will retry next boot"
+  fi
+elif [ -f "$REPOS_MARKER" ]; then
+  log "repos already cloned (marker present) — skipping"
+fi
+
 # The launcher force-stop/relaunch (or an idle timeout during the multi-minute
 # provisioning pass) can leave/put the keyguard back up over the freshly-seeded
 # home screen — dismiss it one more time so the FIRST thing shown is the
