@@ -34,7 +34,7 @@ TMP="$DST.merge-tmp.$$"
 if ! "$SED_BIN" "s|@HOME@|$HOME_DIR|g" "$REPO_SOT/settings.base.json" \
      | "$JQ_BIN" -s --slurpfile ov "$REPO_SOT/$OVERLAY" \
          --arg overlay "$OVERLAY" \
-         '.[0] * $ov[0] * {_generated: ("GENERATED FILE — DO NOT EDIT. Source: da_my-ai/src/data/claude/settings.base.json + " + $overlay + " (the ONE SoT, read from the working checkout at activation). Engine: bb_flakes_termux/src/claude/claude.nix. Rebuild: bb_flakes_termux/build.sh switch.")}' \
+         '.[0] * $ov[0] * {_generated: ("GENERATED FILE — DO NOT EDIT. Source: da_my-ai/data/claude/settings.base.json + " + $overlay + " (the ONE SoT, read from the working checkout at activation). Engine: bb_flakes_termux/src/claude/claude.nix. Rebuild: bb_flakes_termux/build.sh switch.")}' \
          > "$TMP" 2>/dev/null || [ ! -s "$TMP" ]; then
   rm -f "$TMP"
   echo "[claude-settings] FATAL: merge of base+overlay failed — $DST left UNCHANGED" >&2

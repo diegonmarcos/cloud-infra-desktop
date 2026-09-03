@@ -38,7 +38,7 @@ let
   # for a non-standard checkout. See assets/scripts/claude-settings-merge.sh
   # and claude-assets-deploy.sh for the activation-time read + the "no
   # fallback, fail loud" rationale.
-  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/src/data/claude";
+  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/data/claude";
 
   # Bulky runtime state lives in the memory repo, under a_sessions/<instance>/ — the
   # same arrangement surface uses, so both devices' transcripts are versioned and
@@ -67,7 +67,7 @@ in
     ".claude/CLAUDE.md".text = "\n";
 
     # mcp.json.tpl WAS here, i.e. a second SoT for claude settings. It moved to
-    # da_my-ai/src/data/claude/mcp.termux.json.tpl on 2026-08-27 and is deployed
+    # da_my-ai/data/claude/mcp.termux.json.tpl on 2026-08-27 and is deployed
     # by claude-assets-deploy.sh (MCP_VARIANT=termux). secrets.yaml STAYS: sops
     # ciphertext keyed to this flake's own age recipients, not settings.
     ".claude/secrets.yaml".source = ./assets/secrets.yaml;
