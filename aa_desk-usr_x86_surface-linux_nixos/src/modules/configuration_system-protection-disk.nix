@@ -60,6 +60,7 @@ let
       util-linux   # logger, wall, mountpoint
       systemd      # systemctl, systemd-tmpfiles
       curl         # ntfy alerts
+      libnotify    # notify-send — the alert_desktop sink (KDE popup)
       jq           # runtime config parsing
       nix          # nix-collect-garbage, nix store gc
       gawk         # awk-dependent action scripts (if any)
@@ -136,6 +137,19 @@ in
   # SYSTEMD-TMPFILES: worktree + scratch cleanup rules (declarative)
   # ═══════════════════════════════════════════════════════════════════════════
   systemd.tmpfiles.rules = cfg.tmpfiles_rules.rules or [];
+
+  # ═══════════════════════════════════════════════════════════════════════════
+  # LOGROTATE: for append-forever FILES, which tmpfiles structurally cannot do
+  # ═══════════════════════════════════════════════════════════════════════════
+  # A tmpfiles `e <dir> ... <age>` rule ages a DIRECTORY by mtime, so it can
+  # never match one file that is written to continuously — pacct sat at 17GB
+  # under a 14d rule (2026-09-03). Entries pass through verbatim to
+  # services.logrotate.settings, minus `_`-prefixed doc keys; logrotate.timer
+  # is already running, so this schedules nothing new.
+  services.logrotate.enable = lib.mkDefault ((cfg.logrotate.entries or {}) != {});
+  services.logrotate.settings = lib.mapAttrs
+    (_: e: lib.filterAttrs (k: _v: !(lib.hasPrefix "_" k)) e)
+    (cfg.logrotate.entries or {});
 
   # ═══════════════════════════════════════════════════════════════════════════
   # JOURNALD LIMITS (from JSON)

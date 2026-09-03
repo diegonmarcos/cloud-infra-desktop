@@ -49,6 +49,13 @@ NO_MERCY_PCT=$(jq -r '.emergency.no_mercy_pct // 99' "$CONFIG_JSON")
 EMERG_LADDER_PCT=$(jq -r '(.emergency.alert_ladder_pct // []) | join(" ")' "$CONFIG_JSON")
 NTFY_TOPIC=$(jq -r '.actions.alert_ntfy.topic // "diegonmarcos-infra"' "$CONFIG_JSON")
 NTFY_PRIORITY=$(jq -r '.emergency.ntfy_priority // "urgent"' "$CONFIG_JSON")
+# Seconds between ntfy posts FOR THE SAME KEY. See actions.alert_ntfy
+# ._comment_min_interval: unthrottled, this guard posts once per mount per
+# run and burns ntfy.sh's free daily quota before noon, after which every
+# post returns HTTP 429 and the `|| true` eats it. 0 disables the gate.
+NTFY_MIN_INTERVAL=$(jq -r '.actions.alert_ntfy.min_interval_sec // 3600' "$CONFIG_JSON")
+DESKTOP_URGENCY=$(jq -r '.actions.alert_desktop.urgency // "critical"' "$CONFIG_JSON")
+DESKTOP_ICON=$(jq -r '.actions.alert_desktop.icon // "drive-harddisk"' "$CONFIG_JSON")
 # octocode code-index cache root + staleness cutoff (days) — data-driven per
 # project rule, same mechanism as NTFY_TOPIC above. Defaults to "" (never a
 # destructive glob) / 30 so a missing key cannot silently widen the cutoff.
@@ -61,6 +68,42 @@ EMERG_WORST_PCT=0
 # actions list the old always-punish behavior is preserved.
 EMERG_STILL_FULL=1
 
+# True iff enough time has passed to post about "$1" again. Stamps on success,
+# so a suppressed call never resets the clock. Keyed per mount+rung, because
+# every mount here shares ONE pool: the posts were near-duplicates anyway.
+ntfy_gate() {
+  local key stamp now last
+  if [ "${NTFY_MIN_INTERVAL:-0}" -le 0 ]; then return 0; fi
+  key=$(printf '%s' "$1" | tr -c 'a-zA-Z0-9' '_')
+  stamp="/run/disk-watchdog-ntfy-$key.stamp"
+  now=$(date +%s)
+  last=0
+  if [ -f "$stamp" ]; then last=$(stat -c %Y "$stamp" 2>/dev/null || echo 0); fi
+  if [ $(( now - last )) -lt "$NTFY_MIN_INTERVAL" ]; then return 1; fi
+  touch "$stamp" 2>/dev/null || true
+  return 0
+}
+
+# Pop a notification on every logged-in graphical session. The guard runs as
+# root, and notify-send can only reach a user's session bus by address — so
+# each session is re-entered as its own user with DBUS_SESSION_BUS_ADDRESS
+# pointed at /run/user/<uid>/bus. Ungated on purpose: a desktop popup is
+# idempotent (KDE collapses repeats), and this is the sink that was missing
+# entirely while the pool sat at 98% for hours on 2026-09-03.
+notify_desktop() {
+  local title="$1" body="$2" uid who
+  if ! command -v notify-send >/dev/null 2>&1; then return 0; fi
+  loginctl list-users --no-legend 2>/dev/null | awk '$1 >= 1000 {print $1" "$2}' |
+  while read -r uid who; do
+    if [ ! -S "/run/user/$uid/bus" ]; then continue; fi
+    runuser -u "$who" -- env \
+      "DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/$uid/bus" \
+      notify-send -u "$DESKTOP_URGENCY" -i "$DESKTOP_ICON" -- "$title" "$body" \
+      2>/dev/null || true
+  done
+  return 0
+}
+
 # True iff a slice is in PROTECTED_SLICES — never freeze/kill these.
 is_protected() {
   local q="$1" p
@@ -72,9 +115,14 @@ run_action() {
   local action="$1" mount="${2:-?}" pct="${3:-?}"
   case "$action" in
     alert_ntfy)
-      curl -sS -H "Title: disk-watchdog $mount $pct%" \
-        -d "disk pressure: $mount at $pct%" \
-        "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true ;;
+      if ntfy_gate "warn-$mount"; then
+        curl -sS -H "Title: disk-watchdog $mount $pct%" \
+          -d "disk pressure: $mount at $pct%" \
+          "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+      fi ;;
+    alert_desktop)
+      notify_desktop "Disk $pct% — $mount" \
+        "disk-watchdog is reclaiming. Trace: journalctl -t disk-emergency -b" ;;
     purge_tmp_worktrees)
       systemd-tmpfiles --clean --prefix=/tmp 2>/dev/null || true ;;
     purge_tmp_dotfiles)
@@ -158,8 +206,12 @@ run_action() {
       logger -t disk-emergency -p user.alert "$msg"
       echo "$msg"
       wall "disk-emergency: $mount $pct% full — non-system apps are being stopped to reclaim space. SAVE YOUR WORK." 2>/dev/null || true
+      notify_desktop "DISK EMERGENCY — $mount $pct%" \
+        "Non-system apps are being stopped to reclaim space. SAVE YOUR WORK."
+      if ntfy_gate "emerg-$mount"; then
       curl -sS -H "Title: DISK EMERGENCY $mount $pct%" -H "Priority: ${NTFY_PRIORITY}" -H "Tags: rotating_light" \
-        -d "$msg" "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true ;;
+        -d "$msg" "https://ntfy.sh/${NTFY_TOPIC}" 2>/dev/null || true
+      fi ;;
     recheck_gate)
       # Re-read usage AFTER reclaim. If reclaim freed enough, self-heal: skip
       # freeze/kill entirely (the box is never disrupted). Else proceed to the

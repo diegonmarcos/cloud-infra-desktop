@@ -52,6 +52,7 @@
         ],
         "actions_on_critical": [
           "alert_ntfy",
+          "alert_desktop",
           "purge_tmp_worktrees",
           "purge_tmp_dotfiles",
           "purge_audit_old"
@@ -235,6 +236,24 @@
     ],
     "_comment_dev-store": "The last rule PROVISIONS (not cleans) a diego-owned DEV-STORE root on /mnt/shared-lib (p5, ~83G free) \u2014 a chroot Nix store (storeDir=/nix/store) holding the heavy dev toolchain (~25G) OFF the 80G pool. /mnt/shared-lib is root-owned ext4 so the user-tier home-manager cannot create it; the NixOS host does, here. Populated by bc_flakes_dev-store/build.sh, entered via the `dev` bwrap shell. Supersedes the 2026-06-18 android-only dirs \u2014 android-emulator is now a normal dev leaf inside this store. Plan: a0_tasks/PLAN_dev-store-split.md."
   },
+  "logrotate": {
+    "_comment": "Rotation for append-forever log FILES. A tmpfiles `e <dir> ... <age>` rule cleans a DIRECTORY by mtime and can therefore NEVER match a single file that is appended to continuously \u2014 its mtime is always now. That is exactly how /mnt/shared/log/account/pacct reached 17GB by 2026-09-03 with an `e /mnt/shared/log/account - - - 14d -` rule sitting two lines away in tmpfiles_rules, filling the 80G pool to 98% and leaving btrfs with 1MiB unallocated. Anything that is ONE growing file belongs HERE, not in tmpfiles_rules. Each entry under `entries` is passed straight through to services.logrotate.settings.<name> by configuration_system-protection-disk.nix; logrotate.timer already runs hourly, so nothing new is scheduled.",
+    "entries": {
+      "pacct": {
+        "files": "/mnt/shared/log/account/pacct",
+        "size": "128M",
+        "rotate": 2,
+        "compress": true,
+        "missingok": true,
+        "notifempty": true,
+        "create": "0600 root root",
+        "su": "root root",
+        "prerotate": "systemctl stop psacct || true",
+        "postrotate": "systemctl start psacct || true",
+        "_comment": "BSD process accounting writes through a KERNEL file handle opened by accton, so plain truncation leaks the offset and copytruncate races it. The only correct rotation is accton off \u2192 rotate \u2192 accton on, which is what pre/postrotate do here."
+      }
+    }
+  },
   "tmp_mounts": {
     "_comment": "Dedicated /tmp (btrfs, persistent, 3d age) + /tmpfs (RAM, ephemeral, 1d age). Decouples scratch from the 2G impermanence root so a leaky script can no longer block login by filling /. Nix module `configuration_tmp.nix` reads this and generates fileSystems.* + tmpfiles D! rules + activation-script that creates missing btrfs subvolumes. Rationale: previously /tmp lived inside tmpfs root and routinely hit 97% from orphaned working copies (e.g. /tmp/cloud-clean-work).",
     "mounts": [
@@ -377,7 +396,16 @@
       "via": "ntfy",
       "topic": "diegonmarcos-infra",
       "priority": "high",
-      "title_template": "disk-full {mount} {pct}%"
+      "title_template": "disk-full {mount} {pct}%",
+      "min_interval_sec": 3600,
+      "_comment_min_interval": "One post per MOUNT per this many seconds. Without it the guard posts once per mount per run \u2014 ~7 mounts \u00d7 288 runs/day \u2248 2000 messages against ntfy.sh's free daily quota, which answers every one with HTTP 429 'daily message quota reached'. The `|| true` then swallows it, so the alerting silently DoS'd itself and nothing reached the phone for the whole 2026-09-03 pool-at-98% emergency. All these mounts share ONE pool anyway (see btrfs_qgroups._comment), so per-mount posts were near-duplicates by construction."
+    },
+    "alert_desktop": {
+      "type": "notify",
+      "via": "notify-send",
+      "urgency": "critical",
+      "icon": "drive-harddisk",
+      "_comment": "KDE/Plasma popup on the logged-in graphical session. Added 2026-09-03: before this the guard had exactly two sinks, journald and ntfy, so a desktop user got NOTHING while the pool sat at 98% for hours. The guard runs as root, so notify-send must be re-entered as the session user with that session's DBUS_SESSION_BUS_ADDRESS \u2014 see run_action() in disk-watchdog.sh."
     },
     "purge_tmp_worktrees": {
       "type": "exec",
