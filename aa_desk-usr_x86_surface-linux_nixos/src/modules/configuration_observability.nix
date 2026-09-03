@@ -131,7 +131,12 @@ in
   # PSACCT: process accounting binary log
   #   Permanent forensics service — log MUST live on btrfs, not tmpfs root.
   #   Path: /mnt/shared/log/account/pacct (@shared subvol). Cleanup is the
-  #   age rule in cloud-data-disk-protection.json.
+  #   `logrotate.entries.pacct` rule in cloud-data-disk-protection.json — NOT
+  #   the tmpfiles `e /mnt/shared/log/account ... 14d` rule that used to be
+  #   cited here. tmpfiles ages a DIRECTORY by mtime and pacct is ONE file the
+  #   kernel appends to on every exec, so its mtime is always now and that rule
+  #   could never fire. It didn't: the file reached 17GB and took the 80G pool
+  #   to 98% on 2026-09-03. Rotation has to stop accton, roll, restart it.
   #   Read with `lastcomm`, `sa` — covers exec history that journald can't see
   #   when a process exits before logging anything itself.
   #   NixOS 24.11 has no services.psacct module, so we wrap accton ourselves.
