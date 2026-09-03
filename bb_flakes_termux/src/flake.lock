@@ -1,5 +1,46 @@
 {
   "nodes": {
+    "cloud-apps": {
+      "inputs": {
+        "nixpkgs": [
+          "my-webserver",
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "dir": "da__shared",
+        "lastModified": 1788434083,
+        "narHash": "sha256-/Htb79aeMjcLkuARKEGnNOp68KIraBI5p+0tVh3BACY=",
+        "owner": "diegonmarcos",
+        "repo": "cloud-u-linux",
+        "rev": "b28da365a89a92e0ba235444f40622cf8d36fd38",
+        "type": "github"
+      },
+      "original": {
+        "dir": "da__shared",
+        "owner": "diegonmarcos",
+        "repo": "cloud-u-linux",
+        "type": "github"
+      }
+    },
+    "flake-utils": {
+      "inputs": {
+        "systems": "systems"
+      },
+      "locked": {
+        "lastModified": 1731533236,
+        "narHash": "sha256-l0KFg5HjrsfsO/JpG+r7fRrqm12kzFHyUHqHCVpMMbI=",
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "rev": "11707dc2f618dd54ca8739b309ec4fc024de578b",
+        "type": "github"
+      },
+      "original": {
+        "owner": "numtide",
+        "repo": "flake-utils",
+        "type": "github"
+      }
+    },
     "home-manager": {
       "inputs": {
         "nixpkgs": [
@@ -39,6 +80,28 @@
       "original": {
         "owner": "nix-community",
         "repo": "home-manager",
+        "type": "github"
+      }
+    },
+    "my-webserver": {
+      "inputs": {
+        "cloud-apps": "cloud-apps",
+        "flake-utils": "flake-utils",
+        "nixpkgs": "nixpkgs"
+      },
+      "locked": {
+        "dir": "da_my-webserver",
+        "lastModified": 1788434231,
+        "narHash": "sha256-QqR3puvVtWK8oQCFjG3ycj1El61DB9YV6MOALUUcO18=",
+        "owner": "diegonmarcos",
+        "repo": "cloud-u-linux",
+        "rev": "fccd278283842b91447eebc1c37e38d0bdd0c101",
+        "type": "github"
+      },
+      "original": {
+        "dir": "da_my-webserver",
+        "owner": "diegonmarcos",
+        "repo": "cloud-u-linux",
         "type": "github"
       }
     },
@@ -96,16 +159,16 @@
     },
     "nixpkgs": {
       "locked": {
-        "lastModified": 1735563628,
-        "narHash": "sha256-OnSAY7XDSx7CtDoqNh8jwVwh4xNL/2HaJxGjryLWzX8=",
+        "lastModified": 1788316716,
+        "narHash": "sha256-bc7rSpXIdn9QWGNqfWcPZWOhEVF8NoeAZkWq0XWnf/k=",
         "owner": "NixOS",
         "repo": "nixpkgs",
-        "rev": "b134951a4c9f3c995fd7be05f3243f8ecd65d798",
+        "rev": "3ed67ec0a4d3c7ab4ae1f04f8ee8df07bfa506a2",
         "type": "github"
       },
       "original": {
         "owner": "NixOS",
-        "ref": "nixos-24.05",
+        "ref": "nixos-unstable",
         "repo": "nixpkgs",
         "type": "github"
       }
@@ -174,6 +237,22 @@
         "type": "github"
       }
     },
+    "nixpkgs_2": {
+      "locked": {
+        "lastModified": 1735563628,
+        "narHash": "sha256-OnSAY7XDSx7CtDoqNh8jwVwh4xNL/2HaJxGjryLWzX8=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "b134951a4c9f3c995fd7be05f3243f8ecd65d798",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-24.05",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
     "nmd": {
       "inputs": {
         "nixpkgs": [
@@ -215,8 +294,9 @@
     "root": {
       "inputs": {
         "home-manager": "home-manager",
+        "my-webserver": "my-webserver",
         "nix-on-droid": "nix-on-droid",
-        "nixpkgs": "nixpkgs",
+        "nixpkgs": "nixpkgs_2",
         "nixpkgs-new": "nixpkgs-new",
         "nixpkgs-unstable": "nixpkgs-unstable"
       }
@@ -234,6 +314,21 @@
       "original": {
         "owner": "andreymatin",
         "repo": "scss-reset",
+        "type": "github"
+      }
+    },
+    "systems": {
+      "locked": {
+        "lastModified": 1681028828,
+        "narHash": "sha256-Vy1rq5AaRuLzOxct8nz4T6wlgyUR7zLU309k9mBC768=",
+        "owner": "nix-systems",
+        "repo": "default",
+        "rev": "da67096a3b9bf56a91d16901293e51ba5b49a27e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-systems",
+        "repo": "default",
         "type": "github"
       }
     }
