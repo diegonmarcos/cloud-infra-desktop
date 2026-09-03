@@ -6,6 +6,15 @@
     nixpkgs-new.url = "github:NixOS/nixpkgs/nixos-24.11";
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
 
+    # my-webserver publishes its own package now, including the patchelf and
+    # dontStrip handling this module used to carry a copy of. Deliberately NOT
+    # `inputs.nixpkgs.follows = "nixpkgs"`: that would hand it 24.05's patchelf
+    # 0.15.0, which is the exact build that SIGABRTs on this binary's PT_INTERP
+    # and the reason patchelfUnstable had to be plumbed in by hand. It keeps
+    # its own unstable pin, which costs a second nixpkgs in a fetch-only
+    # closure and buys a binary that runs.
+    my-webserver.url = "github:diegonmarcos/cloud-u-linux?dir=da_my-webserver";
+
     nix-on-droid = {
       # release-24.05 hasn't moved since 2024-07-07 (effectively abandoned) —
       # its fixed-output-derivation binary pins (e.g. proot-termux-static)
@@ -39,7 +48,7 @@
     # repo into the store and kill proot mid-copy.
   };
 
-  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager }:
+  outputs = { self, nixpkgs, nixpkgs-new, nixpkgs-unstable, nix-on-droid, home-manager, my-webserver }:
     let
       pkgsNew = import nixpkgs-new { system = "aarch64-linux"; };
       pkgsUnstable = import nixpkgs-unstable { system = "aarch64-linux"; config.allowUnfree = true; };
@@ -104,7 +113,7 @@
               # is (patched once already by the CI job that publishes it, at
               # a different glibc store path than this flake's own pin).
               # Fixed in later patchelf releases; pkgsUnstable has one.
-              _module.args.patchelfUnstable = pkgsUnstable.patchelf;
+              _module.args.myWebserverPkg = my-webserver.packages.aarch64-linux.my-webserver-bin;
               # claude/claude.nix reads the Claude config straight from the
               # working checkout at activation time now — no flake-input arg
               # needed. See the my-ai NOTE in this file's inputs block.
