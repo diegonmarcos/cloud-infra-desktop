@@ -14,6 +14,11 @@
     "host": "nix-on-droid",
     "dtk_node": "termux",
     "wg_ip": "10.0.0.9",
+    "wg_ips": [
+      "10.0.0.9",
+      "10.1.0.9",
+      "fd0c:1d01::9"
+    ],
     "ssh_port": 8024
   }
 }
