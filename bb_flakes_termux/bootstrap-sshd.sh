@@ -23,7 +23,12 @@ PID_FILE="$HOME/.cache/sshd.pid"
 LOG_FILE="$HOME/.cache/sshd.log"
 
 [ -f "$KEYS_JSON" ] || { echo "FATAL: $KEYS_JSON missing — git pull first"; exit 1; }
-command -v sshd       >/dev/null || { echo "FATAL: sshd missing — re-run under: nix-shell -p openssh jq"; exit 1; }
+# OpenSSH re-executes its own binary via argv[0] on every connection; a bare
+# `sshd` (relative name off $PATH) makes argv[0] relative and sshd refuses with
+# "re-exec requires execution with an absolute path". Resolve the absolute
+# store path up front and invoke THAT below.
+SSHD_BIN="$(command -v sshd)" || { echo "FATAL: sshd missing — re-run under: nix-shell -p openssh jq"; exit 1; }
+SSHD_BIN="$(readlink -f "$SSHD_BIN" 2>/dev/null || echo "$SSHD_BIN")"
 command -v ssh-keygen >/dev/null || { echo "FATAL: ssh-keygen missing"; exit 1; }
 command -v jq         >/dev/null || { echo "FATAL: jq missing — re-run under: nix-shell -p openssh jq"; exit 1; }
 
@@ -47,7 +52,7 @@ if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
 fi
 rm -f "$PID_FILE"
 
-sshd -p 8022 \
+"$SSHD_BIN" -p 8022 \
   -o "PidFile=$PID_FILE" \
   -o "HostKey=$HOME/.ssh/ssh_host_ed25519_key" \
   -o "PasswordAuthentication=no" \
