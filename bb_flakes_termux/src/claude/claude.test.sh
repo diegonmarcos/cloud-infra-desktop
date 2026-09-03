@@ -10,7 +10,7 @@
 # days, on Claude Code's built-in 30-day transcript retention, the exact
 # mechanism that then swept ~2.5 months of session history.
 #
-# The fix: claude.nix now reads da_my-ai/src/data/claude straight from the
+# The fix: claude.nix now reads da_my-ai/data/claude straight from the
 # WORKING CHECKOUT at activation time (assets/scripts/claude-settings-merge.sh
 # + claude-assets-deploy.sh), never through a flake input. This test:
 #   1. proves the merge script actually carries a SoT-only key through to the
@@ -31,7 +31,7 @@ MERGE_SCRIPT="$DIR/assets/scripts/claude-settings-merge.sh"
 DEPLOY_SCRIPT="$DIR/assets/scripts/claude-assets-deploy.sh"
 FLAKE_NIX="$DIR/../flake.nix"
 CLAUDE_NIX="$DIR/claude.nix"
-REAL_SOT="$DIR/../../../da_my-ai/src/data/claude"
+REAL_SOT="$DIR/../../../da_my-ai/data/claude"
 
 pass=0; fail=0
 ok()   { printf '  \033[32m✓\033[0m %s\n' "$*"; pass=$((pass+1)); }

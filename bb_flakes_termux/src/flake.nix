@@ -39,7 +39,7 @@
     # landed in the SoT — the phone silently deployed pre-fix settings for two
     # days, with no error, and ran on Claude Code's built-in 30-day transcript
     # retention (the mechanism that then swept ~2.5 months of history).
-    # claude/claude.nix now reads da_my-ai/src/data/claude directly from the
+    # claude/claude.nix now reads da_my-ai/data/claude directly from the
     # working checkout AT ACTIVATION TIME (home.activation.claudeAssets /
     # claudeSettingsWritable there) — same fix ba_flakes_desktop already uses.
     # A relative `path:../../da_my-ai` flake input was never an option anyway:

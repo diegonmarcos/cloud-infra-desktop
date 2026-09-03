@@ -59,7 +59,7 @@ let
   # recreate the two-sources problem this removed.
   #
   # The ONE SoT, read at activation. Overridable for a non-standard checkout.
-  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/src/data/claude";
+  claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/data/claude";
 in
 {
   # Agent fleet (explore/build/review/ops, pinned model:sonnet). dotfiles/claude/agents
@@ -71,7 +71,7 @@ in
   # cloud-principles-ai-plugin (hooks-fragments/*.md, injected via SessionStart/
   # UserPromptSubmit hooks) to eliminate the double-injection (static file +
   # hook injection of the same text) that was bloating every session's fixed
-  # context. See da_my-ai/src/data/claude/cloud-marketplace/.
+  # context. See da_my-ai/data/claude/cloud-marketplace/.
   # ── Shared claude assets, from the SAME single SoT as settings.json ────────
   # agents/, cloud-marketplace/, claude-plugins.json and rgignore were home.file
   # entries pointing at the my-ai flake input. That is the same two-sources
@@ -144,7 +144,7 @@ in
   # every daemon start, so whatever binary is running is running against the
   # assets that shipped with it. This flake keeps exactly one decision:
   # settings.json, which says WHERE the status line appears. my-ai decides WHAT
-  # it is. Update them in da_my-ai/src/data/statusline/.
+  # it is. Update them in da_my-ai/data/statusline/.
   #
   # claude-plugins.json stays here: it is machine configuration (which plugins
   # this host has), not part of the status line's implementation.
@@ -184,7 +184,7 @@ in
     # and the failure is silent: the machine keeps working while quietly serving
     # stale config from whenever the flake input was last updated. Failing loudly
     # is the point — one SoT or an error, never a guess.
-    REPO_SOT="''${CLAUDE_SOT_DIR:-$HOME/git/cloud-u-linux/da_my-ai/src/data/claude}"
+    REPO_SOT="''${CLAUDE_SOT_DIR:-$HOME/git/cloud-u-linux/da_my-ai/data/claude}"
     if [ ! -r "$REPO_SOT/settings.base.json" ] || [ ! -r "$REPO_SOT/settings.desktop.json" ]; then
       echo "[claude-settings] FATAL: SoT missing at $REPO_SOT" >&2
       echo "[claude-settings] ~/.claude/settings.json left UNCHANGED. Clone the repo there, or set CLAUDE_SOT_DIR." >&2
@@ -196,7 +196,7 @@ in
     # does not restate.
     if ! ${pkgs.gnused}/bin/sed "s|@HOME@|$HOME|g" "$REPO_SOT/settings.base.json" \
          | "$JQ" -s --slurpfile ov "$REPO_SOT/settings.desktop.json" \
-             '.[0] * $ov[0] * {_generated: "GENERATED FILE — DO NOT EDIT. Source: da_my-ai/src/data/claude/settings.base.json + settings.desktop.json (the ONE SoT, read from the working checkout at activation). Engine: ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). Rebuild: ba_flakes_desktop/build.sh switch."}' \
+             '.[0] * $ov[0] * {_generated: "GENERATED FILE — DO NOT EDIT. Source: da_my-ai/data/claude/settings.base.json + settings.desktop.json (the ONE SoT, read from the working checkout at activation). Engine: ba_flakes_desktop/src/claude/claude.nix (home.activation.claudeSettings). Rebuild: ba_flakes_desktop/build.sh switch."}' \
              > "$LIVE" 2>/dev/null || [ ! -s "$LIVE" ]; then
       ${pkgs.coreutils}/bin/rm -f "$LIVE"
       echo "[claude-settings] FATAL: merge of base+overlay failed — settings.json left UNCHANGED" >&2
