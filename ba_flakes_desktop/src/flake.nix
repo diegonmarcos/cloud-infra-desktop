@@ -56,6 +56,17 @@
       flake = false;
     };
 
+    # my-webserver — a REAL flake input, not a data tree. The app publishes its
+    # own package (fetch + the patchelf/dontStrip lore this module used to
+    # carry) and its own service, so what stays here is desktop integration:
+    # the launcher wrapper and the .desktop entry. Before this, one binary was
+    # described in four places — here, bb_flakes_termux, vm-pilot's my-stack.nix
+    # and nowhere authoritative — each with its own hashes.json to bump.
+    my-webserver = {
+      url = "github:diegonmarcos/cloud-u-linux?dir=da_my-webserver";
+      inputs.nixpkgs.follows = "nixpkgs-unstable";
+    };
+
     # cloud repo — different repo entirely.
     cloud-repo = {
       url = "github:diegonmarcos/cloud-infra";
