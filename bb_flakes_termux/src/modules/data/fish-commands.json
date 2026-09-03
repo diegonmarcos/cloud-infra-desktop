@@ -71,6 +71,7 @@
     { "name": "pip",     "cmd": "pip3",                       "group": "py", "desc": "pip3" },
     { "name": "ppy",     "cmd": "poetry run python3",         "group": "py", "desc": "poetry python3" },
 
+    { "name": "sshd",        "cmd": "cloud-ide-sshd",        "group": "sys", "desc": "mesh sshd wrapper {start|stop|status|restart|ensure} — shadows openssh sshd on purpose (bare `sshd` re-execs and dies)", "shared": true },
     { "name": "sshd-up",     "cmd": "cloud-ide-sshd ensure",  "group": "sys", "desc": "start/self-heal the pinned mesh sshd on :8024", "shared": true },
     { "name": "sshd-status", "cmd": "cloud-ide-sshd status",  "group": "sys", "desc": "is the mesh sshd bound on :8024?", "shared": true },
     { "name": "sshd-boot",   "cmd": "nix-shell -p openssh jq --run 'bash $HOME/git/cloud-infra-desktop/bb_flakes_termux/bootstrap-sshd.sh'", "group": "sys", "desc": "EMERGENCY sshd on :8022 when HM not applied", "shared": true }
