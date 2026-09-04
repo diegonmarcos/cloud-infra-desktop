@@ -329,6 +329,54 @@ in
     ) || echo "[claude-autoupdate] subshell failed; HM chain continues"
   '';
 
+  # The rest of ~/.claude.json, DECLARED rather than named inline.
+  #
+  # Same file and same hazards as claudeAutoUpdates above — large mutable
+  # runtime state, gitignored, never rewritten wholesale — so this keeps its
+  # method exactly: one key at a time, temp file, atomic mv, and the raw value
+  # read (not `// empty`, which cannot tell false from absent).
+  #
+  # What differs is where the keys come from. autoUpdates is hardcoded there
+  # because its justification is conditional on this host's installMethod being
+  # "native". Everything else is unconditional, and a second key hardcoded
+  # beside it is how the first stopped being findable from the SoT — so the set
+  # lives in da_my-ai/data/claude/claude-json.json, next to the settings and
+  # templates it belongs with, and this block only applies it.
+  #
+  # First key through it is remoteControlAtStartup: every new CLI session
+  # connects Remote Control at startup instead of being toggled by hand. (CLI
+  # only — the desktop app holds its own per-session runtime state and does not
+  # read this key, so it still needs toggling there.)
+  #
+  # Absent SoT = no-op, matching the CLAUDE_SOT_DIR convention the assets
+  # activation already uses: a host without the checkout is left alone rather
+  # than reset to defaults.
+  home.activation.claudeJsonKeys = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
+    (
+    JQ="${pkgs.jq}/bin/jq"
+    CJ="$HOME/.claude.json"
+    SOT="''${CLAUDE_SOT_DIR:-$HOME/git/cloud-u-linux/da_my-ai/data/claude}"
+    DECL="$SOT/claude-json.json"
+    [ -f "$CJ" ]   || exit 0               # nothing to patch before first run
+    [ -f "$DECL" ] || exit 0               # no SoT checkout — leave the file alone
+
+    for KEY in $("$JQ" -r '.keys | keys[]' "$DECL" 2>/dev/null); do
+      WANT=$("$JQ" -c ".keys.\"$KEY\"" "$DECL" 2>/dev/null) || continue
+      CUR=$("$JQ" -c ".\"$KEY\"" "$CJ" 2>/dev/null) || continue
+      [ "$CUR" = "$WANT" ] && continue
+      [ "$CUR" = "null" ] && CUR="unset"
+      TMP="$CJ.cjkeys.$$"
+      if "$JQ" ".\"$KEY\" = $WANT" "$CJ" > "$TMP" 2>/dev/null && [ -s "$TMP" ]; then
+        ${pkgs.coreutils}/bin/mv -f "$TMP" "$CJ"
+        echo "[claude-json] $KEY: $CUR -> $WANT"
+      else
+        ${pkgs.coreutils}/bin/rm -f "$TMP"
+        echo "[claude-json] jq failed on $KEY; ~/.claude.json left untouched"
+      fi
+    done
+    ) || echo "[claude-json] subshell failed; HM chain continues"
+  '';
+
   # NO LOOSE SKILLS. ~/.claude/skills/ must stay empty — every skill ships as a
   # plugin (skill-<name>-plugin) in cloud-marketplace, so it is enabled/disabled
   # declaratively via settings.json enabledPlugins and unloads with its plugin.
