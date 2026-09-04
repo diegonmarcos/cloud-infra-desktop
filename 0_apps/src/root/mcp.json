@@ -1,39 +1,100 @@
 {
-  "_warning": "GENERATED — DO NOT EDIT. Derived from a_solutions/*/build.json .mcp blocks by 1_cloud-configs/src/derive/derive-mcp-json.ts. Edit the service build.json, then run 1_cloud-configs/build.sh derive.",
-  "_schema": "mcp-servers/v1",
-  "_doc": "Project-scoped MCP servers for Claude Code. Copied verbatim into every repo under cloud as .mcp.json via 0_apps/src/root/, so a fresh clone works with no machine-local files.",
-  "_skipped": [
-    "infra-api_c3-diego-personal-data-mcp (stdio)"
-  ],
   "mcpServers": {
-    "c3-infra-mcp": {
+    "cloud-cgc-pub-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/cloud-cgc-pub-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
+    },
+    "cloud-cgc-pub-mcp-local": {
+      "type": "stdio",
+      "command": "/home/diego/.claude/mcp-local-launch.sh",
+      "args": [
+        "/home/diego/git/cloud-infra/a_solutions/user-ai_cloud-cgc-pub-mcp/src/code/index.ts"
+      ],
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules",
+        "CONFIG_PATH": "/home/diego/git/cloud-infra/config.json",
+        "GIT_ROOT": "/home/diego/git"
+      }
+    },
+    "cloud-cgc-pvt-mcp": {
+      "type": "http",
+      "url": "http://10.0.0.6:3107/mcp"
+    },
+    "cloud-drive-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/cloud-drive-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
+    },
+    "cloud-infra-mcp": {
       "type": "http",
       "url": "https://mcp.diegonmarcos.com/c3-infra-mcp/mcp",
-      "headersHelper": "sh \"${CLAUDE_PROJECT_DIR:-.}/.claude/mcp-auth-headers.sh\""
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     },
-    "c3-services-mcp": {
+    "cloud-mail-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mail-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     },
-    "cloud-cgc-mcp": {
+    "cloud-mattermost-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/cloud-cgc-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
+    },
+    "cloud-services-mcp": {
+      "type": "http",
+      "url": "https://mcp.diegonmarcos.com/c3-services-mcp/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
+    },
+    "cloud-superapp-mcp": {
+      "type": "stdio",
+      "command": "/home/diego/.claude/mcp-local-launch.sh",
+      "args": [
+        "/home/diego/git/cloud-infra/a_solutions/infra-api_cloud-superapp-mcp/cloud-superapp-mcp/src/index.ts"
+      ],
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules",
+        "SUPERAPP_HOSTS": "phone,phone-v6,phone-pub",
+        "SUPERAPP_FLEET_TOKEN": "${SUPERAPP_FLEET_TOKEN}"
+      }
+    },
+    "cloud-vault-mcp": {
+      "type": "stdio",
+      "command": "/home/diego/.claude/mcp-local-launch.sh",
+      "args": [
+        "/home/diego/git/cloud-infra/a_solutions/infra-api_cloud-vault-mcp/src/index.ts"
+      ],
+      "env": {
+        "NODE_PATH": "/home/diego/.node_modules/node_modules",
+        "VAULT_PATH": "/home/diego/git/cloud-vault",
+        "CONFIG_PATH": "/home/diego/git/cloud-infra/config.json"
+      }
     },
     "google-personal-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/g-personal/mcp"
+      "url": "https://mcp.diegonmarcos.com/g-personal/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     },
     "google-workspace-mcp": {
       "type": "http",
-      "url": "https://mcp.diegonmarcos.com/g-workspace/mcp"
-    },
-    "mail-mcp": {
-      "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mail-mcp/mcp"
-    },
-    "mattermost-mcp": {
-      "type": "http",
-      "url": "https://mcp.diegonmarcos.com/mattermost-mcp/mcp"
+      "url": "https://mcp.diegonmarcos.com/g-workspace/mcp",
+      "headers": {
+        "Authorization": "Bearer ${AUTHELIA_OIDC_TOKEN_CLAUDE-ADMIN}"
+      }
     }
   }
 }
