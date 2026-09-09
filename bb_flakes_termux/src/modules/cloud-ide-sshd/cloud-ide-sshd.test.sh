@@ -298,6 +298,44 @@ if [ -f "$BUILD_JSON" ]; then
     && ok "defaults.android_package ($DEFAULT_PKG) is one of the declared instances" \
     || nope "defaults.android_package '$DEFAULT_PKG' is not in android_packages — the default configuration builds an unconfigured instance"
 
+  # The OTHER half of the boot contract. The assertions above prove the flake
+  # writes termux.properties into every terminal it declares; this one proves
+  # the boot APK is addressing one of those terminals. The APK compiles its
+  # host id into BuildConfig, and setClassName, the RUN_COMMAND action, the
+  # uses-permission, the <queries> entry and every /data/data/<host>/files path
+  # all derive from it — so a host id the flake does not configure means an
+  # intent sent to a package that has no allow-external-apps, or none at all.
+  #
+  # This is not hypothetical: the host rename on 2026-08-30 moved the terminal
+  # to cld.termux.nix and left this value on com.termux.nix for a day, during
+  # which the APK kept BUILDING AND PUBLISHING GREEN while doing nothing at
+  # boot (see the APK build.json's _doc_host_package). Nothing caught it,
+  # because a package mismatch has no compile-time or runtime symptom on this
+  # side — only a phone that does not come up.
+  APK_BUILD_JSON="$APK/build.json"
+  if [ -f "$APK_BUILD_JSON" ]; then
+    HOST_PKG="$(jq -r '.android.host_package // empty' "$APK_BUILD_JSON" 2>/dev/null)"
+    APK_PKG="$(jq -r '.android.application_id // empty' "$APK_BUILD_JSON" 2>/dev/null)"
+
+    printf '%s\n' "$INSTANCES" | grep -qx "$HOST_PKG" \
+      && ok "boot APK host package ($HOST_PKG) is a terminal this flake configures" \
+      || nope "boot APK targets '$HOST_PKG', which is not in android_packages — every intent it sends is addressed to an unconfigured or absent package"
+
+    # Membership in android_packages alone does NOT catch the 2026-08-30 case:
+    # the flake configures BOTH terminals, so a host id left on the other one
+    # is still "declared" and the check above still passes. What actually pins
+    # the intended host is the APK's own id, which the APK's build.json
+    # requires to track it ("this id tracks the host's"). The rename moved
+    # application_id to cld.termux.nix.boot and left host_package on
+    # com.termux.nix; THIS is the pairing that was broken for a day, and the
+    # only assertion here that would have said so.
+    [ -n "$HOST_PKG" ] && [ "$APK_PKG" = "$HOST_PKG.boot" ] \
+      && ok "boot APK id ($APK_PKG) pairs with its host ($HOST_PKG)" \
+      || nope "boot APK id '$APK_PKG' does not pair with host '$HOST_PKG' — one half of the rename was carried through and the other was not"
+  else
+    nope "boot APK build.json not found at $APK_BUILD_JSON — the host id it targets cannot be checked"
+  fi
+
   # ONE builder. Two nixOnDroidConfiguration call sites would be two module
   # lists, and the second copy is exactly where allow-external-apps goes
   # missing for one app and nobody notices.
