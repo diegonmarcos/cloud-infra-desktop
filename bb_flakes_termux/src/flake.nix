@@ -64,6 +64,24 @@
       buildJson = builtins.fromJSON (builtins.readFile ./build.json);
       dtkNode = buildJson.defaults.dtk_node or "unset";
 
+      # THE ONE VALUE. Every path this flake writes on the device and every
+      # Android intent it sends is namespaced by the application id of the
+      # terminal being activated INTO: /data/data/<id>/files/{home,usr}. Until
+      # 2026-09-09 that id was spelled out by hand in nine places under src/ and
+      # pinned in two more by the nix-on-droid input, so this flake could only
+      # ever activate inside com.termux.nix. Home Manager's checkHomeDirectory
+      # aborts the activation when $HOME is not the eval-time home.homeDirectory
+      # (lib-bash/activation-init.sh), so a switch run inside the renamed fork
+      # cld.termux.nix died before linkGeneration and that app got NO
+      # configuration at all -- no ~/.termux/termux.properties, so its
+      # RunCommandService refused the boot companion's intent with
+      # "allow-external-apps is not set to true" and nothing auto-started at boot.
+      # No `or` fallback on either: a build.json that has lost these keys must
+      # fail the eval, not quietly target one app. A default here would be a
+      # second place the id lives, which is the whole defect being removed.
+      androidPackageDefault = buildJson.defaults.android_package;
+      androidPackages = buildJson.defaults.android_packages;
+
       # ONE nerdfonts derivation shared by environment.packages and the
       # ~/.termux/font.ttf home.file (two different `override` calls used to
       # build two separate huge packages).
@@ -83,13 +101,23 @@
       sharedAliases = builtins.listToAttrs (map
         (a: { name = a.name; value = a.cmd; })
         (builtins.filter (a: a.shared or false) fishCmds.aliases));
-    in
-    {
-      nixOnDroidConfigurations.default = nix-on-droid.lib.nixOnDroidConfiguration {
+
+      # ONE builder, parameterised by the application id -- never a second copy
+      # of the module list with a different string in it. Every instance
+      # therefore gets byte-identical declarations (including the
+      # allow-external-apps line in modules/cloud-ide-sshd) and no instance can
+      # silently drift away from the others.
+      mkTermuxConfiguration = androidPackage: nix-on-droid.lib.nixOnDroidConfiguration {
         pkgs = import nixpkgs { system = "aarch64-linux"; config.allowUnfree = true; };
         modules = [
+          # Plain attrset, NOT a function: disabledModules is read before module
+          # arguments exist, so naming `nix-on-droid` through a module argument
+          # here would recurse forever. See modules/android-package.nix for why
+          # the upstream module has to go rather than merely be overridden.
+          { disabledModules = [ "${nix-on-droid}/modules/build/config.nix" ]; }
           ({ config, lib, pkgs, ... }: {
             imports = [
+              ./modules/android-package.nix
               ./modules/system.nix
               ./modules/environment-packages.nix
             ];
@@ -97,6 +125,7 @@
             # Derived in the outer `let` and handed to the imported system modules.
             _module.args = {
               inherit pkgsNew pkgsUnstable termux-am jbMonoNerd dtkNode nix-on-droid;
+              inherit androidPackage;
             };
 
             # --- HOME MANAGER CONFIG ---
@@ -127,6 +156,13 @@
               _module.args.termux-am = termux-am;
               _module.args.jbMonoNerd = jbMonoNerd;
               _module.args.sharedAliases = sharedAliases;
+              # The application id and the Termux prefix derived from it. The
+              # _module.args above only reach the system modules, and these are
+              # what stop each Home Manager module re-typing the id by hand. The
+              # matching home path is config.home.homeDirectory, which
+              # modules/android-package.nix pins from this same value.
+              _module.args.androidPackage = androidPackage;
+              _module.args.termuxPrefix = "/data/data/${androidPackage}/files/usr";
 
               imports = [
                 ./claude/claude.nix
@@ -149,6 +185,27 @@
           })
         ];
       };
+    in
+    {
+      # One entry per declared instance, plus `default` for the callers that
+      # cannot name one (CI, and `nix-on-droid switch --flake path:src`). Adding
+      # a terminal is a build.json edit, never a new module tree.
+      #
+      # Dots become dashes in the attribute name, and that is load-bearing:
+      # nix-on-droid's own CLI rewrites `--flake <uri>#<name>` into
+      # `<uri>#nixOnDroidConfigurations.<name>` with no quoting (see
+      # nix-on-droid.sh), so an attribute literally called "cld.termux.nix"
+      # would be parsed as three nested attributes and fail with "attribute
+      # 'cld' missing". The transform is mechanical, so the id stays the only
+      # thing anyone writes down.
+      nixOnDroidConfigurations =
+        { default = mkTermuxConfiguration androidPackageDefault; }
+        // builtins.listToAttrs (map
+          (p: {
+            name = builtins.replaceStrings [ "." ] [ "-" ] p;
+            value = mkTermuxConfiguration p;
+          })
+          androidPackages);
 
       # ── termux-cache-image: LAYERED image of the nix-on-droid closure ──
       # One layer per store path (dockerTools.buildLayeredImage) → skopeo

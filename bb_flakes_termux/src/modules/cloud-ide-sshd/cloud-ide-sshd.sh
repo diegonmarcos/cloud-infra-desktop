@@ -197,10 +197,20 @@ acquire_wake_lock() {
     return 1
   }
 
+  # The intent action and the service component are both namespaced by the
+  # application id of the terminal we are running INSIDE, and there are two of
+  # them on this phone (the official app and our renamed fork). $HOME is
+  # /data/data/<application id>/files/home in every Nix-on-Droid proot, so it is
+  # the id, derived rather than typed -- a literal here woke the wrong app's
+  # service, or none at all, the moment the flake reached a second instance.
+  # com.termux.* stays as the SECOND constant: that is upstream Termux's action
+  # name, not this app's, and `am startservice` reports component resolution
+  # rather than action validity, so both must be sent unconditionally.
+  _pkg="${HOME#/data/data/}"; _pkg="${_pkg%%/*}"
   _sent=0
-  for _act in com.termux.nix.service_wake_lock com.termux.service_wake_lock; do
+  for _act in "$_pkg.service_wake_lock" com.termux.service_wake_lock; do
     am startservice -a "$_act" \
-      com.termux.nix/com.termux.app.TermuxService >/dev/null 2>&1 && _sent=$((_sent + 1))
+      "$_pkg/com.termux.app.TermuxService" >/dev/null 2>&1 && _sent=$((_sent + 1))
   done
 
   [ "$_sent" -gt 0 ] || {

@@ -58,7 +58,10 @@ require_tools() {
 }
 
 detect_platform() {
-  if [[ -d "/data/data/com.termux.nix" ]]; then
+  # Any Nix-on-Droid terminal, not one named app: $HOME is
+  # /data/data/<application id>/files/home in every one of them, and this
+  # script has to keep working in the renamed fork too.
+  if [[ "$HOME" == /data/data/*/files/home ]]; then
     PLATFORM="termux"
   else
     PLATFORM="desktop"

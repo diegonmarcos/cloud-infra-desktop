@@ -83,12 +83,12 @@ extensions:
     cmd: tsx
     args:
       - --import
-      - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud-mykonsole-dtk/products/mcp-unix-api/src/index.ts
+      - @TERMUX_HOME@/.node_modules/esm-loader-register.mjs
+      - @TERMUX_HOME@/git/cloud-mykonsole-dtk/products/mcp-unix-api/src/index.ts
     enabled: false
     timeout: 300
     envs:
-      NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
+      NODE_PATH: @TERMUX_HOME@/.node_modules/node_modules
 
   dtk:
     name: DTK MCP
@@ -96,12 +96,12 @@ extensions:
     cmd: tsx
     args:
       - --import
-      - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud-mykonsole-dtk/products/mcp-dtk/src/index.ts
+      - @TERMUX_HOME@/.node_modules/esm-loader-register.mjs
+      - @TERMUX_HOME@/git/cloud-mykonsole-dtk/products/mcp-dtk/src/index.ts
     enabled: false
     timeout: 300
     envs:
-      NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
+      NODE_PATH: @TERMUX_HOME@/.node_modules/node_modules
 
   cloud-infra-local:
     name: Cloud Infra MCP (local)
@@ -109,13 +109,13 @@ extensions:
     cmd: tsx
     args:
       - --import
-      - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud-infra/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/index.ts
+      - @TERMUX_HOME@/.node_modules/esm-loader-register.mjs
+      - @TERMUX_HOME@/git/cloud-infra/a_solutions/infra-api_c3-infra-mcp/src/code/mcp/index.ts
     enabled: false
     timeout: 300
     envs:
-      NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
-      GIT_BASE: /data/data/com.termux.nix/files/home/git
+      NODE_PATH: @TERMUX_HOME@/.node_modules/node_modules
+      GIT_BASE: @TERMUX_HOME@/git
 
   cloud-cgc-mcp-local:
     name: Cloud CGC MCP (local)
@@ -123,15 +123,15 @@ extensions:
     cmd: tsx
     args:
       - --import
-      - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud-infra/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts
+      - @TERMUX_HOME@/.node_modules/esm-loader-register.mjs
+      - @TERMUX_HOME@/git/cloud-infra/a_solutions/bc-obs_cloud-cgc-mcp/src/code/index.ts
     enabled: false
     timeout: 300
     envs:
-      NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
-      CONFIG_PATH: /data/data/com.termux.nix/files/home/git/cloud-infra/config.json
-      GIT_ROOT: /data/data/com.termux.nix/files/home/git
-      OCTOCODE_BIN: /data/data/com.termux.nix/files/home/.nix-profile/bin/octocode
+      NODE_PATH: @TERMUX_HOME@/.node_modules/node_modules
+      CONFIG_PATH: @TERMUX_HOME@/git/cloud-infra/config.json
+      GIT_ROOT: @TERMUX_HOME@/git
+      OCTOCODE_BIN: @TERMUX_HOME@/.nix-profile/bin/octocode
 
   diego-personal-data:
     name: Diego Personal Data MCP
@@ -139,14 +139,14 @@ extensions:
     cmd: tsx
     args:
       - --import
-      - /data/data/com.termux.nix/files/home/.node_modules/esm-loader-register.mjs
-      - /data/data/com.termux.nix/files/home/git/cloud-infra/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts
+      - @TERMUX_HOME@/.node_modules/esm-loader-register.mjs
+      - @TERMUX_HOME@/git/cloud-infra/a_solutions/infra-api_c3-diego-personal-data-mcp/src/index.ts
     enabled: false
     timeout: 300
     envs:
-      NODE_PATH: /data/data/com.termux.nix/files/home/.node_modules/node_modules
-      VAULT_PATH: /data/data/com.termux.nix/files/home/git/cloud-vault
-      CONFIG_PATH: /data/data/com.termux.nix/files/home/git/cloud-infra/config.json
+      NODE_PATH: @TERMUX_HOME@/.node_modules/node_modules
+      VAULT_PATH: @TERMUX_HOME@/git/cloud-vault
+      CONFIG_PATH: @TERMUX_HOME@/git/cloud-infra/config.json
 
   # ── Platform extensions (bundled with goose) ────────────────────────────────
   analyze:

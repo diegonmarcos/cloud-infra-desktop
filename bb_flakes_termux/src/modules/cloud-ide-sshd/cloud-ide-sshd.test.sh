@@ -52,12 +52,23 @@ printf '{"wg_ip":"%s","wg_ips":["%s","%s"],"ssh_port":%s}\n' \
 printf '#!/bin/sh\nexit 1\n' > "$SANDBOX/bin/sshd"
 printf '#!/bin/sh\nwhile [ $# -gt 0 ]; do [ "$1" = "-f" ] && { touch "$2"; }; shift; done\nexit 0\n' \
   > "$SANDBOX/bin/ssh-keygen"
-chmod +x "$SANDBOX/bin/sshd" "$SANDBOX/bin/ssh-keygen"
+# sftp-server is never executed here — the script only interpolates its path
+# into the Subsystem directive — but it is a `:?` required variable, so leaving
+# it unset aborts the script at line 28 before a single line of config is
+# written. That is what happened from 2026-08-25 (the commit that added the
+# Subsystem directive) until 2026-09-09: EVERY phase of this tester exited at
+# the first `run start`, so none of the assertions below it — including the
+# allow-external-apps one this file is supposed to be guarding — had run in
+# two weeks. A tester that cannot reach its own assertions reports "0 passed",
+# not a failure, which is why nobody noticed.
+printf '#!/bin/sh\nexit 0\n' > "$SANDBOX/bin/sftp-server"
+chmod +x "$SANDBOX/bin/sshd" "$SANDBOX/bin/ssh-keygen" "$SANDBOX/bin/sftp-server"
 
 run() {
   HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" \
   CLOUD_IDE_SSHD_BIN="$SANDBOX/bin/sshd" \
   CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
+  CLOUD_IDE_SFTP_SERVER_BIN="$SANDBOX/bin/sftp-server" \
   bash "$SCRIPT" "$1" >/dev/null 2>&1
 }
 CONF="$SANDBOX/.ssh/sshd_config"
@@ -108,6 +119,7 @@ HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" \
   CLOUD_IDE_SSHD_CONFIG_JSON="$POISON" \
   CLOUD_IDE_SSHD_BIN="$SANDBOX/bin/sshd" \
   CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
+  CLOUD_IDE_SFTP_SERVER_BIN="$SANDBOX/bin/sftp-server" \
   bash "$SCRIPT" start >/dev/null 2>&1
 if grep -qE '^ListenAddress (0\.0\.0\.0|::|\*)' "$CONF"; then
   nope "wildcard in wg_ips reached the config — PUBLIC BIND from a bad build.json"
@@ -139,6 +151,8 @@ echo $$ > "$SANDBOX/.cache/sshd.pid"
 
 out=$(HOME="$SANDBOX" XDG_CONFIG_HOME="$SANDBOX/.config" CLOUD_IDE_SSHD_BIN="$SANDBOX/bin/sshd" \
       CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
+      CLOUD_IDE_SFTP_SERVER_BIN="$SANDBOX/bin/sftp-server" \
+  CLOUD_IDE_SFTP_SERVER_BIN="$SANDBOX/bin/sftp-server" \
       bash "$SCRIPT" status 2>&1)
 case "$out" in
   *"127.0.0.1 ONLY"*) ok "status reports not-accepting-on-wg0 as degraded" ;;
@@ -186,11 +200,18 @@ grep -q 'acquire_wake_lock || true' "$SCRIPT" \
   || nope "wake lock is load-bearing for startup — an intent failure kills sshd"
 
 # There is no termux-wake-lock binary in nix-on-droid and the intent constant
-# differs between Termux and its fork, so both must be attempted.
-grep -q 'com.termux.nix.service_wake_lock' "$SCRIPT" \
+# differs between Termux and its fork, so both must be attempted. The host half
+# is DERIVED from $HOME rather than typed: there are two Nix-on-Droid apps on
+# this phone and a literal wakes at most one of them. The upstream com.termux.*
+# constant stays literal — it names Termux proper, not this app.
+grep -q '_pkg.service_wake_lock' "$SCRIPT" \
   && grep -q 'com.termux.service_wake_lock' "$SCRIPT" \
-  && ok "both wake-lock intent constants attempted (fork + upstream)" \
+  && ok "both wake-lock intent constants attempted (this app, derived + upstream)" \
   || nope "only one intent constant tried — a wrong guess means no lock at all"
+
+grep -q '_pkg="${HOME#/data/data/}"' "$SCRIPT" \
+  && ok "wake-lock intents address the app we are actually running inside" \
+  || nope "wake-lock intent hardcodes an application id — wrong app on every other instance"
 
 # `am startservice` reports component resolution, not action validity: on
 # galaxy both constants returned success, so a first-wins loop selects the
@@ -249,6 +270,83 @@ else
   nope "termux-boot APK not found at $APK — the boot APK half of the mechanism is absent"
 fi
 
+# ── every instance, not just the one that happens to work ────────────────
+# The assertion above passed for two weeks while the phone's OTHER terminal had
+# no ~/.termux/termux.properties at all: the declaration was correct, it simply
+# never reached the renamed app (cld.termux.nix), whose activation aborted at
+# Home Manager's checkHomeDirectory because the flake pinned home.homeDirectory
+# to com.termux.nix at eval time. "One instance has it" is not the invariant.
+# The invariant is "every instance the flake is declared to configure gets the
+# same module set, and nothing in that set names one app".
+FLAKE_ROOT="$(cd "$DIR/../../.." && pwd)"
+FLAKE_SRC="$(cd "$DIR/../.." && pwd)"
+BUILD_JSON="$FLAKE_ROOT/build.json"
+
+if [ -f "$BUILD_JSON" ]; then
+  INSTANCES="$(jq -r '.defaults.android_packages[]' "$BUILD_JSON" 2>/dev/null)"
+  INSTANCE_N="$(printf '%s\n' "$INSTANCES" | grep -c . || true)"
+
+  [ "$INSTANCE_N" -ge 1 ] \
+    && ok "build.json declares the instance set ($INSTANCE_N: $(echo $INSTANCES | tr '\n' ' '))" \
+    || nope "build.json declares no defaults.android_packages — nothing says which terminals this flake configures"
+
+  # `default` is what CI builds and what a bare `--flake path:src` resolves to.
+  # Pointing it at an instance that is not in the set means CI proves nothing
+  # about anything the phone actually runs.
+  DEFAULT_PKG="$(jq -r '.defaults.android_package // empty' "$BUILD_JSON" 2>/dev/null)"
+  printf '%s\n' "$INSTANCES" | grep -qx "$DEFAULT_PKG" \
+    && ok "defaults.android_package ($DEFAULT_PKG) is one of the declared instances" \
+    || nope "defaults.android_package '$DEFAULT_PKG' is not in android_packages — the default configuration builds an unconfigured instance"
+
+  # ONE builder. Two nixOnDroidConfiguration call sites would be two module
+  # lists, and the second copy is exactly where allow-external-apps goes
+  # missing for one app and nobody notices.
+  BUILDERS="$(grep -c 'nix-on-droid.lib.nixOnDroidConfiguration' "$FLAKE_SRC/flake.nix")"
+  [ "$BUILDERS" -eq 1 ] \
+    && ok "one shared configuration builder (every instance gets the same modules)" \
+    || nope "$BUILDERS configuration builders in flake.nix — instances can drift apart"
+
+  grep -q 'android_packages' "$FLAKE_SRC/flake.nix" \
+    && ok "the instance set is read from build.json, not typed into the flake" \
+    || nope "flake.nix does not read defaults.android_packages — adding a terminal means editing code"
+
+  grep -q './modules/cloud-ide-sshd' "$FLAKE_SRC/flake.nix" \
+    && ok "this module is in the shared import list (so allow-external-apps reaches every instance)" \
+    || nope "cloud-ide-sshd is not imported by the shared builder — the declaration reaches nothing"
+
+  # The declaration reaching an instance is not enough if the activation dies
+  # first. These two are what let a switch inside a non-default app get as far
+  # as linkGeneration at all.
+  grep -q 'user.home = lib.mkForce' "$FLAKE_SRC/modules/android-package.nix" \
+    && ok "home directory follows the application id (checkHomeDirectory would abort otherwise)" \
+    || nope "user.home not re-pointed — activation aborts before writing termux.properties on every non-default instance"
+
+  grep -q 'build.installationDir = "/data/data/${androidPackage}' "$FLAKE_SRC/modules/android-package.nix" \
+    && grep -q 'disabledModules = \[' "$FLAKE_SRC/flake.nix" \
+    && ok "Termux prefix follows the application id (activation rewrites /bin/login from it)" \
+    || nope "installationDir still upstream's literal — activating elsewhere overwrites that app's login with a foreign proot path"
+
+  # THE CATCH. Every id literal outside build.json is a place the next instance
+  # will be forgotten. Comments are exempt (they are where the history lives);
+  # so are the .test.sh files, which never run on the device, and build.json,
+  # which IS the declaration.
+  STRAY="$(
+    grep -rn --include='*.nix' --include='*.sh' --include='*.yaml' --include='*.json' \
+      -e 'com\.termux\.nix' -e 'cld\.termux\.' "$FLAKE_SRC" 2>/dev/null \
+      | grep -v '\.test\.sh:' \
+      | grep -v '/build\.json:' \
+      | grep -vE ':[0-9]+:[[:space:]]*#' || true
+  )"
+  if [ -z "$STRAY" ]; then
+    ok "no application id is written out by hand in src/ (only build.json names one)"
+  else
+    nope "application id hardcoded outside build.json — every instance but that one breaks:"
+    printf '%s\n' "$STRAY" | sed 's/^/      /'
+  fi
+else
+  nope "build.json not found at $BUILD_JSON — cannot tell which instances this flake configures"
+fi
+
 # Home Manager leaves .hm-bak-<ts> copies beside replaced files; running them
 # would execute several stale generations at once.
 grep -q 'boot/\*\.sh' "$DIR/default.nix" \
@@ -279,6 +377,7 @@ run_status() {
   PATH="$SANDBOX/bin:$PATH" \
   CLOUD_IDE_SSHD_BIN="$SANDBOX/bin/sshd" \
   CLOUD_IDE_SSH_KEYGEN_BIN="$SANDBOX/bin/ssh-keygen" \
+  CLOUD_IDE_SFTP_SERVER_BIN="$SANDBOX/bin/sftp-server" \
   bash "$SCRIPT" status 2>&1
 }
 

@@ -1,12 +1,15 @@
 # Termux/Android platform glue — the bits that exist only because this is
 # nix-on-droid inside a proot, plus the $HOME scaffolding that depends on them.
-{ config, lib, pkgs, jbMonoNerd, ... }:
+{ config, lib, pkgs, jbMonoNerd, termuxPrefix, ... }:
 
 {
   # This runs BEFORE packages are linked
+  # termuxPrefix, never a literal id: this is another app's private directory
+  # the moment the flake is activated inside a different terminal, and mkdir
+  # there fails with EACCES under Android's per-app sandbox.
   home.activation.createUsrLib = lib.hm.dag.entryBefore ["writeBoundary"] ''
-    $DRY_RUN_CMD mkdir -p /data/data/com.termux.nix/files/usr/lib
-    $DRY_RUN_CMD chmod 755 /data/data/com.termux.nix/files/usr/lib
+    $DRY_RUN_CMD mkdir -p ${termuxPrefix}/lib
+    $DRY_RUN_CMD chmod 755 ${termuxPrefix}/lib
   '';
 
   # DNS self-heal — environment.etc points /etc/resolv.conf at
@@ -50,6 +53,7 @@
   # (Claude Code, Android app launchers) can find nix-installed tools
   # without relying on shell init PATH expansion.
   home.activation.linkNixBinsToTermux = lib.hm.dag.entryAfter ["installPackages"] ''
+    TERMUX_BIN="${termuxPrefix}/bin" \
     ${pkgs.bash}/bin/bash ${../scripts/link-nix-bins-termux.sh} || true
   '';
 
@@ -64,7 +68,7 @@
   # Unison profile for bidirectional sync
   home.file.".unison/termux-home.prf".text = ''
     # Bidirectional sync: Termux home <-> Android storage
-    root = /data/data/com.termux.nix/files/home
+    root = ${config.home.homeDirectory}
     root = /storage/emulated/0/Mounts/Termux-Home
 
     # Android storage compatibility

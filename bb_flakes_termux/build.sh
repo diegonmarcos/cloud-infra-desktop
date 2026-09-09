@@ -294,6 +294,45 @@ publish_cloud_data_logs() {
     fi
 }
 
+# termux_flake_attr — which nixOnDroidConfigurations entry belongs to the
+# terminal this script is running inside.
+#
+# The phone carries two Nix-on-Droid apps (the official com.termux.nix and our
+# renamed fork cld.termux.nix) and each has its own private data directory, so
+# "which configuration" is not a constant. $HOME is /data/data/<application
+# id>/files/home in every one of them, which makes the id derivable instead of
+# hardcoded. build.json's defaults.android_packages is the declared set; an id
+# that is not in it gets a loud failure rather than `default`, because
+# activating com.termux.nix's generation inside another app is exactly the
+# accident this whole mechanism exists to prevent (Home Manager would abort at
+# checkHomeDirectory, and before that the nix-on-droid half would rewrite the
+# wrong app's /bin/login).
+# The declared instance set, read out of build.json's defaults.android_packages
+# array. Line-scoped rather than pattern-matched on the ids themselves: a script
+# that knew what an application id looks like would be carrying the data it is
+# supposed to be reading (and `jq` is not guaranteed on a bare GHA runner).
+termux_declared_packages() {
+    sed -n '/"android_packages"/,/\]/p' "$SCRIPT_DIR/build.json" \
+        | sed -nE 's/^[[:space:]]*"([^"]+)",?$/\1/p'
+}
+
+termux_flake_attr() {
+    _pkg="${HOME#/data/data/}"; _pkg="${_pkg%%/*}"
+    case "$HOME" in
+        /data/data/*/files/home) ;;
+        *) echo "default"; return 0 ;;   # not inside a Nix-on-Droid proot (CI)
+    esac
+    if ! termux_declared_packages | grep -qx "$_pkg"; then
+        log_error "this terminal is $_pkg, which build.json defaults.android_packages does not declare"
+        log_error "add it there (and nowhere else) before switching, or you will activate another app's generation"
+        return 1
+    fi
+    # Dots to dashes, matching flake.nix: nix-on-droid's CLI splices the name
+    # straight into an unquoted attribute path, so a dotted one resolves to
+    # nested attributes that do not exist.
+    echo "$_pkg" | tr '.' '-'
+}
+
 cmd_switch() {
     log_header "Switching to $SRC_DIR"
     perf_start "switch"
@@ -378,7 +417,9 @@ cmd_switch() {
     # Capture THIS switch's output to a private file too — LOG_FILE accumulates
     # across runs, so grepping it for errors would match stale ones.
     _out_file=$(mktemp)
-    { nix-on-droid switch --flake "path:$SRC_DIR" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_out_file"
+    _cfg="$(termux_flake_attr)" || { perf_end; return 1; }
+    log_info "target configuration: $_cfg  (derived from \$HOME, declared in build.json)"
+    { nix-on-droid switch --flake "path:$SRC_DIR#$_cfg" $NIXOD_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE" "$_out_file"
     exit_code=$(cat "$_rc_file" 2>/dev/null)
     exit_code=${exit_code:-0}
 
@@ -698,7 +739,8 @@ cmd_build() {
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
     _rc_file=$(mktemp)
-    { "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
+    _cfg="$(termux_flake_attr)" || return 1
+    { "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.$_cfg.activationPackage" --impure --no-link $NIX_VERBOSE_FLAGS 2>&1; echo $? > "$_rc_file"; } | tee -a "$LOG_FILE"
     exit_code=$(cat "$_rc_file")
     rm -f "$_rc_file"
 
@@ -732,7 +774,8 @@ cmd_dry_run() {
     log_info "Evaluating what would be built..."
     _nix="nix"
     [ -x "$HOME/.nix-profile/bin/nix" ] && _nix="$HOME/.nix-profile/bin/nix"
-    "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.default.activationPackage" --impure --no-link --dry-run $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE"
+    _cfg="$(termux_flake_attr)" || return 1
+    "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.$_cfg.activationPackage" --impure --no-link --dry-run $NIX_VERBOSE_FLAGS 2>&1 | tee -a "$LOG_FILE"
 }
 
 cmd_check() {
@@ -1165,8 +1208,31 @@ cmd_ci_build() {
     _sys=$(readlink -f "$_out/result")
     basename "$_sys" > "$_out/activation.name"
     echo "$_sys" > "$_out/activation.path"
+
+    # One activation package per declared terminal, all exported in the same
+    # closure. `default` alone was enough while a single app could ever run
+    # this flake; it is not now. cmd_pull is the phone's only non-OOM path
+    # (import + activate, no eval), so an instance with no activation package
+    # in the artifact has no way to be configured at all — which is how
+    # cld.termux.nix came to be running with no ~/.termux/termux.properties.
+    # The closures overlap almost completely (the id appears in a handful of
+    # generated scripts), so this costs build time in seconds, not minutes.
+    _roots="$_sys"
+    for _pkg in $(termux_declared_packages); do
+        _attr=$(echo "$_pkg" | tr '.' '-')
+        log_info "Building activationPackage for $_pkg (attr $_attr) ..."
+        "$_nix" build "path:$SRC_DIR#nixOnDroidConfigurations.$_attr.activationPackage" \
+            --impure --accept-flake-config --out-link "$_out/result-$_attr" \
+            --extra-experimental-features "nix-command flakes" $NIX_VERBOSE_FLAGS \
+            || { log_error "ci build failed for $_pkg"; return 1; }
+        _p=$(readlink -f "$_out/result-$_attr")
+        basename "$_p" > "$_out/activation.name.$_attr"
+        _roots="$_roots $_p"
+        rm -f "$_out/result-$_attr"
+    done
+
     log_info "Exporting closure -> zstd tarball..."
-    nix-store --export $(nix-store -qR "$_sys") | zstd -T0 -15 > "$_out/nixondroid-closure.nar.zst"
+    nix-store --export $(nix-store -qR $_roots) | zstd -T0 -15 > "$_out/nixondroid-closure.nar.zst"
     rm -f "$_out/result"
     log_success "Done: $(du -h "$_out/nixondroid-closure.nar.zst" | cut -f1) -> $_out/"
 
@@ -1235,16 +1301,24 @@ cmd_pull() {
     _tb="$_art/nixondroid-closure.nar.zst"
     _sys=""
 
+    # Which generation in the artifact belongs to the terminal we are inside.
+    # Falls back to activation.name so an artifact built before ci-build learned
+    # to emit per-instance names still activates (on the default instance).
+    _cfg="$(termux_flake_attr)" || return 1
+    _name_file="$_art/activation.name.$_cfg"
+    [ -f "$_name_file" ] || _name_file="$_art/activation.name"
+    log_info "activating generation from $(basename "$_name_file")"
+
     # ── PRIMARY: per-path GHCR nix cache (TRUE incremental, KB manifest) ──
     if nixcache_switch "$_art"; then
-        _sys="/nix/store/$(cat "$_art/activation.name" 2>/dev/null)"
+        _sys="/nix/store/$(cat "$_name_file" 2>/dev/null)"
         [ -d "$_sys" ] || { log_warn "nixcache_switch succeeded but $_sys missing — trying fallback"; _sys=""; }
     fi
 
     # ── FALLBACK 1: local nar.zst tarball (must already be present) ──────
     if [ -z "$_sys" ] || [ ! -d "$_sys" ]; then
-        if [ -f "$_tb" ] && [ -f "$_art/activation.name" ]; then
-            _sys="/nix/store/$(cat "$_art/activation.name")"
+        if [ -f "$_tb" ] && [ -f "$_name_file" ]; then
+            _sys="/nix/store/$(cat "$_name_file")"
             log_info "Importing closure from local nar.zst (no build)..."
             _zstd -d -c "$_tb" | nix-store --import >/dev/null || _sys=""
         fi
@@ -1256,7 +1330,7 @@ cmd_pull() {
     #    network) and no local tarball exists. Nix must always win.
     if [ -z "$_sys" ] || [ ! -d "$_sys" ]; then
         log_warn "GHCR and tarball unavailable — falling back to nix-on-droid switch (local store)"
-        nix-on-droid switch --flake "path:$SRC_DIR#default" \
+        nix-on-droid switch --flake "path:$SRC_DIR#$_cfg" \
             || { log_error "nix-on-droid switch also failed; you may need network for new paths"; return 1; }
         log_success "Activated via nix-on-droid switch (local store fallback)."
         return 0
