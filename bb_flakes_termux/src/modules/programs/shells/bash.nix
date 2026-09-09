@@ -92,6 +92,15 @@
         eval "$(fzf --bash)"
       fi
 
+      # Claude transcript archive. The fish hook alone would miss every session
+      # started over SSH from the Cloud IDE: sshd hands out /bin/sh, which reads
+      # ~/.profile, which sources this file — fish is never involved on that
+      # path. The wrapper detaches and takes a lock, so this returns immediately
+      # and two shells still produce one sync.
+      if command -v claude-sync-sessions &>/dev/null; then
+        claude-sync-sessions
+      fi
+
       # Functions
       mkcd() { mkdir -p "$1" && cd "$1"; }
 
