@@ -157,6 +157,18 @@ in
   # necessity a separate package (it cannot share this app's uid without its
   # signing key). This one line is what makes the boot APK able to do anything
   # at all, and it is why that APK does not need to be signed by F-Droid.
+  #
+  # SECURITY, stated plainly because the name understates it: this is not a
+  # grant to our boot companion, it is a grant to EVERY application installed on
+  # the phone. RunCommandService checks two things and neither identifies the
+  # caller -- the com.termux.permission.RUN_COMMAND permission (declared
+  # "dangerous", so a one-time user prompt, not a signature match) and this
+  # property. There is no allow-list of caller packages anywhere in the host,
+  # so any app the user has ever granted RUN_COMMAND to can execute arbitrary
+  # commands in this terminal's environment, with this app's uid and its files.
+  # It is enabled deliberately, on every terminal this flake configures, because
+  # the boot companion cannot work without it -- but it is a device-wide
+  # capability, not a private channel.
   home.file.".termux/termux.properties".text = ''
     allow-external-apps=true
   '';
@@ -176,7 +188,7 @@ in
     executable = true;
     text = ''
       #!/usr/bin/env sh
-      # Launched by Cloud Unix Termux Boot (com.termux.nix.boot) at device boot.
+      # Launched by Cloud Unix Termux Boot (cld.termux.nix.boot) at device boot.
       for _f in "$HOME"/.termux/boot/*.sh; do
         [ -f "$_f" ] || continue
         sh "$_f" >/dev/null 2>&1 &

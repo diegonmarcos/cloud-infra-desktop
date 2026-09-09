@@ -15,7 +15,7 @@
 # The SERVICE stays here, unlike on desktop: nix-on-droid has no systemd, so
 # the shared module's systemd.user.services has nothing to render into. runit
 # and the fish hook are this platform's answer and are genuinely local.
-{ config, pkgs, lib, myWebserverPkg, ... }:
+{ config, pkgs, lib, myWebserverPkg, termuxPrefix, ... }:
 
 let
   serviceName = "my-webserver";
@@ -109,8 +109,8 @@ in
   # fails if termux-services isn't installed on the underlying Termux prefix,
   # since nix-on-droid doesn't own that install.
   #
-  # 2026-08-10: the com.termux.nix app (this flake's target — see the
-  # hardcoded prefix path below) ships NO apt/dpkg layer at all (no
+  # 2026-08-10: the Nix-on-Droid app this flake targets (whichever id
+  # build.json declares) ships NO apt/dpkg layer at all (no
   # /usr/etc/apt, no dpkg status db) — `pkg install termux-services` can
   # never succeed here, it's not a "not yet installed" gap. Real runit
   # supervision is unavailable on this app; the fish interactive-shell hook
@@ -121,12 +121,12 @@ in
     # Explicit Termux-prefix path — sv-enable is never on the minimal
     # activation PATH, so `command -v` couldn't distinguish "not installed"
     # from "not on PATH" (2026-08-08 audit).
-    SV_ENABLE="/data/data/com.termux.nix/files/usr/bin/sv-enable"
+    SV_ENABLE="${termuxPrefix}/bin/sv-enable"
     if [ -x "$SV_ENABLE" ]; then
       $DRY_RUN_CMD "$SV_ENABLE" ${serviceName} 2>/dev/null || \
         echo "[${serviceName}] WARNING: sv-enable failed — check runsvdir status (falling back to the fish-shell auto-start hook)"
     else
-      echo "[${serviceName}] NOTE: sv-enable not present (com.termux.nix has no apt/termux-services) — relying on the fish interactive-shell auto-start hook instead"
+      echo "[${serviceName}] NOTE: sv-enable not present (this Nix-on-Droid app has no apt/termux-services) — relying on the fish interactive-shell auto-start hook instead"
     fi
   '';
 }

@@ -20,7 +20,9 @@ set -u
 CDP="$HOME/git/cloud-infra-desktop/1_cicd/dist/scripts/cloud-data-paths.sh"
 if [ -r "$CDP" ]; then . "$CDP"; LOG="$(cd_log deepseek-cleanup)"; else LOG="$HOME/deepseek-cleanup.log"; fi
 REAL="$HOME/.nix-profile/bin/claude"
-TERMUX_PREFIX="/data/data/com.termux.nix/files/usr"
+# Derived from $HOME (/data/data/<application id>/files/home) so this cleans
+# the terminal it is actually running in, not whichever one was named here.
+TERMUX_PREFIX="$(dirname "$HOME")/usr"
 
 # APPEND, never truncate — the log holds the only copy of deleted wrapper
 # scripts, and a later re-run must not destroy it.

@@ -1,6 +1,11 @@
 # Common configuration for Termux / nix-on-droid
 { config, pkgs, lib, ... }:
 
+let
+  gooseConfig = pkgs.writeText "goose-config.yaml"
+    (builtins.replaceStrings [ "@TERMUX_HOME@" ] [ config.home.homeDirectory ]
+      (builtins.readFile ./dotfiles/goose/config.yaml));
+in
 {
   imports = [
     ./programs/shells/bash.nix
@@ -64,10 +69,16 @@
 
   # Goose AI CLI config (cloud-ai-cli alias)
   # NOTE: Goose can't follow Nix store symlinks, so we copy instead
+  #
+  # The MCP entries in that file are absolute paths under the home directory,
+  # and goose expands nothing -- no $HOME, no ~. The file therefore carries an
+  # @TERMUX_HOME@ sentinel that is filled in here from the one declared home
+  # path, so the same source configures every terminal the flake targets
+  # instead of pointing all of them at com.termux.nix's private directory.
   home.activation.gooseConfig = lib.hm.dag.entryAfter [ "writeBoundary" ] ''
     mkdir -p "$HOME/.config/goose"
     rm -f "$HOME/.config/goose/config.yaml"
-    cp ${./dotfiles/goose/config.yaml} "$HOME/.config/goose/config.yaml"
+    cp ${gooseConfig} "$HOME/.config/goose/config.yaml"
     chmod 644 "$HOME/.config/goose/config.yaml"
   '';
 
