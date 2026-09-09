@@ -53,11 +53,42 @@ let
   # list when claude starts from $HOME.
   stateDirs = [ "projects" "file-history" "session-env" "shell-snapshots" ];
 
+  # This device's name in the memory repo. It used to be written out at each of
+  # the three places that needed it; it is one binding now, because the archive
+  # buckets per-device state under a_sessions/<instance>/ AND sync-sessions.sh
+  # stamps its commit subject with the same word, and a device that disagreed
+  # with itself would file its transcripts under a directory nobody reads.
+  # ba_flakes_desktop says "surface" the same way.
+  instance = "galaxy";
+
+  # Where the archive is cloned. Same default the claudeMemoryLinks activation
+  # below uses, and the same one bin/sync-sessions.sh resolves itself from.
+  memoryRepoDefault = "${config.home.homeDirectory}/git/cloud-data-my-ai-memory";
+
   stateLinks = builtins.listToAttrs (map (d: {
     name = ".claude/${d}";
     value.source = config.lib.file.mkOutOfStoreSymlink
-      "${config.home.homeDirectory}/git/cloud-data-my-ai-memory/a_sessions/galaxy/${d}";
+      "${memoryRepoDefault}/a_sessions/${instance}/${d}";
   }) stateDirs);
+
+  # The archiver's trigger on a device with no scheduler. Body and the full
+  # "why a shell start" argument in assets/scripts/claude-sync-sessions.sh;
+  # the start sites are modules/programs/shells/fish/interactiveShellInit.fish
+  # and modules/programs/shells/bash.nix, which is where this device's other
+  # shell-triggered services already live.
+  #
+  # runtimeEnv carries the instance name because sync-sessions.sh falls back to
+  # `hostname` without it, and Android does not let this app sethostname() —
+  # `hostname -s` answers "localhost" here (flake.nix records that, which is why
+  # dtk_node exists at all), so every commit would be filed under "localhost".
+  claudeSyncSessionsPkg = pkgs.writeShellApplication {
+    name = "claude-sync-sessions";
+    runtimeInputs = with pkgs; [
+      bash git jq coreutils findutils gnugrep gawk util-linux openssh
+    ];
+    runtimeEnv = { CLAUDE_INSTANCE = instance; };
+    text = builtins.readFile ./assets/scripts/claude-sync-sessions.sh;
+  };
 in
 {
   home.file = stateLinks // {
@@ -91,6 +122,10 @@ in
       executable = true;
     };
   };
+
+  # On PATH so the two shell start sites can guard on `command -v` before
+  # calling it, exactly as they already do for etc-self-heal and my-webserver.
+  home.packages = [ claudeSyncSessionsPkg ];
 
   # Agent fleet, cloud-marketplace, claude-plugins.json, rgignore — copied from
   # the working checkout at activation time. See claude-assets-deploy.sh.
@@ -166,8 +201,8 @@ in
   # This NEVER deletes a real file: anything non-symlink in the way is moved
   # aside to .bak-<timestamp> and reported, so a desync is loud, not lossy.
   home.activation.claudeMemoryLinks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    MEM_REPO="''${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-data-my-ai-memory}"
-    INSTANCE="galaxy"
+    MEM_REPO="''${CLAUDE_MEMORY_REPO:-${memoryRepoDefault}}"
+    INSTANCE="${instance}"
     # Claude Code buckets projects by slugified $HOME (/home/diego -> -home-diego;
     # on termux -> -data-data-com-termux-files-home). Derive it rather than hardcode,
     # so this same block is correct on every instance. Both devices link the SAME
@@ -197,6 +232,26 @@ in
       link_in "$MEM_REPO/b_projects/home-diego/MEMORY.md"      "$PROJ/memory/MEMORY.md"
       link_in "$MEM_REPO/b_projects/home-diego/memory-entries" "$PROJ/memory-entries"
       link_in "$MEM_REPO/a_sessions/$INSTANCE/history.jsonl"   "$HOME/.claude/history.jsonl"
+
+      # The archive's pre-commit blob check is per-clone LOCAL state — git
+      # reads core.hooksPath from .git/config, which no clone inherits and no
+      # commit carries. So the check that refuses a commit carrying a blob
+      # GitHub will reject was, until this line, protection that existed only
+      # on a machine where somebody had remembered to type one command. Assert
+      # it on every switch instead; it is a no-op once set.
+      #
+      # `|| echo` and never bare: this activation block is NOT wrapped in a
+      # subshell, and home-manager runs the whole activation under `set -e`, so
+      # an unguarded git failure here (index locked by a concurrent agent,
+      # config not writable) would abort the entire switch on a device whose
+      # owner is standing in front of it. A repo that is not cloned at all
+      # never reaches this line — it is inside the `.git` test above, whose
+      # else-branch only warns.
+      if [ -d "$MEM_REPO/bin/hooks" ]; then
+        ${pkgs.git}/bin/git -C "$MEM_REPO" config core.hooksPath bin/hooks \
+          && echo "[claude-memory] core.hooksPath -> bin/hooks (pre-commit blob check armed)" \
+          || echo "[claude-memory] WARNING: could not set core.hooksPath in $MEM_REPO" >&2
+      fi
       echo "[claude-memory] linked into $MEM_REPO (instance: $INSTANCE)"
     fi
   '';

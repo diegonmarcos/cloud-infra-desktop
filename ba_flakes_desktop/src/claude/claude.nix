@@ -60,6 +60,22 @@ let
   #
   # The ONE SoT, read at activation. Overridable for a non-standard checkout.
   claudeSotDefault = "${config.home.homeDirectory}/git/cloud-u-linux/da_my-ai/data/claude";
+
+  # This device's name in the memory archive. One binding rather than a word
+  # repeated at each site that needs it: the archive buckets per-device state
+  # under a_sessions/<instance>/ AND bin/sync-sessions.sh stamps its commit
+  # subject with the same word, so a device that disagreed with itself would
+  # file its transcripts under a directory nobody reads. bb_flakes_termux says
+  # "galaxy" the same way.
+  instance = "surface";
+
+  # Where the archive is cloned. Same default the claudeMemoryLinks activation
+  # below uses and the same one bin/sync-sessions.sh resolves itself from.
+  memoryRepoDefault = "${config.home.homeDirectory}/git/cloud-data-my-ai-memory";
+
+  # The archiver itself. It lives in the memory repo beside the thresholds it
+  # obeys; this flake only decides WHEN it runs and what is on its PATH.
+  syncSessions = "${memoryRepoDefault}/bin/sync-sessions.sh";
 in
 {
   # Agent fleet (explore/build/review/ops, pinned model:sonnet). dotfiles/claude/agents
@@ -271,8 +287,8 @@ in
   # This NEVER deletes a real file: anything non-symlink in the way is moved
   # aside to .bak-<timestamp> and reported, so a desync is loud, not lossy.
   home.activation.claudeMemoryLinks = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
-    MEM_REPO="''${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-data-my-ai-memory}"
-    INSTANCE="surface"
+    MEM_REPO="''${CLAUDE_MEMORY_REPO:-${memoryRepoDefault}}"
+    INSTANCE="${instance}"
     # Claude Code buckets projects by slugified $HOME (/home/diego -> -home-diego;
     # on termux -> -data-data-com-termux-files-home). Derive it rather than hardcode,
     # so this same block is correct on every instance. Both devices link the SAME
@@ -299,12 +315,121 @@ in
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$SRC" "$DEST"
       }
 
+      # The per-instance state DIRECTORIES, not merely files inside them.
+      # ~/.claude/projects has been a symlink into this repo on disk for as long
+      # as the archive has existed, but nothing here declared it, so the wiring
+      # survived only because no one had rebuilt the machine from scratch yet. A
+      # fresh switch would leave a plain empty directory, Claude Code would write
+      # transcripts into ~/.claude instead of into the repo, and every check in
+      # bin/ would keep passing while the archive quietly received nothing —
+      # which is precisely the shape of the 2026-08-20 loss this whole
+      # arrangement was built to prevent. bb_flakes_termux already declares the
+      # same set for galaxy (stateLinks there).
+      #
+      # These MUST come before the three links below. $PROJ lives under
+      # ~/.claude/projects, so linking a file inside it first would make
+      # ~/.claude/projects a real directory, and link_in would then find a real
+      # path in its way and move the freshly-made links aside.
+      #
+      # session-env is in termux's list and deliberately not in this one: no
+      # such directory exists under a_sessions/ for either instance, and
+      # link_in would leave a dangling symlink that mkdir cannot later resolve.
+      link_in "$MEM_REPO/a_sessions/$INSTANCE/projects"        "$HOME/.claude/projects"
+      link_in "$MEM_REPO/a_sessions/$INSTANCE/file-history"    "$HOME/.claude/file-history"
+      link_in "$MEM_REPO/a_sessions/$INSTANCE/shell-snapshots" "$HOME/.claude/shell-snapshots"
+
       link_in "$MEM_REPO/b_projects/home-diego/MEMORY.md"      "$PROJ/memory/MEMORY.md"
       link_in "$MEM_REPO/b_projects/home-diego/memory-entries" "$PROJ/memory-entries"
       link_in "$MEM_REPO/a_sessions/$INSTANCE/history.jsonl"   "$HOME/.claude/history.jsonl"
+
+      # The archive's pre-commit blob check is per-clone LOCAL state — git reads
+      # core.hooksPath from .git/config, which no clone inherits and no commit
+      # carries. So the check that refuses a commit carrying a blob GitHub will
+      # reject was, until this line, protection that existed only on a machine
+      # where somebody had remembered to type one command. Assert it on every
+      # switch instead; it is a no-op once set.
+      #
+      # `|| echo` and never bare: this activation block is NOT wrapped in a
+      # subshell, and home-manager runs the whole activation under `set -e`, so
+      # an unguarded git failure here (index locked by a concurrent agent,
+      # config not writable) would abort the entire switch on a machine whose
+      # owner is sitting in front of it. A repo that is not cloned at all never
+      # reaches this line — it is inside the `.git` test above, whose
+      # else-branch only warns.
+      if [ -d "$MEM_REPO/bin/hooks" ]; then
+        ${pkgs.git}/bin/git -C "$MEM_REPO" config core.hooksPath bin/hooks \
+          && echo "[claude-memory] core.hooksPath -> bin/hooks (pre-commit blob check armed)" \
+          || echo "[claude-memory] WARNING: could not set core.hooksPath in $MEM_REPO" >&2
+      fi
       echo "[claude-memory] linked into $MEM_REPO (instance: $INSTANCE)"
     fi
   '';
+
+  # ── the archive's schedule ─────────────────────────────────────────────────
+  #
+  # The links above put the live transcripts inside a git repository. Nothing
+  # ever committed them: the archive's ten commits were all made by hand, with
+  # gaps of one, six and thirteen days. This unit is what makes it unattended.
+  #
+  # WHY HOURLY. Growth was measured at 14.1 MiB in 6h39m — 2.12 MiB/h
+  # (2026-09-09). bin/shard-big-sessions.sh untracks a transcript once it passes
+  # the shard threshold; GitHub rejects any blob past its hard limit. The gap
+  # between those two numbers is about 28 hours of writing, and that is the
+  # entire window a run has to land in. A daily timer would leave a margin of
+  # 1.18x — one long session, or one laptop shut for an afternoon, and the
+  # repository is unpushable and has to be repaired with history surgery.
+  # Hourly leaves 28x, and bounds how far past the shard threshold a transcript
+  # can drift before it is untracked to about 2.12 MiB. The thresholds
+  # themselves are NOT restated here: they live in bin/session-limits.json and
+  # only the scripts read them.
+  #
+  # ExecStart points straight at the script in the memory repo. This flake
+  # schedules it and hands it a PATH; it does not know what archiving involves.
+  systemd.user.services.claude-session-sync = {
+    Unit = {
+      Description = "Archive Claude Code transcripts into cloud-data-my-ai-memory";
+      # A machine without the clone has nothing to archive and is not broken.
+      # The condition makes that a skipped unit rather than a unit that fails
+      # every hour and trains its owner to ignore `systemctl --user --failed`.
+      ConditionPathExists = syncSessions;
+    };
+    Service = {
+      Type = "oneshot";
+      # A systemd user unit gets none of the interactive shell's PATH, and the
+      # script it runs is a checkout rather than a derivation, so its tools
+      # cannot be resolved at build time the way writeShellApplication does it
+      # for hm-auto-update. openssh is in the list because the push authenticates
+      # over ssh; util-linux because the sharder takes an flock.
+      #
+      # CLAUDE_INSTANCE is the commit subject's device tag. Without it the
+      # script falls back to `hostname`.
+      Environment = [
+        "CLAUDE_INSTANCE=${instance}"
+        "PATH=${lib.makeBinPath (with pkgs; [
+          bash git jq coreutils findutils gnugrep gawk util-linux openssh
+        ])}"
+      ];
+      ExecStart = "${pkgs.bash}/bin/bash ${syncSessions}";
+    };
+  };
+
+  systemd.user.timers.claude-session-sync = {
+    Unit.Description = "Hourly Claude Code transcript archive";
+    Timer = {
+      OnCalendar = "hourly";
+      # OnCalendar rather than OnUnitActiveSec specifically so that this can be
+      # true: Persistent has no effect on any other trigger, and catching up a
+      # run missed while the laptop was asleep or shut is the whole point on a
+      # machine that is not always on.
+      #
+      # Overrun cannot stack. systemd never runs two copies of one unit: a
+      # trigger arriving while the previous run is still activating is merged
+      # into the job already in flight, not queued behind it. The sharder takes
+      # an flock of its own on top of that.
+      Persistent = true;
+    };
+    Install.WantedBy = [ "timers.target" ];
+  };
 
   home.activation.claudeAutoUpdates = lib.hm.dag.entryAfter [ "linkGeneration" ] ''
     (

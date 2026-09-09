@@ -91,6 +91,13 @@ set -gx AUTHELIA_TOKEN_URL "https://auth.diegonmarcos.com/api/oidc/token"
 # Moved here from flake.nix per the no-inline-scripts decree (2026-08-08).
 command -q etc-self-heal; and etc-self-heal 2>/dev/null
 
+# Claude transcript archive. This device has no systemd and no runit, so a
+# shell start is the trigger — same reason my-webserver starts here. The
+# wrapper detaches and takes a lock, so this returns immediately and ten
+# terminals still produce one sync. Body: claude/assets/scripts/
+# claude-sync-sessions.sh.
+command -q claude-sync-sessions; and claude-sync-sessions
+
 # my-webserver auto-start (single start site — the flake
 # copy was deleted; wrapper is idempotent via PID file).
 set -g __httpd_port 8000
