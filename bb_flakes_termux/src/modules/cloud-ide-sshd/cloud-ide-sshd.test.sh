@@ -317,7 +317,7 @@ if [ -f "$BUILD_JSON" ]; then
   # The declaration reaching an instance is not enough if the activation dies
   # first. These two are what let a switch inside a non-default app get as far
   # as linkGeneration at all.
-  grep -q 'user.home = lib.mkForce' "$FLAKE_SRC/modules/android-package.nix" \
+  grep -q 'user.home = "/data/data/${androidPackage}' "$FLAKE_SRC/modules/android-package.nix" \
     && ok "home directory follows the application id (checkHomeDirectory would abort otherwise)" \
     || nope "user.home not re-pointed — activation aborts before writing termux.properties on every non-default instance"
 

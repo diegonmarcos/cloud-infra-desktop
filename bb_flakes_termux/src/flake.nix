@@ -67,8 +67,9 @@
       # THE ONE VALUE. Every path this flake writes on the device and every
       # Android intent it sends is namespaced by the application id of the
       # terminal being activated INTO: /data/data/<id>/files/{home,usr}. Until
-      # 2026-09-09 that id was spelled out by hand in nine places under src/ and
-      # pinned in two more by the nix-on-droid input, so this flake could only
+      # 2026-09-09 that id was spelled out by hand 31 times across seven files
+      # under src/, and pinned in two readOnly options by the nix-on-droid
+      # input that no module of ours could redefine, so this flake could only
       # ever activate inside com.termux.nix. Home Manager's checkHomeDirectory
       # aborts the activation when $HOME is not the eval-time home.homeDirectory
       # (lib-bash/activation-init.sh), so a switch run inside the renamed fork
@@ -114,7 +115,12 @@
           # arguments exist, so naming `nix-on-droid` through a module argument
           # here would recurse forever. See modules/android-package.nix for why
           # the upstream module has to go rather than merely be overridden.
-          { disabledModules = [ "${nix-on-droid}/modules/build/config.nix" ]; }
+          {
+            disabledModules = [
+              "${nix-on-droid}/modules/user.nix"
+              "${nix-on-droid}/modules/build/config.nix"
+            ];
+          }
           ({ config, lib, pkgs, ... }: {
             imports = [
               ./modules/android-package.nix
