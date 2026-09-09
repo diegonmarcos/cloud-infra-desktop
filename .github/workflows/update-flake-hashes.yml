@@ -11,23 +11,41 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 
 name: update-flake-hashes
-# Pin the SRI hashes of the my-webserver / my-ai release binaries that this
-# repo's flakes fetch by URL.
+# Keep this repo's flakes pointing at the CURRENT cloud-u-linux artifacts.
 #
-# 2026-08-27: those two apps moved to diegonmarcos/cloud-u-linux in the d*
-# split, so their ship-* workflows now run there and can no longer write these
-# files -- GITHUB_TOKEN is scoped to a single repo and cannot push cross-repo.
-# Rather than mint a cross-repo PAT, the dependency is inverted: cloud-u-linux
-# publishes, and this workflow polls and pins.
+# 2026-08-27: the my-webserver / my-ai apps moved to diegonmarcos/cloud-u-linux
+# in the d* split, so their ship-* workflows run there and can no longer write
+# this repo's files -- GITHUB_TOKEN is scoped to a single repo and cannot push
+# cross-repo. Rather than mint a cross-repo PAT, the dependency is inverted:
+# cloud-u-linux publishes, and this workflow polls and pins.
 #
-# Polling is also strictly less racy than the in-workflow job it replaces. The
-# release tags are rolling and clobbered on every upload, so the old job could
-# commit the hash of a binary a sibling run had already overwritten. This one
-# hashes whatever is live at the moment it runs, so the pin always describes an
-# asset that actually exists.
+# 2026-09-09: THERE ARE TWO KINDS OF PIN AND THIS ONLY MAINTAINED ONE.
 #
-# The cost is latency: a fresh cloud-u-linux release is unpinned until the next
-# tick. Dispatch this manually for an immediate refresh.
+# A pin lives either in a hashes.json in this repo, or in a hashes.json in
+# cloud-u-linux that we reach through a flake INPUT -- in which case the thing
+# that has to move is flake.lock, not any file here. my-webserver became the
+# second kind on 2026-09-03 (bb_flakes_termux acc46b29, and the desktop tree
+# before it), and this workflow kept rewriting the two hashes.json files it had
+# always rewritten. Nothing read them any more. They agreed with the published
+# artifact on every tick, so this workflow was green and pushed no commit,
+# while every termux closure build failed:
+#
+#   error: hash mismatch in fixed-output derivation '...my-webserver-aarch64.drv'
+#     specified: sha256-8hjxYzs1mxPItIyYe7OQwVo98mKqRJmhF9Wi/aWOK5g=
+#          got:  sha256-UVMz0XfpcI63qLtavRWNSCPEGwRmcsM64kFJeectm2c=
+#
+# The specified value was cloud-u-linux's pin AT THE REVISION flake.lock held;
+# the got value was its pin two days later. Two pieces of our own automation
+# disagreeing about one artifact, because they were not describing the same
+# pin. home-manager-files is downstream, so the whole closure failed and the
+# phone -- which installs a built closure and cannot build -- got nothing at
+# all for six days.
+#
+# So the worklist is DERIVED, never typed. Every flake in this repo is asked,
+# through its own lock, which of its inputs come from cloud-u-linux, and all of
+# them are updated. A flake added later, or an input added to an existing one,
+# is picked up with no edit here -- which is the only way this cannot silently
+# skip one again.
 on:
   schedule:
     - cron: '0 */6 * * *'
@@ -51,64 +69,77 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Download released binaries
+      # v30, matching the ship-* workflows: `nix flake update <input>` needs a
+      # nix new enough to take input names positionally (2.19+). v27's nix
+      # still wanted the since-deprecated `nix flake lock --update-input`.
+      - uses: cachix/install-nix-action@v30
+
+      # ── the flake-input pins ────────────────────────────────────────────
+      # The hash that matters here is not in this repo at all: it is in
+      # cloud-u-linux's da_*/nix/hashes.json, and flake.lock is what decides
+      # WHICH revision of that file we build against. Bumping the lock is the
+      # whole update.
+      #
+      # Discovery reads each flake.lock, not a list kept here and not a grep of
+      # flake.nix. The lock is the authoritative, committed record of what a
+      # flake actually resolved, so an input declared in a shape this
+      # workflow's author did not anticipate still shows up, and a flake added
+      # later needs no edit here. It is also pure jq: no network, no eval, and
+      # nothing to go wrong on the archived flakes under z_archive/, which have
+      # locks but no cloud-u-linux inputs.
+      - name: Bump every cloud-u-linux flake input
+        run: |
+          set -euo pipefail
+          for lock in $(git ls-files '*flake.lock'); do
+            flake="$(dirname "$lock")"
+            inputs="$(jq -r '
+              . as $l
+              | $l.nodes[$l.root].inputs
+              | to_entries[]
+              | select($l.nodes[.value].original.repo == "cloud-u-linux")
+              | select(($l.nodes[.value].original.dir // "") != "")
+              | .key' "$lock")"
+            [ -n "$inputs" ] || continue
+            echo "$flake: updating $(echo "$inputs" | tr '\n' ' ')"
+            # Unquoted on purpose: each line is one input name, and `nix flake
+            # update` takes them as separate arguments.
+            # shellcheck disable=SC2086
+            nix flake update $inputs --flake "path:$PWD/$flake"
+          done
+
+      # ── the in-repo pins ────────────────────────────────────────────────
+      # my-ai is the other kind: bb_flakes_termux/src/pkgs/my-ai.nix carries
+      # its own fetchurl and reads my-ai-hashes.json out of this repo, so the
+      # hash has to be computed and committed HERE. Only the two aarch64
+      # assets, because those are the only ones that file declares -- the
+      # x86_64 desktop build reaches my-ai through the da_my-ai flake input
+      # instead, and is therefore covered by the lock bump above.
+      - name: Pin the my-ai release binaries this repo fetches directly
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        working-directory: /tmp
         run: |
-          gh release download my-webserver-latest --repo "$SOURCE_REPO" \
-            --pattern "my-webserver-aarch64" \
-            --pattern "my-webserver-x86_64" \
-            --clobber
+          set -euo pipefail
           gh release download my-ai-latest --repo "$SOURCE_REPO" \
             --pattern "my-ai-aarch64" --pattern "my-ai-dash-aarch64" \
-            --clobber
+            --dir /tmp --clobber
+          jq -n \
+            --arg ai      "$(nix hash file --sri /tmp/my-ai-aarch64)" \
+            --arg ai_dash "$(nix hash file --sri /tmp/my-ai-dash-aarch64)" \
+            '{ "my-ai": $ai, "my-ai-dash": $ai_dash }' \
+            > bb_flakes_termux/src/pkgs/my-ai-hashes.json
 
-      - uses: cachix/install-nix-action@v27
-
-      - name: Compute SRI hashes and update the pinned hash files
+      - name: Commit updated pins
         run: |
-          ws_aarch64=$(nix hash file --sri /tmp/my-webserver-aarch64)
-          ws_x86_64=$(nix hash file --sri /tmp/my-webserver-x86_64)
-          ai_aarch64=$(nix hash file --sri /tmp/my-ai-aarch64)
-          ai_dash_aarch64=$(nix hash file --sri /tmp/my-ai-dash-aarch64)
-
-          cat > ba_flakes_desktop/src/modules/my-webserver/hashes.json <<JSON
-          {
-            "version": "latest",
-            "aarch64-linux": {
-              "my-webserver": "$ws_aarch64"
-            },
-            "x86_64-linux": {
-              "my-webserver": "$ws_x86_64"
-            }
-          }
-          JSON
-
-          cat > bb_flakes_termux/src/modules/my-webserver/hashes.json <<JSON
-          {
-            "my-webserver": "$ws_aarch64"
-          }
-          JSON
-
-          cat > bb_flakes_termux/src/pkgs/my-ai-hashes.json <<JSON
-          {
-            "my-ai": "$ai_aarch64",
-            "my-ai-dash": "$ai_dash_aarch64"
-          }
-          JSON
-
-      - name: Commit updated hashes
-        run: |
+          set -euo pipefail
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git add ba_flakes_desktop/src/modules/my-webserver/hashes.json \
-                  bb_flakes_termux/src/modules/my-webserver/hashes.json \
-                  bb_flakes_termux/src/pkgs/my-ai-hashes.json
+          # Path-scoped: this branch is shared with every other job and agent.
+          git add bb_flakes_termux/src/pkgs/my-ai-hashes.json \
+                  $(git ls-files '*/src/flake.lock')
           git diff --cached --quiet && exit 0
-          git commit -m "chore: pin my-webserver/my-ai hashes from cloud-u-linux [skip ci]"
+          git commit -m "chore: pin cloud-u-linux artifacts (flake.lock + my-ai hashes) [skip ci]"
           # main moves under long-running jobs; rebase and retry. This step only
-          # ever touches the three hash files, so there is nothing to conflict with.
+          # ever touches pin files, so there is nothing to conflict with.
           for attempt in 1 2 3 4 5; do
             if git push; then
               exit 0
@@ -116,5 +147,5 @@ jobs:
             echo "push rejected (attempt $attempt) -- rebasing onto origin/main"
             git pull --rebase origin main
           done
-          echo "::error::could not push updated hashes after 5 attempts"
+          echo "::error::could not push updated pins after 5 attempts"
           exit 1
