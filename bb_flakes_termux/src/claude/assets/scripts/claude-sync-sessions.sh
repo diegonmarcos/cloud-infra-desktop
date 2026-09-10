@@ -1,67 +1,109 @@
 #!/usr/bin/env bash
-# claude-sync-sessions.sh — fire cloud-data-my-ai-memory/bin/sync-sessions.sh
-# from a shell start. Deployed on PATH by claude/claude.nix
-# (pkgs.writeShellApplication), called from the two shell start sites this
-# device already uses for exactly this purpose.
+# claude-sync-sessions.sh — fire cloud-data-my-ai-memory/bin/sync-sessions.sh.
+# Deployed on PATH by claude/claude.nix (pkgs.writeShellApplication).
 #
-# WHY A SHELL START AND NOT A TIMER.
+# WHY CLAUDE CODE'S OWN HOOKS AND NOT A SCHEDULER.
 #
-# nix-on-droid runs no systemd user session, so ba_flakes_desktop's
-# systemd.user.timer has no counterpart here. systemd is not the only thing
-# missing: com.termux.nix — the app this flake targets — ships no apt/dpkg
-# layer at all, so termux-services (runit, sv-enable, runsvdir) can never be
-# installed on it either. That finding is recorded in
-# modules/my-webserver/default.nix, dated 2026-08-10, and it names "the fish
-# interactive-shell hook" as the actual auto-start path on this device.
-# modules/cloud-ide-sshd/default.nix reaches for the same hook for the same
-# reason. There is no periodic scheduler on this phone to reuse, so this reuses
-# the trigger that already carries two other services rather than inventing a
-# third mechanism that would need its own watchdog.
+# There is no scheduler on this device to reuse. nix-on-droid runs no systemd
+# user session, so ba_flakes_desktop's systemd.user.timer has no counterpart
+# here; com.termux.nix ships no apt/dpkg layer, so termux-services (runit,
+# sv-enable, runsvdir) can never be installed on it either — recorded in
+# modules/my-webserver/default.nix, dated 2026-08-10. Termux:API is not wired
+# either (modules/packages.nix: the upstream C bridge needs a bionic-only
+# header the nix-on-droid build env does not expose), so termux-job-scheduler
+# is not on the table. crontab on this device answers "must be suid to work
+# properly".
 #
-# It is a TRIGGER, not a schedule, and the distinction is worth stating plainly.
-# A transcript only grows while a Claude Code session is running, and a session
-# on this device can only be started from a shell, so every burst of growth is
-# preceded by one of these. What it does NOT cover is a single session that runs
-# for days inside one shell: nothing fires again until the next shell opens.
-# That gap costs archive freshness, not safety — sync-sessions.sh shards BEFORE
-# it stages, so whenever it next runs an oversized transcript is untracked and
-# ignored rather than committed, and bin/hooks/pre-commit (installed by
-# claude.nix via core.hooksPath) refuses any hand-made commit in the meantime.
+# The 2026-09-09 attempt reached for a SHELL START instead, which is what
+# already carries my-webserver and cloud-ide-sshd. Its own header named the
+# gap it was leaving: "a single session that runs for days inside one shell —
+# nothing fires again until the next shell opens". That gap is not an edge
+# case on this phone, it is the normal case. A shell start is a proxy for
+# "somebody is about to work"; it is not a proxy for "a transcript is
+# growing", and the two come apart exactly when a session is long, which is
+# when the archive matters most.
 #
-# Detached and locked, because a shell start must not block and shells are
-# opened in bursts:
-#   - nohup + background, so a sync outlives the terminal that spawned it.
-#     Android reaps a terminal's process group the moment the terminal goes
-#     away, and a sync killed mid-push leaves a local commit that only the next
-#     run repairs.
-#   - flock -n, so ten terminals in ten seconds produce one sync rather than ten
-#     racing on .git/index. The kernel drops the lock when the holder dies, so a
-#     crashed run cannot wedge the archive shut — the same reasoning
+# So the trigger is now Claude Code itself. A transcript grows if and only if
+# a session is running, and Claude Code is the process writing it, so its
+# hooks fire when there is new data and never when there is not:
+#
+#   Stop        after every assistant turn — the during-session heartbeat,
+#               rate-limited below. This is what makes a session that is never
+#               cleanly exited (killed, OOM, phone rebooted) cost at most one
+#               interval instead of the whole session.
+#   SessionEnd  --force, on a clean exit. The tail of a session is the data
+#               most likely to sit unarchived for days afterwards, and it is
+#               the one moment the interval floor would otherwise skip.
+#
+# Both are declared in da_my-ai/data/claude/settings.termux.json, which is the
+# SoT this device's ~/.claude/settings.json is merged from. The shell start
+# sites stay as they are: they cost nothing, and they cover a device that has
+# not opened Claude Code since a reboot.
+#
+# THE FLOOR. Stop fires per turn, and an unguarded sync there would be a
+# commit and a push per assistant response, over mobile data. So the first
+# pass consults a stamp file and returns immediately unless the interval in
+# the archive's own bin/session-limits.json has elapsed. The stamp is touched
+# when a run is STARTED, not when it succeeds, so a sync that keeps failing
+# retries hourly rather than on every turn.
+#
+# Detached and locked, because a hook must not block and turns come in bursts:
+#   - nohup + background, so a sync outlives the terminal or the session that
+#     spawned it. Android reaps a terminal's process group the moment the
+#     terminal goes away, and a sync killed mid-push leaves a local commit
+#     that only the next run repairs.
+#   - flock -n, so overlapping triggers produce one sync rather than several
+#     racing on .git/index. The kernel drops the lock when the holder dies, so
+#     a crashed run cannot wedge the archive shut — the same reasoning
 #     bin/shard-big-sessions.sh gives for its own lock.
 #
 # Sizes and archiving steps are deliberately absent from this file. The
-# thresholds live in the memory repo's bin/session-limits.json and the procedure
+# numbers live in the memory repo's bin/session-limits.json and the procedure
 # lives in its bin/sync-sessions.sh; this only decides WHEN.
 set -euo pipefail
 
 REPO="${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-data-my-ai-memory}"
 SYNC="$REPO/bin/sync-sessions.sh"
-LOG="${XDG_CACHE_HOME:-$HOME/.cache}/claude-sync-sessions.log"
+LIMITS="$REPO/bin/session-limits.json"
+CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
+LOG="$CACHE/claude-sync-sessions.log"
+STAMP="$CACHE/claude-sync-sessions.stamp"
 
-# No clone, nothing to archive. Silent and successful: this runs on every shell
-# start, and a device that has not cloned the memory repo is not broken.
+# No clone, nothing to archive. Silent and successful: this runs from a hook
+# on every turn, and a device that has not cloned the memory repo is not
+# broken.
 [ -r "$SYNC" ] || exit 0
 
-# First pass detaches and returns immediately; the second pass does the work.
+# First pass decides and detaches, and must stay fast — Claude Code waits for
+# it before continuing the turn. The second pass does the work.
 if [ -z "${CLAUDE_SYNC_SESSIONS_DETACHED:-}" ]; then
-  CLAUDE_SYNC_SESSIONS_DETACHED=1 nohup "$0" >/dev/null 2>&1 </dev/null &
+  if [ "${1:-}" != "--force" ] && [ -e "$STAMP" ]; then
+    # Fail OPEN if the interval cannot be read. A missing or malformed datum
+    # must mean "sync more often", never "never sync again" — silently never
+    # syncing is the precise failure this trigger exists to end.
+    interval="$(jq -r '.min_sync_interval_seconds // empty' "$LIMITS" 2>/dev/null || true)"
+    if [ -n "$interval" ]; then
+      age=$(( $(date +%s) - $(stat -c %Y "$STAMP") ))
+      [ "$age" -ge "$interval" ] || exit 0
+    fi
+  fi
+
+  mkdir -p "$CACHE"
+  touch "$STAMP"
+  # Re-exec through bash rather than `nohup "$0"`: $0 only executes itself if
+  # the exec bit survived, and it does not in the source tree, so the detach
+  # failed into /dev/null and the sync silently never ran when this file was
+  # exercised outside nix. A trigger that no-ops without saying so is the bug
+  # this whole script exists to end.
+  CLAUDE_SYNC_SESSIONS_DETACHED=1 nohup bash "$0" >/dev/null 2>&1 </dev/null &
   exit 0
 fi
 
-mkdir -p "$(dirname "$LOG")"
-# Append rather than truncate: a run that failed three shells ago is exactly
-# what a human goes looking for. A few hundred bytes per shell start is not a
-# growth problem worth a rotation mechanism.
+# Append rather than truncate: a run that failed three hours ago is exactly
+# what a human goes looking for. The interval floor above keeps this to a
+# handful of entries a day, so there is nothing here worth a rotation
+# mechanism. Skipped triggers never reach this file — the stamp's mtime is
+# the record of the last attempt, the log is the record of its outcome.
 exec >>"$LOG" 2>&1
 echo "=== $(date -Iseconds) claude-sync-sessions"
 flock -n "$REPO/.git/claude-sync-sessions.lock" bash "$SYNC" \
