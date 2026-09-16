@@ -142,11 +142,11 @@
       },
       "locked": {
         "dir": "da_my-ai",
-        "lastModified": 1789040184,
-        "narHash": "sha256-evQ7kzKpY+Fv43djccWQQr6IdvjL9kKwmW5AIBuALNM=",
+        "lastModified": 1789525284,
+        "narHash": "sha256-PdL2KuZhxxUmONGMatGGhhf1dVIhb7/NqMWZKpewTnI=",
         "owner": "diegonmarcos",
         "repo": "cloud-u-linux",
-        "rev": "ce5e80136aac782332c6c63084ea17eaa928f6af",
+        "rev": "d6b4da9ab99ec277a50c1833322392694d82eef2",
         "type": "github"
       },
       "original": {
@@ -166,11 +166,11 @@
       },
       "locked": {
         "dir": "da_my-webserver",
-        "lastModified": 1789040184,
-        "narHash": "sha256-evQ7kzKpY+Fv43djccWQQr6IdvjL9kKwmW5AIBuALNM=",
+        "lastModified": 1789525284,
+        "narHash": "sha256-PdL2KuZhxxUmONGMatGGhhf1dVIhb7/NqMWZKpewTnI=",
         "owner": "diegonmarcos",
         "repo": "cloud-u-linux",
-        "rev": "ce5e80136aac782332c6c63084ea17eaa928f6af",
+        "rev": "d6b4da9ab99ec277a50c1833322392694d82eef2",
         "type": "github"
       },
       "original": {
