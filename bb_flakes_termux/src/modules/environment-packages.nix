@@ -189,5 +189,16 @@
     # keep the debugging loop going. Source: ../claude/assets/scripts/claude-debug.sh
     (writeShellScriptBin "claude--debug"
       (builtins.readFile ../claude/assets/scripts/claude-debug.sh))
+
+    # 13. ANTIGRAVITY-CLI — Google's terminal agent for the Antigravity
+    # platform (binary `agy`). This is the CLI/headless-agent build only,
+    # NOT the Antigravity desktop IDE: the IDE is a VS Code fork that needs
+    # a GUI, which a proot terminal with no X server cannot run. The CLI
+    # ships a documented headless mode (`agy -p "..."`) built for exactly
+    # this use. Pre-built linux/arm64 Go-toolchain binary from GitHub
+    # releases, fetched as a content-addressed source, same pattern as
+    # pkgs/ant. See pkgs/antigravity-cli/default.nix for the PT_INTERP /
+    # DT_NEEDED verification that this is a glibc/aarch64 binary.
+    (pkgs.callPackage ../pkgs/antigravity-cli {})
   ];
 }
