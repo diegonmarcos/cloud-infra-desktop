@@ -51,7 +51,11 @@ let
   # ~/git/.claude alone leaves /resume blind. /resume additionally buckets by launch
   # cwd (dir name = slugified cwd at session start), so $HOME-rooted sessions only
   # list when claude starts from $HOME.
-  stateDirs = [ "projects" "file-history" "session-env" "shell-snapshots" ];
+  # "tasks" is the SECOND store Claude keeps (tasks/<session-uuid>/<id>.json,
+  # keyed by session uuid). An archive carrying only projects/ resumes with an
+  # empty task list — the #548 "Zero tasks" teleport defect; the memory repo's
+  # check-dual-store.sh guard goes RED on exactly that shape.
+  stateDirs = [ "projects" "file-history" "session-env" "shell-snapshots" "tasks" ];
 
   # This device's name in the memory repo. It used to be written out at each of
   # the three places that needed it; it is one binding now, because the archive
