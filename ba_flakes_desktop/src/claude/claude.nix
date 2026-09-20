@@ -337,6 +337,15 @@ in
       link_in "$MEM_REPO/a_sessions/$INSTANCE/projects"        "$HOME/.claude/projects"
       link_in "$MEM_REPO/a_sessions/$INSTANCE/file-history"    "$HOME/.claude/file-history"
       link_in "$MEM_REPO/a_sessions/$INSTANCE/shell-snapshots" "$HOME/.claude/shell-snapshots"
+      # tasks is the SECOND store Claude keeps (tasks/<session-uuid>/<id>.json).
+      # An archive carrying only projects/ resumes with an empty task list — the
+      # #548 "Zero tasks" teleport defect; the memory repo's check-dual-store.sh
+      # guard goes RED on exactly that shape. One-time migration on this device:
+      # if ~/.claude/tasks is still a real directory, move it INTO the repo
+      # first (mv ~/.claude/tasks $MEM_REPO/a_sessions/$INSTANCE/tasks) — a
+      # link_in against a missing repo dir is skipped, and against an existing
+      # one it would .bak the live store instead of adopting it.
+      link_in "$MEM_REPO/a_sessions/$INSTANCE/tasks"           "$HOME/.claude/tasks"
 
       link_in "$MEM_REPO/b_projects/home-diego/MEMORY.md"      "$PROJ/memory/MEMORY.md"
       link_in "$MEM_REPO/b_projects/home-diego/memory-entries" "$PROJ/memory-entries"
