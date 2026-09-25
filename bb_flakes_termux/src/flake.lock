@@ -91,11 +91,11 @@
       },
       "locked": {
         "dir": "da_my-webserver",
-        "lastModified": 1790247532,
-        "narHash": "sha256-yR15W+5C6IvdfUI2EjbvC5hepeBW00teN/4oSJuUMXc=",
+        "lastModified": 1790332065,
+        "narHash": "sha256-n3kEoWXz+iEEAmqOFK16lqkGECCYm3xP/y7E1y8cV2Q=",
         "owner": "diegonmarcos",
         "repo": "cloud-u-linux",
-        "rev": "830f500dfaf409cd7b3dcd3d9701b92a92de96a0",
+        "rev": "62513f05412d948399d9e8e324f1fa2072fd1eab",
         "type": "github"
       },
       "original": {
