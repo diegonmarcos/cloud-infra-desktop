@@ -1231,6 +1231,23 @@ cmd_ci_build() {
         rm -f "$_out/result-$_attr"
     done
 
+    # #436/#470 — a package DECLARED in packages.nix/environment-packages.nix
+    # is not proof it actually landed in what gets shipped: the eval could
+    # silently drop it (name typo, wrong pkgs set, disabled module) and the
+    # build would still succeed and export a closure missing it. Assert the
+    # dev/agentic tooling this flake exists to provide is actually present in
+    # EVERY activation package's closure, not just `default` — a check that
+    # only looked at $_sys would stay green even if cld.termux.nix (the
+    # instance this app targets) shipped none of it.
+    for _root in $_roots; do
+        _closure="$(nix-store -qR "$_root")"
+        for _needle in claude-code- nodejs- fish- ; do
+            echo "$_closure" | grep -q "/nix/store/[^/]*-${_needle}" \
+                || { log_error "closure for $_root is missing '$_needle*' — dev/agentic tooling did not land in the store"; return 1; }
+        done
+    done
+    log_success "Verified claude-code/nodejs/fish present in every activation package's closure"
+
     log_info "Exporting closure -> zstd tarball..."
     nix-store --export $(nix-store -qR $_roots) | zstd -T0 -15 > "$_out/nixondroid-closure.nar.zst"
     rm -f "$_out/result"
