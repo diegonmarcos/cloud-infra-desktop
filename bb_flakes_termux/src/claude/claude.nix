@@ -66,7 +66,7 @@ let
   instance = "galaxy";
 
   # Where the archive is cloned. Same default the claudeMemoryLinks activation
-  # below uses, and the same one bin/sync-sessions.sh resolves itself from.
+  # below uses, and the same one 4___ASSETS___/4.1.Bin/sync-sessions.sh resolves itself from.
   memoryRepoDefault = "${config.home.homeDirectory}/git/cloud-data-my-ai-memory";
 
   stateLinks = builtins.listToAttrs (map (d: {
@@ -89,6 +89,9 @@ let
     name = "claude-sync-sessions";
     runtimeInputs = with pkgs; [
       bash git jq coreutils findutils gnugrep gawk util-linux openssh
+      # the archive's size policy compresses anything over its threshold with
+      # zstd before every push (session-limits.json full_sync.compressor)
+      zstd
     ];
     runtimeEnv = { CLAUDE_INSTANCE = instance; };
     text = builtins.readFile ./assets/scripts/claude-sync-sessions.sh;
@@ -113,6 +116,34 @@ in
     # through the (formerly pinned) my-ai flake input. See the OWNERSHIP
     # SPLIT comment at the top of this file.
 
+    # The archive's 15-minute FULL SYNC schedule. This device has no scheduler to
+    # hand it to (see the launcher's header: no systemd, no termux-services, no
+    # usable crontab), and the Stop/SessionEnd hooks only fire while Claude Code
+    # runs, so an idle phone never pulled the other device's work. Termux:Boot
+    # (via boot-runner.sh in modules/cloud-ide-sshd) starts this at device boot;
+    # it loops for the life of the process. The interval is the archive's datum
+    # full_sync.interval_seconds, re-read every pass so changing it needs no
+    # switch; unreadable means 900, i.e. fail toward syncing, never toward
+    # silence. --force skips the per-turn rate gate (that floor exists for Stop,
+    # not for this cadence). flock -n: a second boot-runner pass (or a manual
+    # start) must not stack a second loop.
+    ".termux/boot/20-memory-sync.sh" = {
+      executable = true;
+      text = ''
+        #!/usr/bin/env sh
+        LIMITS="${memoryRepoDefault}/4___ASSETS___/4.1.Bin/session-limits.json"
+        ${pkgs.coreutils}/bin/mkdir -p "${config.home.homeDirectory}/.cache"
+        exec ${pkgs.util-linux}/bin/flock -n "${config.home.homeDirectory}/.cache/memory-sync-loop.lock" \
+          ${pkgs.bash}/bin/bash -c '
+            while :; do
+              ${claudeSyncSessionsPkg}/bin/claude-sync-sessions --force
+              n=$(${pkgs.jq}/bin/jq -r ".full_sync.interval_seconds // empty" "'"$LIMITS"'" 2>/dev/null)
+              case "$n" in ""|*[!0-9]*) n=900 ;; esac
+              ${pkgs.coreutils}/bin/sleep "$n"
+            done'
+      '';
+    };
+
     # claude-fix — diagnose & repair a shadowed/non-starting `claude` (stale npm shims
     # / leftover claude-tty wrappers / fish functions). Log: ~/claude-fix.log.
     "claude-fix.sh" = {
@@ -130,6 +161,7 @@ in
   # On PATH so the two shell start sites can guard on `command -v` before
   # calling it, exactly as they already do for etc-self-heal and my-webserver.
   home.packages = [ claudeSyncSessionsPkg ];
+
 
   # Agent fleet, cloud-marketplace, claude-plugins.json, rgignore — copied from
   # the working checkout at activation time. See claude-assets-deploy.sh.
@@ -233,7 +265,7 @@ in
         $DRY_RUN_CMD ${pkgs.coreutils}/bin/ln -sfn "$SRC" "$DEST"
       }
 
-      link_in "$MEM_REPO/b_projects/home-diego/MEMORY.md"      "$PROJ/memory/MEMORY.md"
+      link_in "$MEM_REPO/b_projects/home-diego/memory/MEMORY.md" "$PROJ/memory/MEMORY.md"
       link_in "$MEM_REPO/b_projects/home-diego/memory-entries" "$PROJ/memory-entries"
       link_in "$MEM_REPO/a_sessions/$INSTANCE/history.jsonl"   "$HOME/.claude/history.jsonl"
 
@@ -251,9 +283,9 @@ in
       # owner is standing in front of it. A repo that is not cloned at all
       # never reaches this line — it is inside the `.git` test above, whose
       # else-branch only warns.
-      if [ -d "$MEM_REPO/bin/hooks" ]; then
-        ${pkgs.git}/bin/git -C "$MEM_REPO" config core.hooksPath bin/hooks \
-          && echo "[claude-memory] core.hooksPath -> bin/hooks (pre-commit blob check armed)" \
+      if [ -d "$MEM_REPO/4___ASSETS___/4.1.Bin/hooks" ]; then
+        ${pkgs.git}/bin/git -C "$MEM_REPO" config core.hooksPath 4___ASSETS___/4.1.Bin/hooks \
+          && echo "[claude-memory] core.hooksPath -> 4___ASSETS___/4.1.Bin/hooks (pre-commit blob check armed)" \
           || echo "[claude-memory] WARNING: could not set core.hooksPath in $MEM_REPO" >&2
       fi
       echo "[claude-memory] linked into $MEM_REPO (instance: $INSTANCE)"

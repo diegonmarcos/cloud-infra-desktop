@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# claude-sync-sessions.sh — fire cloud-data-my-ai-memory/bin/sync-sessions.sh.
+# claude-sync-sessions.sh — fire cloud-data-my-ai-memory/4___ASSETS___/4.1.Bin/sync-sessions.sh.
 # Deployed on PATH by claude/claude.nix (pkgs.writeShellApplication).
 #
 # WHY CLAUDE CODE'S OWN HOOKS AND NOT A SCHEDULER.
@@ -43,7 +43,7 @@
 # THE FLOOR. Stop fires per turn, and an unguarded sync there would be a
 # commit and a push per assistant response, over mobile data. So the first
 # pass consults a stamp file and returns immediately unless the interval in
-# the archive's own bin/session-limits.json has elapsed. The stamp is touched
+# the archive's own 4___ASSETS___/4.1.Bin/session-limits.json has elapsed. The stamp is touched
 # when a run is STARTED, not when it succeeds, so a sync that keeps failing
 # retries hourly rather than on every turn.
 #
@@ -58,13 +58,15 @@
 #     bin/shard-big-sessions.sh gives for its own lock.
 #
 # Sizes and archiving steps are deliberately absent from this file. The
-# numbers live in the memory repo's bin/session-limits.json and the procedure
-# lives in its bin/sync-sessions.sh; this only decides WHEN.
+# numbers live in the memory repo's 4___ASSETS___/4.1.Bin/session-limits.json
+# and the procedure lives in its 4___ASSETS___/4.1.Bin/sync-sessions.sh; this
+# only decides WHEN. The 15-minute cadence is the boot hook in claude.nix
+# calling this with --force every full_sync.interval_seconds.
 set -euo pipefail
 
 REPO="${CLAUDE_MEMORY_REPO:-$HOME/git/cloud-data-my-ai-memory}"
-SYNC="$REPO/bin/sync-sessions.sh"
-LIMITS="$REPO/bin/session-limits.json"
+SYNC="$REPO/4___ASSETS___/4.1.Bin/sync-sessions.sh"
+LIMITS="$REPO/4___ASSETS___/4.1.Bin/session-limits.json"
 CACHE="${XDG_CACHE_HOME:-$HOME/.cache}"
 LOG="$CACHE/claude-sync-sessions.log"
 STAMP="$CACHE/claude-sync-sessions.stamp"
@@ -72,7 +74,17 @@ STAMP="$CACHE/claude-sync-sessions.stamp"
 # No clone, nothing to archive. Silent and successful: this runs from a hook
 # on every turn, and a device that has not cloned the memory repo is not
 # broken.
-[ -r "$SYNC" ] || exit 0
+[ -d "$REPO/.git" ] || exit 0
+# A clone WITHOUT the sync script is broken, and must say so. This line used to
+# be `[ -r "$SYNC" ] || exit 0`, and when the archive moved bin/ to
+# 4___ASSETS___/4.1.Bin/ (#541) every trigger on this phone went on exiting 0
+# for six days while nothing synced — found only when a hand push was rejected.
+if [ ! -r "$SYNC" ]; then
+  mkdir -p "$CACHE"
+  echo "=== $(date -Iseconds) claude-sync-sessions FAIL: $SYNC is missing from the clone" >>"$LOG"
+  echo "[claude-sync] FAIL: $SYNC is missing from the clone" >&2
+  exit 1
+fi
 
 # First pass decides and detaches, and must stay fast — Claude Code waits for
 # it before continuing the turn. The second pass does the work.

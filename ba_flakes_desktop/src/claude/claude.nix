@@ -63,19 +63,19 @@ let
 
   # This device's name in the memory archive. One binding rather than a word
   # repeated at each site that needs it: the archive buckets per-device state
-  # under a_sessions/<instance>/ AND bin/sync-sessions.sh stamps its commit
+  # under a_sessions/<instance>/ AND 4___ASSETS___/4.1.Bin/sync-sessions.sh stamps its commit
   # subject with the same word, so a device that disagreed with itself would
   # file its transcripts under a directory nobody reads. bb_flakes_termux says
   # "galaxy" the same way.
   instance = "surface";
 
   # Where the archive is cloned. Same default the claudeMemoryLinks activation
-  # below uses and the same one bin/sync-sessions.sh resolves itself from.
+  # below uses and the same one 4___ASSETS___/4.1.Bin/sync-sessions.sh resolves itself from.
   memoryRepoDefault = "${config.home.homeDirectory}/git/cloud-data-my-ai-memory";
 
   # The archiver itself. It lives in the memory repo beside the thresholds it
   # obeys; this flake only decides WHEN it runs and what is on its PATH.
-  syncSessions = "${memoryRepoDefault}/bin/sync-sessions.sh";
+  syncSessions = "${memoryRepoDefault}/4___ASSETS___/4.1.Bin/sync-sessions.sh";
 in
 {
   # Agent fleet (explore/build/review/ops, pinned model:sonnet). dotfiles/claude/agents
@@ -347,7 +347,7 @@ in
       # one it would .bak the live store instead of adopting it.
       link_in "$MEM_REPO/a_sessions/$INSTANCE/tasks"           "$HOME/.claude/tasks"
 
-      link_in "$MEM_REPO/b_projects/home-diego/MEMORY.md"      "$PROJ/memory/MEMORY.md"
+      link_in "$MEM_REPO/b_projects/home-diego/memory/MEMORY.md" "$PROJ/memory/MEMORY.md"
       link_in "$MEM_REPO/b_projects/home-diego/memory-entries" "$PROJ/memory-entries"
       link_in "$MEM_REPO/a_sessions/$INSTANCE/history.jsonl"   "$HOME/.claude/history.jsonl"
 
@@ -365,9 +365,9 @@ in
       # owner is sitting in front of it. A repo that is not cloned at all never
       # reaches this line — it is inside the `.git` test above, whose
       # else-branch only warns.
-      if [ -d "$MEM_REPO/bin/hooks" ]; then
-        ${pkgs.git}/bin/git -C "$MEM_REPO" config core.hooksPath bin/hooks \
-          && echo "[claude-memory] core.hooksPath -> bin/hooks (pre-commit blob check armed)" \
+      if [ -d "$MEM_REPO/4___ASSETS___/4.1.Bin/hooks" ]; then
+        ${pkgs.git}/bin/git -C "$MEM_REPO" config core.hooksPath 4___ASSETS___/4.1.Bin/hooks \
+          && echo "[claude-memory] core.hooksPath -> 4___ASSETS___/4.1.Bin/hooks (pre-commit blob check armed)" \
           || echo "[claude-memory] WARNING: could not set core.hooksPath in $MEM_REPO" >&2
       fi
       echo "[claude-memory] linked into $MEM_REPO (instance: $INSTANCE)"

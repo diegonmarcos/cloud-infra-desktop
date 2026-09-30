@@ -53,8 +53,8 @@ echo "▶ Phase 1 · claude-sync-sessions launcher"
 [ -f "$LAUNCHER" ] && ok "launcher present" || { nope "launcher missing at $LAUNCHER"; exit 1; }
 bash -n "$LAUNCHER" && ok "launcher: bash syntax" || nope "launcher: bash syntax"
 
-grep -q 'bin/sync-sessions.sh' "$LAUNCHER" \
-  && ok "delegates to the archive's own bin/sync-sessions.sh" \
+grep -q '4___ASSETS___/4.1.Bin/sync-sessions.sh' "$LAUNCHER" \
+  && ok "delegates to the archive's own 4___ASSETS___/4.1.Bin/sync-sessions.sh" \
   || nope "launcher does not call sync-sessions.sh — the archiving steps have been reimplemented"
 grep -q 'flock -n' "$LAUNCHER" \
   && ok "takes a non-blocking lock — a burst of shells produces one sync" \
@@ -62,7 +62,7 @@ grep -q 'flock -n' "$LAUNCHER" \
 grep -q 'nohup bash "\$0"' "$LAUNCHER" \
   && ok "detaches through bash, so a trigger never blocks on a push" \
   || nope "does not detach through bash — either it blocks the turn, or (with a bare nohup \"\$0\") the re-exec dies on a missing exec bit and the sync silently never runs"
-grep -q '\[ -r "\$SYNC" \] || exit 0' "$LAUNCHER" \
+grep -q '\[ -d "\$REPO/.git" \] || exit 0' "$LAUNCHER" \
   && ok "a device without the clone exits 0 instead of erroring on every shell start" \
   || nope "a missing clone is not handled — every shell start would print an error"
 if grep -vE '^\s*#' "$LAUNCHER" | grep -qE '(41943040|104857600|83886080|20M)'; then
@@ -85,10 +85,10 @@ grep -q 'home.packages = \[ claudeSyncSessionsPkg \]' "$CLAUDE_NIX" \
 
 # ── 3 · the pre-commit hook is armed, and cannot break a switch ─────────────
 echo "▶ Phase 3 · core.hooksPath"
-grep -q 'config core.hooksPath bin/hooks' "$CLAUDE_NIX" \
+grep -q 'config core.hooksPath 4___ASSETS___/4.1.Bin/hooks' "$CLAUDE_NIX" \
   && ok "core.hooksPath is asserted on every switch" \
   || nope "core.hooksPath is not set — a fresh clone commits oversized blobs unchecked"
-grep -A3 'config core.hooksPath bin/hooks' "$CLAUDE_NIX" | grep -q '|| echo' \
+grep -A3 'config core.hooksPath 4___ASSETS___/4.1.Bin/hooks' "$CLAUDE_NIX" | grep -q '|| echo' \
   && ok "the git call degrades to a warning instead of aborting the switch" \
   || nope "the git call is unguarded — a failure here kills a home-manager switch on the phone"
 
@@ -126,9 +126,10 @@ grep -q -- '--force' "$LAUNCHER" \
 echo "▶ Phase 6 · rate gate behaviour (sandbox archive, no network)"
 GATE_TMP="$(mktemp -d)"
 trap 'rm -rf "$GATE_TMP"' EXIT
-mkdir -p "$GATE_TMP/repo/bin" "$GATE_TMP/repo/.git" "$GATE_TMP/cache"
-printf '{ "min_sync_interval_seconds": 3600 }\n' > "$GATE_TMP/repo/bin/session-limits.json"
-printf '#!/usr/bin/env bash\necho ran >> "%s/ran.log"\n' "$GATE_TMP" > "$GATE_TMP/repo/bin/sync-sessions.sh"
+B="$GATE_TMP/repo/4___ASSETS___/4.1.Bin"
+mkdir -p "$B" "$GATE_TMP/repo/.git" "$GATE_TMP/cache"
+printf '{ "min_sync_interval_seconds": 3600 }\n' > "$B/session-limits.json"
+printf '#!/usr/bin/env bash\necho ran >> "%s/ran.log"\n' "$GATE_TMP" > "$B/sync-sessions.sh"
 
 # The launcher detaches, so every call needs a moment before the count is read.
 runs() { sleep 1; grep -c . "$GATE_TMP/ran.log" 2>/dev/null || echo 0; }
@@ -141,13 +142,33 @@ fire --force; [ "$(runs)" = 2 ] && ok "--force syncs inside the interval" || nop
 age_stamp; fire; [ "$(runs)" = 3 ] && ok "a stamp older than the interval syncs" || nope "gate is stuck SHUT — the archive would stop silently"
 # Fail OPEN, never shut: a missing or malformed datum must mean "sync more
 # often". Silently never syncing again is the failure this trigger replaces.
-printf 'not json\n' > "$GATE_TMP/repo/bin/session-limits.json"; age_stamp; fire
+printf 'not json\n' > "$B/session-limits.json"; age_stamp; fire
 [ "$(runs)" = 4 ] && ok "a malformed session-limits.json fails OPEN" || nope "a malformed limits file stops the archive dead"
-rm -f "$GATE_TMP/repo/bin/session-limits.json"; fire
+rm -f "$B/session-limits.json"; fire
 [ "$(runs)" = 5 ] && ok "a missing session-limits.json fails OPEN" || nope "a missing limits file stops the archive dead"
 CLAUDE_MEMORY_REPO="$GATE_TMP/nowhere" XDG_CACHE_HOME="$GATE_TMP/cache" bash "$LAUNCHER" \
   && ok "a device with no clone exits 0" || nope "a device with no clone errors on every turn"
 [ "$(runs)" = 5 ] && ok "and syncs nothing" || nope "it synced against a repo that is not there"
+# A clone whose sync script is gone is BROKEN, not absent: the #541 move left
+# this launcher exiting 0 against a missing bin/sync-sessions.sh for six days.
+rm -f "$B/sync-sessions.sh"
+if fire --force 2>/dev/null; then nope "a clone without its sync script exits 0 — the six-day silent no-op is back"
+else ok "a clone without its sync script exits non-zero"; fi
+grep -q 'FAIL: .*sync-sessions.sh is missing' "$GATE_TMP/cache/claude-sync-sessions.log" \
+  && ok "and says so in the log" || nope "the missing script is not in the log"
+
+# ── 7 · the 15-minute full-sync schedule is declared, not hand-installed ────
+echo "▶ Phase 7 · boot hook schedule"
+grep -q '".termux/boot/20-memory-sync.sh" = {' "$CLAUDE_NIX" \
+  && ok "boot hook declared in claude.nix" || nope "no declared boot hook — the full sync only runs when a session or shell happens to fire"
+grep -A20 '".termux/boot/20-memory-sync.sh"' "$CLAUDE_NIX" | grep -q 'full_sync.interval_seconds' \
+  && ok "interval read from the archive's full_sync.interval_seconds" || nope "interval not read from the archive's data"
+grep -A20 '".termux/boot/20-memory-sync.sh"' "$CLAUDE_NIX" | grep -q 'claude-sync-sessions --force' \
+  && ok "each pass forces past the per-turn rate gate" || nope "boot loop goes through the hourly Stop gate — it would sync hourly, not every interval"
+grep -A20 '".termux/boot/20-memory-sync.sh"' "$CLAUDE_NIX" | grep -q 'flock -n' \
+  && ok "one loop per device (flock -n)" || nope "no lock — each boot-runner pass stacks another loop"
+grep -A6 'runtimeInputs = with pkgs; \[' "$CLAUDE_NIX" | grep -qw zstd \
+  && ok "zstd is on the sync's PATH (the size policy's compressor)" || nope "zstd missing — every oversized file fails the sync"
 
 echo
 printf '  %s passed, %s failed\n' "$pass" "$fail"
