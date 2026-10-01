@@ -44,7 +44,7 @@ for d in projects file-history shell-snapshots; do
 done
 
 proj_line=$(grep -n 'a_sessions/\$INSTANCE/projects"' "$CLAUDE_NIX" | head -1 | cut -d: -f1)
-mem_line=$(grep -n 'b_projects/home-diego/MEMORY.md"' "$CLAUDE_NIX" | head -1 | cut -d: -f1)
+mem_line=$(grep -n 'b_projects/home-diego/memory/MEMORY.md"' "$CLAUDE_NIX" | head -1 | cut -d: -f1)
 if [ -n "$proj_line" ] && [ -n "$mem_line" ] && [ "$proj_line" -lt "$mem_line" ]; then
   ok "projects is linked before the links that live inside it (line $proj_line < $mem_line)"
 else
@@ -53,13 +53,13 @@ fi
 
 # ── 2 · the pre-commit hook is armed, and cannot break a switch ─────────────
 echo "▶ Phase 2 · core.hooksPath"
-grep -q 'config core.hooksPath bin/hooks' "$CLAUDE_NIX" \
+grep -q 'config core.hooksPath 4___ASSETS___/4.1.Bin/hooks' "$CLAUDE_NIX" \
   && ok "core.hooksPath is asserted on every switch" \
   || nope "core.hooksPath is not set — a fresh clone commits oversized blobs unchecked"
 
 # home-manager runs activation under `set -e` and this block has no subshell
 # wrapper, so an unguarded git failure takes the whole switch down.
-grep -A3 'config core.hooksPath bin/hooks' "$CLAUDE_NIX" | grep -q '|| echo' \
+grep -A3 'config core.hooksPath 4___ASSETS___/4.1.Bin/hooks' "$CLAUDE_NIX" | grep -q '|| echo' \
   && ok "the git call degrades to a warning instead of aborting the switch" \
   || nope "the git call is unguarded — a failure here kills an interactive home-manager switch"
 
@@ -75,6 +75,9 @@ grep -A6 'systemd.user.timers.claude-session-sync' "$CLAUDE_NIX" | grep -q 'OnCa
 grep -A20 'systemd.user.timers.claude-session-sync' "$CLAUDE_NIX" | grep -q 'Persistent = true' \
   && ok "catches up a run missed while the laptop was asleep or off" \
   || nope "no Persistent — a shut laptop silently skips its runs"
+grep -q 'syncSessions = "${memoryRepoDefault}/4___ASSETS___/4.1.Bin/sync-sessions.sh";' "$CLAUDE_NIX" \
+  && ok "syncSessions names the archive's current path (bin/ moved to 4___ASSETS___/4.1.Bin/ in #541)" \
+  || nope "syncSessions points at a path the archive no longer has — the timer fails every hour"
 grep -q 'ExecStart = "${pkgs.bash}/bin/bash ${syncSessions}"' "$CLAUDE_NIX" \
   && ok "ExecStart points at the archive's own bin/sync-sessions.sh" \
   || nope "ExecStart does not run the memory repo's sync-sessions.sh — the logic has been duplicated"
