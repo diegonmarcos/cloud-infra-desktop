@@ -21,7 +21,7 @@
 , autoPatchelfHook
 , glibc
 , gcc-unwrapped
-, version ? "2.1.226"
+, version ? "2.1.283"
 }:
 
 let
@@ -35,7 +35,7 @@ let
       # Flat sha256 of the npm tarball (curl | sha256sum → SRI), verified
       # against the real registry download 2026-08-08. NOT nix-prefetch-url
       # --unpack — that yields a NAR hash which fetchurl rejects.
-      hash = "sha256-+7smENr/cNEYyN2orv/ukrOPIKpGTnWMPQnjyDq271Y=";
+      hash = "sha256-5eoqKwmtcORH2YW9zR+0msYAQ81IQd3ENM1pxch3C/c=";
     };
   };
 

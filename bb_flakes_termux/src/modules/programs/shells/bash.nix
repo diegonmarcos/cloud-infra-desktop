@@ -104,6 +104,16 @@
       # Functions
       mkcd() { mkdir -p "$1" && cd "$1"; }
 
+      # claude — wrap in `script` so Claude Code always sees a real PTY on
+      # all FDs. Under proot+Nix+Termux, stdout of a glibc-linked Node.js
+      # process can lose its TTY status even from an interactive terminal
+      # (ioctl TCGETS → ENOTTY). script creates an unambiguous PTY.
+      # claude — wrap in `script` so Claude Code always sees a real PTY on
+      # all FDs. Under proot+Nix+Termux, stdout of a glibc-linked Node.js
+      # process can lose its TTY status even from an interactive terminal
+      # (ioctl TCGETS → ENOTTY). script creates an unambiguous PTY.
+      claude() { script -q -c "command claude $*" /dev/null; }
+
       extract() {
         if [[ -f "$1" ]]; then
           case "$1" in
