@@ -42,6 +42,20 @@
 # ╚══════════════════════════════════════════════════════════════════╝
 set -uo pipefail
 
+# The refs being pushed (<local ref> <local sha> <remote ref> <remote sha>),
+# read ONCE: the purged-history gate and the fast-forward check both need them.
+_PUSH_REFS="$(cat)"
+
+# ── Purged history (#760): never re-publish what a secret purge removed ──
+# Runs FIRST, before any early exit: a merge from a clone made before the #759
+# rewrite would re-publish every purged secret, whoever drives the push. Gate
+# and markers are fleet-emitted into .githooks/ from cloud-infra
+# 0_apps/src/githooks; this repo's hooksPath is 0_git/dist/hooks, so chain.
+_gate="$(git rev-parse --show-toplevel)/.githooks/history-gate"
+if [ -f "$_gate" ]; then
+  printf '%s\n' "$_PUSH_REFS" | sh "$_gate" --pre-push || exit 1
+fi
+
 # The sync engine is already driving this push — don't re-enter.
 [ "${CLOUD_GIT_SYNC_ACTIVE:-0}" = "1" ] && exit 0
 
@@ -86,7 +100,7 @@ while read -r _lref _lsha _rref _rsha; do
       git merge-base --is-ancestor "$_rsha" "$_lsha" 2>/dev/null || _ff_only=0
       ;;
   esac
-done
+done <<< "$_PUSH_REFS"
 if [ "$_saw_ref" = 1 ] && [ "$_ff_only" = 1 ]; then
   echo "[pre-push] fast-forward — nothing to integrate, pushing."
   exit 0
