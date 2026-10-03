@@ -57,8 +57,8 @@
 
 | OS | Folder | Purpose |
 |----|--------|---------|
-| **NixOS 24.11** | `aa_desk-usr_x86_surface-linux_nixos/` | Primary workstation. Immutable root (tmpfs), impermanence, KDE Plasma 6 |
-| **Bootloader (rEFInd)** | `aa_bootloader/` | UEFI bootloader engine — declarative `boot.json` → rEFInd menu + GRUB chainload |
+| **NixOS 24.11** | `cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_desk-usr_x86_surface-linux_nixos/` | Primary workstation. Immutable root (tmpfs), impermanence, KDE Plasma 6 |
+| **Bootloader (rEFInd)** | `cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_bootloader/` | UEFI bootloader engine — declarative `boot.json` → rEFInd menu + GRUB chainload |
 | **Rescue OS (Debian)** | `rescue-os-debian/` | On-disk minimal CLI rescue (p6) — replaces Arch, replaced 2026-05-03 |
 | **Kali Linux** | `ab_fallback_os/ab_kali_security/` | Security auditing, network forensics (debootstrap) |
 | **Windows 11 Lite** | `ab_fallback_os/ac_win11_webcam/` | Surface webcam driver support |
@@ -67,13 +67,13 @@
 
 ### A.3 Nix Flakes (User Environment)
 
-#### Desktop — [`ba_flakes_desktop/`](./ba_flakes_desktop)
+#### Desktop — [`cloud-me_configs/A_CONFIGS-USER/a1-diego-user/nix-hm-flakes/ba_flakes_desktop/`](https://github.com/diegonmarcos/cloud-me_configs/tree/main/A_CONFIGS-USER/a1-diego-user/nix-hm-flakes/ba_flakes_desktop)
 
 Standalone Home Manager that works on **any Linux distro**. Manages packages, dotfiles, desktop environments.
 
 **Host Configs**: `surface-plasma` (all profiles + Plasma 6), `surface-gnome`, `server`, `cli`, `minimal`.
 
-#### Termux — [`bb_flakes_termux/`](./bb_flakes_termux)
+#### Termux — [`cloud-me_configs/B_CONFIGS-MACHINES/_shared/nix-os-flakes/bb_flakes_termux/`](https://github.com/diegonmarcos/cloud-me_configs/tree/main/B_CONFIGS-MACHINES/_shared/nix-os-flakes/bb_flakes_termux)
 
 Nix Home Manager for Android/Termux. Mobile development environment with Claude Code, MCP servers, and full CLI tooling.
 
@@ -90,13 +90,13 @@ Nix Home Manager for Android/Termux. Mobile development environment with Claude 
 
 ```bash
 # Rebuild NixOS system
-~/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/build.sh       # Interactive TUI
+~/git/cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_desk-usr_x86_surface-linux_nixos/build.sh       # Interactive TUI
 
 # Rebuild Home Manager (desktop)
-~/git/cloud-infra-desktop/ba_flakes_desktop/build.sh switch surface
+~/git/cloud-me_configs/A_CONFIGS-USER/a1-diego-user/nix-hm-flakes/ba_flakes_desktop/build.sh switch surface
 
 # Rebuild Home Manager (Termux/mobile)
-~/git/cloud-infra-desktop/bb_flakes_termux/build.sh switch
+~/git/cloud-me_configs/B_CONFIGS-MACHINES/_shared/nix-os-flakes/bb_flakes_termux/build.sh switch
 ```
 
 ### A.6 Filesystem Layout
@@ -125,7 +125,7 @@ Nix Home Manager for Android/Termux. Mobile development environment with Claude 
 - **Wayland**: Default (Plasma 6), X11 available for Openbox
 - **Touchscreen/Pen**: via `nixos-hardware` Surface module
 - **Kernel**: linux-surface (mainline 6.15+ with Surface patches)
-- **Multi-boot**: Rescue-OS-Debian (p6, ext4) · Kali Linux (p7, ext4) · Windows (ESP chainload, webcam-only) · Ventoy USB · all rendered into rEFInd menu by `aa_bootloader/`
+- **Multi-boot**: Rescue-OS-Debian (p6, ext4) · Kali Linux (p7, ext4) · Windows (ESP chainload, webcam-only) · Ventoy USB · all rendered into rEFInd menu by `cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_bootloader/`
 
 ---
 
@@ -141,17 +141,8 @@ unix/
 │   ├── ISOLATION_LAYERS.md            Sandbox breakdown
 │   └── TOOLS.md                       Curated package lists
 │
-├── aa_desk-usr_x86_surface-linux_nixos/             NixOS host configuration
-├── aa_bootloader/                     UEFI bootloader engine (rEFInd + GRUB chainload)
-├── ab_fallback_os/                    Multi-OS fallback catalog
-│   ├── ab_kali_security/              Kali security zone (debootstrap)
-│   ├── ac_win11_webcam/               Windows hardware fallback
-│   ├── ad_ventoy_fallback_usb/        Multi-OS USB recovery
-│   └── ae_mobile_image/               Android (BlissOS) QEMU image
-├── rescue-os-debian/                  On-disk minimal Debian rescue (p6)
-│
-├── ba_flakes_desktop/                 Home Manager (desktop)
-├── bb_flakes_termux/                  Home Manager (Termux)
+│   (aa_*/ab_*/ac_*/ad_*/ae_*/af_* OS configs and ba/bb/bc nix flakes
+│    now live in the cloud-me_configs repo; see its MIGRATION.md)
 ├── bc_unix-mcp-api/                   Unix MCP server
 │
 ├── ca_container_cli/                  CLI container (Podman)
@@ -167,16 +158,16 @@ Every major project uses `build.sh` (engine) + `build.json` (config) at project 
 
 | Project | Engine | Purpose |
 |---------|--------|---------|
-| `aa_desk-usr_x86_surface-linux_nixos/build.sh` | NixOS installer | Create raw EFI / ISO images for Surface |
-| `ba_flakes_desktop/build.sh` | Home Manager | Switch/build/update desktop environment |
-| `bb_flakes_termux/build.sh` | nix-on-droid | Switch/build/update Termux environment |
+| `cloud-me_configs/…/aa_desk-usr_x86_surface-linux_nixos/build.sh` | NixOS installer | Create raw EFI / ISO images for Surface |
+| `cloud-me_configs/…/ba_flakes_desktop/build.sh` | Home Manager | Switch/build/update desktop environment |
+| `cloud-me_configs/…/bb_flakes_termux/build.sh` | nix-on-droid | Switch/build/update Termux environment |
 | `bc_unix-mcp-api/build.sh` | Node.js | Build MCP server |
 | `ca_container_cli/build.sh` | Podman | Build CLI container |
 | `cb_container_gui/build.sh` | Podman | Build GUI container |
 
 ### B.3 NixOS Host Configuration
 
-- **Flake**: `aa_desk-usr_x86_surface-linux_nixos/src/flake.nix`
+- **Flake**: `cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_desk-usr_x86_surface-linux_nixos/src/flake.nix`
 - **Impermanence**: Root is `tmpfs`, wiped on reboot. Persistent data via BTRFS subvolumes.
 - **Multi-user**: `diego` (UID 1000), `guest` (UID 1001)
 - **Desktop**: KDE Plasma 6 (Wayland), GNOME, Openbox
@@ -229,7 +220,7 @@ Live layout (Surface Pro 8 NVMe, 237.54 GiB total):
 
 BTRFS subvolumes (in pool): `@nixos/nix`, `@home-diego`, `@home-guest`, `@shared` (with `@shared/{tmp,journal,coredump,log/audit,log/account,host/*,containers/*,...}` children).
 
-UEFI default boot: rEFInd (Boot0007). Bootloader source-of-truth: `aa_bootloader/src/boot.json`.
+UEFI default boot: rEFInd (Boot0007). Bootloader source-of-truth: `cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_bootloader/src/boot.json`.
 
 ---
 

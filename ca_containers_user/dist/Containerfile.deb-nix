@@ -58,7 +58,7 @@ RUN mkdir -p /home/diego/git && cd /home/diego/git \
 
 # Home-manager switch (diego@cli = exact desktop match)
 RUN . /home/diego/.nix-profile/etc/profile.d/nix.sh \
-    && cd /home/diego/git/cloud-infra-desktop/ba_flakes_desktop/src \
+    && cd /home/diego/git/cloud-me_configs/A_CONFIGS-USER/a1-diego-user/nix-hm-flakes/ba_flakes_desktop/src \
     && nix run home-manager/release-24.11 -- switch --flake .#diego@cli --impure 2>&1 \
     && echo "HOME-MANAGER: SUCCESS" \
     || echo "HOME-MANAGER: FAILED — fallback below"
@@ -129,7 +129,7 @@ LABEL diego.image.variant="deb-nix"
 LABEL diego.image.profiles="cli,gui,tty"
 LABEL diego.image.runner="~/git/cloud-mykonsole-dtk/dtk.sh containers deb-nix {cli|gui|tty}"
 LABEL diego.image.flake.repo="github.com/diegonmarcos/cloud-infra-desktop"
-LABEL diego.image.flake.path="ba_flakes_desktop/src/"
+LABEL diego.image.flake.path="cloud-me_configs:A_CONFIGS-USER/a1-diego-user/nix-hm-flakes/ba_flakes_desktop/src/"
 LABEL diego.image.flake.config="diego@cli"
 LABEL diego.image.flake.toolsets="shell-core dev-languages build-debug containers-cloud security-network data-science"
 LABEL diego.image.container.path="ca_containers_user/src/"

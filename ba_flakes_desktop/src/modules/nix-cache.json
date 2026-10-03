@@ -1,9 +1,0 @@
-{
-  "_doc": "GHCR per-path OCI nix cache — the TRUE incremental transport (2026-07-16). Prior transports all failed on the 5.3GB custom set: gh-pages (git rejects large nar push, HTTP 500), Release asset (2GiB/asset cap), and a monolithic tarball can't be incremental anyway (you download all 5.3GB to extract the few new paths). Fix: CI (`build.sh nixcache-publish`) computes the CUSTOM store paths (closure minus what cache.nixos.org serves — robust retry probe), `nix-store --export`s EACH path to its own zstd blob, and `oras push`es them to GHCR (oci_ref) as one artifact — each layer's title IS the store hash, and the toplevel activation name rides a manifest annotation. GHCR blobs are content-addressed so unchanged paths dedup across builds (push delta). The desktop's `build.sh switch` does `oras manifest fetch` (KBs) → maps each layer→store-hash from its title → fetches ONLY the blobs for paths it is MISSING (pull delta, `oras blob fetch`) → `sudo nix-store --import` (root is trusted → no sig hassle; registers the nix DB the old buildLayeredImage pull skipped) → `nix copy --from cache.nixos.org` fills public deps → activate. No size cap (GHCR), no monolith, true per-change delta, no new secrets (GITHUB_TOKEN). Proven end-to-end 2026-07-16 (oras push/fetch + annotation round-trip). Requires oras on the runner AND the desktop (added to the flake).",
-  "oci_ref": "ghcr.io/diegonmarcos/unix-hm-cache",
-  "oci_tag": "nixcache-latest",
-  "blob_media_type": "application/vnd.nix.nar.zst",
-  "toplevel_annotation": "com.diegonmarcos.nix-toplevel",
-  "manifest_file": "custom-paths.txt",
-  "enabled": true
-}

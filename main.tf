@@ -332,7 +332,7 @@ locals {
   os_installed = {
     # ─── aa: NixOS (Primary) ────────────────────────────────────────────────
     nixos = {
-      repo_path    = "aa_desk-usr_x86_surface-linux_nixos"
+      repo_path    = "cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_desk-usr_x86_surface-linux_nixos"
       partition    = "p6_luks (BTRFS subvolumes)"
       version      = "NixOS 24.11"
       kernel       = "linux-surface (stable)"
@@ -537,7 +537,7 @@ locals {
 locals {
   home_manager = {
     desktop = {
-      repo_path = "ba_flakes_desktop"
+      repo_path = "cloud-me_configs/A_CONFIGS-USER/a1-diego-user/nix-hm-flakes/ba_flakes_desktop"
       target    = "NixOS / any Linux desktop"
       shell     = "fish"
       build_cmd = "./build.sh"
@@ -551,7 +551,7 @@ locals {
     }
 
     termux = {
-      repo_path = "bb_flakes_termux"
+      repo_path = "cloud-me_configs/B_CONFIGS-MACHINES/_shared/nix-os-flakes/bb_flakes_termux"
       target    = "Android (Termux / nix-on-droid)"
       shell     = "zsh"
       build_cmd = "./build.sh"

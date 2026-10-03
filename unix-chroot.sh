@@ -28,7 +28,7 @@ set -eu
 POOL_MOUNT="${POOL_MOUNT:-/run/media/diego/pool}"
 LUKS_DEVICE="/dev/mapper/luks-3c75c6db-4d7c-4570-81f1-02d168781aac"
 
-# UUIDs from aa_bootloader/src/boot.json (Surface Pro 8 layout)
+# UUIDs from cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_bootloader/src/boot.json (Surface Pro 8 layout)
 KALI_UUID="509491e4-d3a7-426d-9b78-4b024b24cc32"
 DEBIAN_UUID="42ccd674-d035-497d-b0eb-bffa28c5144c"
 ESP_UUID="2CE0-6722"
@@ -135,7 +135,7 @@ EOF
 
     log "Ready. Enter with:"
     log "  sudo chroot $target /bin/bash --login"
-    log "Then: cd /home/diego/git/cloud-infra-desktop/aa_desk-usr_x86_surface-linux_nixos/src && nixos-rebuild boot --flake .#surface"
+    log "Then: cd /home/diego/git/cloud-me_configs/B_CONFIGS-MACHINES/b2-surface-8pro/nix-os-flakes/aa_desk-usr_x86_surface-linux_nixos/src && nixos-rebuild boot --flake .#surface"
 }
 
 setup_kali() {

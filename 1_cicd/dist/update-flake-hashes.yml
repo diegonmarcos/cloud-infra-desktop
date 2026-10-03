@@ -107,26 +107,8 @@ jobs:
             nix flake update $inputs --flake "path:$PWD/$flake"
           done
 
-      # ── the in-repo pins ────────────────────────────────────────────────
-      # my-ai is the other kind: bb_flakes_termux/src/pkgs/my-ai.nix carries
-      # its own fetchurl and reads my-ai-hashes.json out of this repo, so the
-      # hash has to be computed and committed HERE. Only the two aarch64
-      # assets, because those are the only ones that file declares -- the
-      # x86_64 desktop build reaches my-ai through the da_my-ai flake input
-      # instead, and is therefore covered by the lock bump above.
-      - name: Pin the my-ai release binaries this repo fetches directly
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          set -euo pipefail
-          gh release download my-ai-latest --repo "$SOURCE_REPO" \
-            --pattern "my-ai-aarch64" --pattern "my-ai-dash-aarch64" \
-            --dir /tmp --clobber
-          jq -n \
-            --arg ai      "$(nix hash file --sri /tmp/my-ai-aarch64)" \
-            --arg ai_dash "$(nix hash file --sri /tmp/my-ai-dash-aarch64)" \
-            '{ "my-ai": $ai, "my-ai-dash": $ai_dash }' \
-            > bb_flakes_termux/src/pkgs/my-ai-hashes.json
+      # The in-repo my-ai pin (bb_flakes_termux) moved to cloud-me_configs
+      # with that flake; only flake.lock inputs are pinned here now.
 
       - name: Commit updated pins
         run: |
@@ -134,10 +116,9 @@ jobs:
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           # Path-scoped: this branch is shared with every other job and agent.
-          git add bb_flakes_termux/src/pkgs/my-ai-hashes.json \
-                  $(git ls-files '*/src/flake.lock')
+          git add $(git ls-files '*/src/flake.lock')
           git diff --cached --quiet && exit 0
-          git commit -m "chore: pin cloud-u-linux artifacts (flake.lock + my-ai hashes) [skip ci]"
+          git commit -m "chore: pin cloud-u-linux artifacts (flake.lock) [skip ci]"
           # main moves under long-running jobs; rebase and retry. This step only
           # ever touches pin files, so there is nothing to conflict with.
           for attempt in 1 2 3 4 5; do
