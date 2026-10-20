@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║ commit-msg — Jev advisory on the commit (#883 D2)                 ║
+# ║                                                                  ║
+# ║ ADVISORY ONLY. Asks the decision model two noul questions through ║
+# ║ the nix `jev-gate` binary and prints a warning on stderr when it  ║
+# ║ is CONFIDENT that (a) the message does not describe the staged    ║
+# ║ diff, or (b) the diff holds a secret the leak-scan regexes miss.  ║
+# ║ It never blocks: this hook ALWAYS exits 0, and the static          ║
+# ║ leak-scan in pre-commit stays the boundary.                        ║
+# ║                                                                  ║
+# ║ Silent no-ops (the commit proceeds exactly as without this hook): ║
+# ║  no jev-gate / python3 on PATH, JEV_COMMIT_MSG=0, an empty        ║
+# ║  message, a merge/rebase message, ANY staged vault or secret      ║
+# ║  path (those never become Jev state), no key, offline, gate       ║
+# ║  closed, unsure. The state is redacted by jev-gate before it      ║
+# ║  leaves the machine and is capped at ~6 KB of diff.               ║
+# ╚══════════════════════════════════════════════════════════════════╝
+set -uo pipefail
+
+msgfile="${1:-}"
+[ -n "$msgfile" ] && [ -r "$msgfile" ] || exit 0
+[ "${JEV_COMMIT_MSG:-1}" = "0" ] && exit 0
+command -v jev-gate >/dev/null 2>&1 || exit 0
+command -v python3 >/dev/null 2>&1 || exit 0
+
+STAGED=$(git diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
+[ -n "$STAGED" ] || exit 0
+
+# vault and secret paths never become Jev state - not even redacted
+if printf '%s\n' "$STAGED" | grep -Eiq '(^|/)(cloud-vault|\.ssh|\.gnupg)(/|$)|(^|/)(\.env[^/]*|secrets?\.ya?ml|[^/]*\.secrets[^/]*)$|\.(age|pem|key|p12|kdbx)$|sops'; then
+  exit 0
+fi
+
+FIRST=$(sed -e '/^#/d' "$msgfile" | head -n 1)
+case "$FIRST" in ''|Merge\ *|Revert\ *|fixup!*|squash!*|amend!*) exit 0 ;; esac
+
+DIFF=$(git diff --cached --no-color -U1 2>/dev/null | head -c 6000)
+STAT=$(git diff --cached --stat --no-color 2>/dev/null | tail -n 12)
+
+ASK=$(command -v timeout >/dev/null 2>&1 && echo "timeout 10" || echo "")
+
+req() {  # $1 = question id, $2 = instructions
+  JEV_MSG="$(sed -e '/^#/d' "$msgfile" | head -c 2000)" JEV_STAT="$STAT" JEV_DIFF="$DIFF" JEV_Q="$1" JEV_I="$2" python3 - <<'PY'
+import json, os
+q = os.environ["JEV_Q"]
+state = {"message": os.environ["JEV_MSG"], "files": os.environ["JEV_STAT"]}
+if q == "secret":
+    state = {"diff": os.environ["JEV_DIFF"]}
+elif q == "matches":
+    state["diff"] = os.environ["JEV_DIFF"]
+print(json.dumps({"state": state, "questions": {q: {"type": "noul", "instructions": os.environ["JEV_I"]}}}))
+PY
+}
+
+verdict() {  # stdin = jev-gate answer; $1 = question id; prints "yes|no|" (empty = no confident opinion)
+  python3 -c '
+import json, sys
+try:
+    a = json.loads(sys.stdin.read())
+    r = a["results"][sys.argv[1]]
+    if a.get("ok") is True and r.get("confident") is True:
+        print("yes" if r.get("value") else "no")
+except Exception:
+    pass
+' "$1" 2>/dev/null
+}
+
+M=$(req matches 'The commit message in `message` accurately describes the change in `diff` (and the files in `files`).' \
+    | $ASK jev-gate decide --use desktop_commit_msg 2>/dev/null | verdict matches)
+S=$(req secret 'The `diff` adds a secret, credential, token or private key that a regex scan could miss.' \
+    | $ASK jev-gate decide --use desktop_secret_miss 2>/dev/null | verdict secret)
+
+[ "$M" = "no" ] && echo "jev (advisory): the commit message may not describe the staged diff - check it before pushing." >&2
+[ "$S" = "yes" ] && echo "jev (advisory): the staged diff may contain a secret the leak-scan regexes miss - review it before pushing." >&2
+exit 0
