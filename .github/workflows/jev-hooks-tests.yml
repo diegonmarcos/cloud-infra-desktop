@@ -1,0 +1,26 @@
+name: Jev hooks testers (advisory, no opinion = today)
+
+# #883 D1/D2: the desktop Claude settings register the Jev gate, and the git commit-msg hook is advisory. These two
+# static testers hold both to "no gate / no opinion changes nothing, and nothing can deny".
+on:
+  push:
+    branches: [main]
+    paths:
+      - "0_apps/src/claude/settings.json"
+      - "0_apps/test/test-claude-jev-hooks.sh"
+      - "0_git/src/hooks/commit-msg"
+      - "0_git/test/test-commit-msg.sh"
+      - ".github/workflows/jev-hooks-tests.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: jev-hooks-tests
+  cancel-in-progress: true
+
+jobs:
+  jev-hooks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: bash 0_apps/test/test-claude-jev-hooks.sh
+      - run: bash 0_git/test/test-commit-msg.sh
