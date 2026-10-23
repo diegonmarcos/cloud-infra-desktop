@@ -99,20 +99,20 @@ RUN chmod +x /opt/cloud-builder/*.sh
 # entrypoint, where the deploy key is injected. Keep image builds credential-free.
 RUN mkdir -p /root/git \
     && git config --global --add safe.directory "*" \
-    && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra.git /root/git/cloud-infra \
+    && git clone --depth 1 https://github.com/diegonmarcos/cloud-t-infra.git /root/git/cloud-t-infra \
     && git clone --depth 1 https://github.com/diegonmarcos/cloud-infra-desktop.git /root/git/cloud-infra-desktop \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.github.io.git /root/git/front \
     && git clone --depth 1 https://github.com/diegonmarcos/front-data.git /root/git/front-data \
     && git clone --depth 1 https://github.com/diegonmarcos/diegonmarcos.git /root/git/diegonmarcos
 
 ARG DOCKERFILE_B64=""
-LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-infra"
+LABEL org.opencontainers.image.source="https://github.com/diegonmarcos/cloud-t-infra"
 LABEL org.opencontainers.image.description="cloud-builder — Debian flat + nix + home-manager CI/CD image"
 LABEL org.opencontainers.image.usage="docker run --rm ghcr.io/diegonmarcos/cloud-builder-x-deb-nixhm cat /opt/cloud-builder/cloud-builder.sh | sh -s ship oci-apps"
 
 COPY docker/cloud-builder.sh /opt/cloud-builder/cloud-builder.sh
 COPY docker/compose.yaml /opt/cloud-builder/compose.yaml
 
-WORKDIR /root/git/cloud-infra
+WORKDIR /root/git/cloud-t-infra
 ENTRYPOINT ["/opt/cloud-builder/entrypoint.sh"]
 CMD []

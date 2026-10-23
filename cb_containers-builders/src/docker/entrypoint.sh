@@ -259,7 +259,7 @@ echo "[setup] Syncing all repos via git nuke..."
 # every CI run died at "cd: can't cd to /root/git/cloud" while the Dockerfile
 # had already been updated (WORKDIR + submodule init both say cloud-infra).
 # Keep all three in agreement.
-for repo in cloud-infra cloud-data cloud-infra-desktop front tools; do
+for repo in cloud-t-infra cloud-data cloud-infra-desktop front tools; do
   dir="$GIT_ROOT/$repo"
   [ -d "$dir/.git" ] || continue
   _synced=0
@@ -315,7 +315,7 @@ for repo in cloud-infra cloud-data cloud-infra-desktop front tools; do
     # The payload repo is not optional: continuing leaves the workspace stale
     # and the failure resurfaces below as a confusing HEAD-mismatch abort.
     # Fail here, where the real reason (the git error) is on screen.
-    if [ "$repo" = "cloud-infra" ]; then
+    if [ "$repo" = "cloud-t-infra" ]; then
       echo "[setup] FATAL: sync failed for payload repo '$repo' after 3 attempts — see the git error above"
       exit 1
     fi
