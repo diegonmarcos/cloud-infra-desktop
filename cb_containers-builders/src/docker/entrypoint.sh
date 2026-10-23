@@ -245,7 +245,7 @@ fi
 # bulletproof reset-from-origin (fetch + reset --hard + clean -fdx +
 # submodule update --remote --rebase --force). Survives force-pushed
 # origin, dirty work, untracked files, divergent history.
-# See ~/git/cloud-infra/1_cicd/src/scripts/cloud-git-nuke.sh.
+# See ~/git/cloud-t-infra/1_cicd/src/scripts/cloud-git-nuke.sh.
 #
 # Falls back to hand-rolled fetch+reset for repos without the framework
 # (cloud-data, front) or images that pre-date the alias.
@@ -323,7 +323,7 @@ for repo in cloud-infra cloud-data cloud-infra-desktop front tools; do
   fi
 done
 
-WORKSPACE="$GIT_ROOT/cloud-infra"
+WORKSPACE="$GIT_ROOT/cloud-t-infra"
 cd "$WORKSPACE"
 
 # ── Fail-loud staleness gate ──────────────────────────────────────
@@ -403,7 +403,7 @@ case "$CMD" in
     # with no builder container, no mesh and no SSH in the path at all.
     echo "FATAL: the 'ship-reports' verb is retired." >&2
     echo "  Build the reports image with cloud-infra's ship-reports.yml:" >&2
-    echo "    gh workflow run ship-reports.yml -R diegonmarcos/cloud-infra" >&2
+    echo "    gh workflow run ship-reports.yml -R diegonmarcos/cloud-t-infra" >&2
     exit 1
     ;;
   bash|sh)
