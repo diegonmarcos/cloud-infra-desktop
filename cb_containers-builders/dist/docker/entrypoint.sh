@@ -340,6 +340,15 @@ if [ "$_HEAD" != "$_ORIGIN_MAIN" ]; then
   echo "[setup] FATAL: cloud repo HEAD ($_HEAD) != origin/main ($_ORIGIN_MAIN) — stale workspace, aborting"
   exit 1
 fi
+# The baked clone is `--depth 1`: a triggering commit OLDER than the image's clone
+# is an ancestor of origin/main but absent from the shallow history (2026-10-23:
+# every Deploy aborted here). Deepen once before declaring the workspace stale.
+if [ -n "${GITHUB_SHA:-}" ] && ! git cat-file -e "${GITHUB_SHA}^{commit}" 2>/dev/null; then
+  if [ -f "$(git rev-parse --git-dir)/shallow" ]; then
+    echo "[setup] shallow clone lacks $GITHUB_SHA — fetching full history"
+    git fetch --no-recurse-submodules --unshallow origin main >&2 || echo "[setup] WARN: unshallow failed"
+  fi
+fi
 if [ -n "${GITHUB_SHA:-}" ] && ! git cat-file -e "${GITHUB_SHA}^{commit}" 2>/dev/null; then
   echo "[setup] FATAL: triggering commit $GITHUB_SHA not present in synced cloud repo — aborting"
   exit 1
